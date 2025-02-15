@@ -11,6 +11,14 @@ FROM python-base AS builder-base
 
 RUN apt update && apt install -y git
 
+RUN https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz
+RUN tar -xzf ta-lib-0.6.4-src.tar.gz
+WORKDIR /ta-lib-0.6.4
+RUN ./configure
+RUN make
+RUN make install
+
+
 COPY --from=ghcr.io/astral-sh/uv:0.5.15 /uv /bin/uv
 
 WORKDIR $WORKDIR_PATH

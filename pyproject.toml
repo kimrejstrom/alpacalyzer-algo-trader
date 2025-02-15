@@ -16,6 +16,7 @@ dependencies = [
     "pandas>=2.2.3",
     "pandas-stubs>=2.2.3.241126",
     "pydantic-extra-types>=2.10.2",
+    "pytest-mock>=3.14.0",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "ruff>=0.8.6",
