@@ -9,6 +9,8 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 FROM python-base AS builder-base
 
+RUN apt update && apt install -y git
+
 COPY --from=ghcr.io/astral-sh/uv:0.5.15 /uv /bin/uv
 
 WORKDIR $WORKDIR_PATH
