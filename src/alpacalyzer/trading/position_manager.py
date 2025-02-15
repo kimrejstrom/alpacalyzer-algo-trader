@@ -42,7 +42,7 @@ class Position:
         """Update position with technical analysis data."""
         self.technical_data = technical_data
 
-    def get_exposure(self, equity):
+    def get_exposure(self, equity: float):
         """Calculate position exposure as percentage of equity."""
         position_value = abs(self.qty * self.current_price)
         return position_value / equity
@@ -56,7 +56,7 @@ class PositionManager:
         load_dotenv()
         self.social_scanner = SocialScanner()
         self.technical_analyzer = TechnicalAnalyzer()
-        self.positions = {}  # symbol -> Position object
+        self.positions: dict[str, Position] = {}  # symbol -> Position object
         self.pending_closes = set()  # Symbols with pending close orders
         self.pending_orders = []  # List of pending new position orders
         self.exited_positions = {}  # Stores exit reasons
@@ -444,10 +444,10 @@ class PositionManager:
         # Iterate through the worst-ranked positions until over_exposure is resolved
         for _, row in ranked_stocks.iterrows():
             # Get the current position for the ticker
-            position = self.positions.get(row["ticker"])
+            current_position = self.positions.get(row["ticker"])
 
-            if position is not None:  # Ensure the position exists
-                position_exposure = position.get_exposure(account["equity"])  # Get the exposure of the position
+            if current_position is not None:  # Ensure the position exists
+                position_exposure = current_position.get_exposure(account["equity"])  # Get the exposure of the position
                 logger.info(
                     f"SELL {row['ticker']} due to: Over exposure - sell worst-ranked positions"
                     f"(Rank {row['final_rank']:.1f})."

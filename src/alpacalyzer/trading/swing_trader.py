@@ -36,12 +36,10 @@ class SwingTrader:
         finviz_tickers = finviz_df["Ticker"].tolist()
         reddit_tickers = [x.ticker for x in reddit_picks]
         top_tickers = list(set(reddit_tickers + finviz_tickers))
-        logger.info(top_tickers)
 
         input_ta_df = FinvizScanner().fetch_stock_data(tuple(top_tickers))
         analyzer_response = get_top_candidates(input_ta_df)
         analyzer_picks = analyzer_response.top_tickers if analyzer_response else []
-        logger.info(analyzer_picks)
 
         final_tickers = [x.ticker for x in analyzer_picks]
         self.latest_strategies = []
@@ -51,10 +49,8 @@ class SwingTrader:
             df = TechnicalAnalyzer().analyze_stock_daily(ticker)
             if df is None or df.empty:
                 continue
-            logger.info(df)
             trading_strategies_response = get_trading_strategies(df, ticker)
             trading_strategies = trading_strategies_response.strategies if trading_strategies_response else []
-            logger.info(trading_strategies)
             self.latest_strategies.extend(trading_strategies)
 
         logger.info(f"Updated latest strategies: {self.latest_strategies}")

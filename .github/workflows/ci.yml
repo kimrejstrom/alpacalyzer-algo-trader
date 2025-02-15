@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+      - name: Install TA-Lib dependencies
+        run: sudo apt install -y libta-lib0 ta-lib
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v5
