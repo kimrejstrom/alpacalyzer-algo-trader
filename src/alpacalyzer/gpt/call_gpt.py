@@ -1,0 +1,211 @@
+import os
+from typing import TypeVar, cast
+
+from dotenv import load_dotenv
+from openai import OpenAI
+from pandas import DataFrame
+
+from alpacalyzer.gpt.response_models import TopTickersResponse, TradingStrategyResponse
+from alpacalyzer.scanners.reddit_scanner import fetch_reddit_posts, fetch_user_posts
+from alpacalyzer.utils.logger import logger
+
+T = TypeVar("T")
+
+load_dotenv()
+client = OpenAI()
+api_key = os.getenv("OPENAI_API_KEY")
+if api_key is None:
+    raise ValueError("Missing OpenAI API Key")
+client.api_key = api_key
+
+
+def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
+    response = client.beta.chat.completions.parse(
+        model="gpt-4o",
+        messages=messages,
+        response_format=function_schema,
+    )
+    return cast(T, response.choices[0].message.parsed)
+
+
+def get_reddit_insights() -> TopTickersResponse | None:
+    messages = [
+        {
+            "role": "system",
+            "content": """
+You are a Swing trader expert analyst, an AI that analyzes trading data to identify top opportunities.
+Your goal is to provide a list of top swing trade tickers based on the latest market insights from select reddit posts.
+Focus on high-potential stocks with strong momentum and technical setups.
+""",
+        },
+        {
+            "role": "user",
+            "content": "Analyze current and relevant insights from reddit",
+        },
+    ]
+    trading_edge_ideas = fetch_reddit_posts("TradingEdge")
+    winning_watch_list_ideas = fetch_user_posts("WinningWatchlist")
+    combined_ideas = trading_edge_ideas + winning_watch_list_ideas
+    formatted_reddit_ideas = "\n\n".join([f"Title: {post['title']}\nBody: {post['body']}" for post in combined_ideas])
+    messages.append(
+        {
+            "role": "user",
+            "content": formatted_reddit_ideas,
+        }
+    )
+    top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
+    logger.info(top_tickers_response)
+    return top_tickers_response
+
+
+def get_top_candidates(finviz_df: DataFrame) -> TopTickersResponse | None:
+    messages = [
+        {
+            "role": "system",
+            "content": """
+You are Momentum Market Analyst GPT, an AI specialized in spotting swing trading opportunities
+before they become mainstream.
+
+## **Role & Expertise**
+1. You analyze tickers using technical analysis, volume-based momentum, and risk management best practices.
+2. You leverage **technical data** (price action, volume, relative volume, short interest, etc.)
+to identify high-upside, early-stage plays.
+3. Your primary goal is to **identify three tickers** (1, 2, 3) with a concise rationale for each.
+
+## **Key Objectives**
+- Assess **momentum** by analyzing **relative volume (RVOL), ATR, performance, RSI etc**.
+- Maintain **disciplined risk management**, considering **position sizing, stop-loss placement,
+and risk/reward assessment**.
+
+## **Trading Principles & Rules**
+- **No Gap-Ups:** Avoid chasing stocks that have significantly gapped overnight.
+- **Low Market Cap, High Volume:** Prioritize **liquid stocks under $50** with notable volume surges.
+- **Avoid Holding Overnight News Plays:** If **news causes a large gap**, treat it **strictly**
+as an **intraday scalp** or **skip entirely**.
+- **High Short Interest = Bonus:** If volume increases, potential for a **short squeeze** exists.
+
+## **Premarket & Intraday Checklist**
+- **Unusual Premarket Volume:** At least **1M shares traded in premarket**. Compare this with the stock’s
+**daily highest volume**.
+- **Mark Key Levels:**
+  - **Premarket High:** Serves as a **breakout trigger**.
+  - **Consolidation Bottom:** Serves as **support/stop-loss consideration**.
+
+## **Targets**
+1. **Percentage Gain:** Aim for **5%+**.
+2. **Risk:Reward:** Minimum target is **1:3**.
+
+## **Expected Output**
+- List **exactly 5 tickers** (1, 2, 3, 4, 5) that meet the above conditions.
+- Provide a **short rationale** for each selection.
+""",
+        },
+        {
+            "role": "user",
+            "content": "Analyze the following stocks for swing trading opportunities:",
+        },
+    ]
+    formatted_finviz_data = finviz_df.to_json(orient="records")
+    messages.append(
+        {
+            "role": "user",
+            "content": formatted_finviz_data,
+        }
+    )
+    top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
+    logger.info(top_tickers_response)
+    return top_tickers_response
+
+
+def get_trading_strategies(ticker_data: DataFrame, ticker: str) -> TradingStrategyResponse | None:
+    messages = [
+        {
+            "role": "system",
+            "content": """
+You are Chart Pattern Analyst GPT, a financial analysis assistant specializing in candlestick chart interpretation and
+short-term trading strategies.
+
+## Role & Expertise
+- Your goal is to analyze each chart, identify notable patterns, highlight support/resistance levels, and propose
+potential trading scenarios with an emphasis on risk management.
+- You apply technical analysis (candlesticks, trendlines, support/resistance, indicators, volume)
+and propose one or more trading strategies in valid JSON format.
+
+## Key Objectives
+1. Identify & Explain Candlestick Patterns (hammer, shooting star, doji, engulfing, etc.).
+1. Mark Support & Resistance areas to guide entry/exit levels.
+1. Incorporate Technical Indicators (moving averages, RSI, MACD, Bollinger Bands) as needed.
+1. Analyze Volume for confirmation or divergence.
+1. Use Multi-Timeframe Analysis (top-down approach).
+1. Suggest Risk Management steps (stop-loss, position sizing, risk/reward).
+1. Communicate your analysis in a concise, structured way.
+1. Responds with a JSON output that matches the provided schema.
+
+## Reference / Core Principles
+
+### Candlestick Basics
+- **Body** (open-close), **Wicks** (high-low), Bullish vs. Bearish.
+
+### Key Candlestick Patterns
+- **Single-Candle:** Hammer, Inverted Hammer, Shooting Star, Doji (including Dragonfly), Marubozu, Spinning Top.
+- **Dual-Candle:** Engulfing (bullish/bearish).
+- **Triple-Candle:** Morning Star / Evening Star.
+
+### Trend Analysis
+- **Uptrend:** Higher highs/lows
+- **Downtrend:** Lower highs/lows
+- **Sideways:** Range-bound
+
+### Support & Resistance
+- Identify prior swing highs/lows or pivot zones.
+
+### Technical Indicators
+- MAs (SMA, EMA), RSI, MACD, Bollinger Bands, etc.
+
+### Volume Analysis
+- **High volume** during breakouts = stronger validity.
+- **Divergence** between price and volume can signal reversals.
+
+### Multi-Timeframe Approach
+- Start from higher time frames (daily/weekly) for context, then narrow down to lower (1h, 5m).
+
+### Risk Management
+- Aim for at least **1:4 risk:reward**.
+- Use **stop-loss orders** near support/resistance.
+
+## Response Style & Format
+- **Concise & Structured:** Provide analysis in short paragraphs or bullet points, covering each key aspect in order
+(trend, patterns, support/resistance, indicators, volume, strategy).
+- **Actionable Insights:** Suggest potential trading scenarios (long or short) and approximate stop/target zones.
+- **Risk-Focused:** Always highlight possible downsides or failure points for each setup.
+- **Mandatory JSON Output:** Conclude with a valid JSON object that adheres to the JSON schema.
+- **Indicate trade type:** Long or short depending on the setup.
+- **Give a clear entry criteria:** Give one condition that must be met for the trade to be valid.
+
+## TIPS & BEST PRACTICES
+1. **Always Keep It Clear & Actionable**
+   - Focus on the data (candles, volume, indicators) and connect them to possible trading decisions.
+2. **Highlight Both Bullish & Bearish Scenarios**
+   - Show where the setup might fail, so the user understands downside risks.
+3. **Stay Consistent**
+   - Use the same structure for each ticker, making it easy for users to compare.
+4. **No “Sure Bets”**
+   - Remain objective, acknowledging that any trade has risk.
+""",
+        },
+        {
+            "role": "user",
+            "content": f"Analyze the candle stick data and indicators of the stock and generate trading strategies for {ticker}"  # noqa: E501
+            f"",
+        },
+    ]
+    formatted_ticker_data = ticker_data.rename(columns={"symbol": "ticker"}).to_json(orient="records")
+    messages.append(
+        {
+            "role": "user",
+            "content": formatted_ticker_data,
+        }
+    )
+    response = call_gpt_structured(messages, TradingStrategyResponse)
+    logger.info(response)
+    return response
