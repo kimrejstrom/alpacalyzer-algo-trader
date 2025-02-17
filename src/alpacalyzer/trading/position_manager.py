@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import cast
 
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
@@ -222,7 +222,7 @@ class PositionManager:
                 logger.info(f"Total Exposure: {self.get_total_exposure():.1%}")
                 for pos in active_positions.values():
                     exposure = pos.get_exposure(self.get_account_info()["equity"])
-                    age_hours = (datetime.now(UTC) - pos.entry_time).total_seconds() / 3600
+                    age_hours = (datetime.now() - pos.entry_time).total_seconds() / 3600
                     age_str = f"{age_hours:.1f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
                     logger.info(
                         f"{pos} now @ ${pos.current_price:.2f}"

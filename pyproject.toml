@@ -23,6 +23,7 @@ dependencies = [
     "schedule>=1.2.2",
     "ta-lib>=0.6.3",
     "types-requests>=2.32.0.20241016",
+    "websockets>=14.2",
     "yfinance>=0.2.52",
 ]
 
@@ -109,7 +110,8 @@ extend-select = [
 "tests/*.py" = ["S101"]
 
 [tool.mypy]
-files = ["src", "tests"]
+files = ["src"]
+exclude = ["tests/"]
 plugins = ["pydantic.mypy"]
 strict = true
 warn_return_any = true

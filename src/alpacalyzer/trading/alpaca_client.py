@@ -14,8 +14,8 @@ from alpacalyzer.utils.cache_utils import timed_lru_cache
 load_dotenv()
 
 # Retrieve API keys
-ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "test")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "test")
 
 # Initialize Alpaca TradingClient (Set paper=True for paper trading)
 trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)

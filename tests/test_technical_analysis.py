@@ -1,19 +1,10 @@
 from datetime import datetime
-from typing import Any, cast
-from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-from pytest_mock import MockerFixture
 
+# Import after patching and reloading; disable E402 for this import line
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
-
-
-@pytest.fixture(autouse=True)  # type: ignore[misc]
-def mock_alpaca_client(mocker: MockerFixture, request: pytest.FixtureRequest) -> None:
-    """Mock history_client to prevent credential validation."""
-    mock = cast(Any, MagicMock())
-    mocker.patch("alpacalyzer.trading.alpaca_client.history_client", new=mock)
 
 
 @pytest.fixture
