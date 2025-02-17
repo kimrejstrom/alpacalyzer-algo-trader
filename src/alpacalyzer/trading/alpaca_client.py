@@ -9,6 +9,7 @@ from alpaca.trading.requests import GetCalendarRequest
 from dotenv import load_dotenv
 
 from alpacalyzer.utils.cache_utils import timed_lru_cache
+from alpacalyzer.utils.logger import logger
 
 # Load environment variables
 load_dotenv()
@@ -47,6 +48,7 @@ def get_market_status() -> str:
     trading_days = trading_client.get_calendar(GetCalendarRequest(start=current_time.date(), end=current_time.date()))
     trading_days_instance = cast(list[Calendar], trading_days)
     if not trading_days:
+        logger.info(f"{current_time.date()} is not a trading day. Next market open: {market_open_time}")
         return "closed"  # No market data available, assume closed
 
     today_market_close = trading_days_instance[0].close.replace(tzinfo=UTC)
