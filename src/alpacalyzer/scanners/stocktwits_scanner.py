@@ -19,7 +19,6 @@ class StocktwitsScanner:
     def get_trending_stocks(self):
         """Get trending stocks from Stocktwits."""
         try:
-            logger.info("\nFetching Stocktwits data...")
             url = "https://api.stocktwits.com/api/2/trending/symbols.json"
             response = requests.get(url, headers=self.headers, timeout=15)
 
@@ -89,7 +88,7 @@ class StocktwitsScanner:
 
     def get_stock_ranks(self, df: pd.DataFrame) -> pd.DataFrame:
         if "ticker" not in df:
-            logger.info("DataFrame must contain 'ticker' column")
+            logger.error("DataFrame must contain 'ticker' column")
             return pd.DataFrame()
 
         # Add bullish ratio and mentions if missing

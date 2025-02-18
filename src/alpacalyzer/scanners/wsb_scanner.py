@@ -23,12 +23,11 @@ class WSBScanner:
         Returns DataFrame with columns: ticker, mentions, rank
         """
         try:
-            logger.info("\nFetching ApeWisdom data...")
             url = "https://apewisdom.io/api/v1.0/filter/all-stocks/page/1"
             response = requests.get(url, headers=self.headers, timeout=15)
 
             if response.status_code != 200:
-                logger.info(f"Error: ApeWisdom API returned status code {response.status_code}")
+                logger.error(f"Error: ApeWisdom API returned status code {response.status_code}")
                 return pd.DataFrame()
 
             data = response.json()

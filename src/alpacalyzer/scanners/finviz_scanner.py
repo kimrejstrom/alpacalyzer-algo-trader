@@ -50,8 +50,6 @@ class FinvizScanner:
         Returns a DataFrame with relevant data.
         """
         try:
-            logger.info("\nFetching Finviz data...")
-
             # Initialize the screener
             stock_list = Screener(
                 filters=self.filters,

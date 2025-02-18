@@ -17,13 +17,13 @@ class SocialScanner:
     def display_top_stocks(self, df, top_n=10):
         """Display the top N ranked stocks."""
         if not df.empty:
-            logger.info(f"\nTop {top_n} Ranked Stocks:")
+            logger.info(f"\nTop {top_n} Ranked Stocks")
             for _, row in df.head(top_n).iterrows():
-                logger.info(
+                logger.debug(
                     f"\n{row['ticker']}:\n"
-                    f"(score: {row['sentiment_score']:.2f} rank: {row['sentiment_rank']:.2f}): Sentiment\n"
-                    f"(score: {row['technical_score']:.2f} rank: {row['ta_rank']:.2f}): Technical\n"
-                    f"(score: {row['final_score']:.2f} rank: {row['final_rank']:.2f}): Final\n"
+                    f"Score: {row['sentiment_score']:.2f} Rank: {row['sentiment_rank']:.2f}: Sentiment\n"
+                    f"Score: {row['technical_score']:.2f} Rank: {row['ta_rank']:.2f}: Technical\n"
+                    f"Score: {row['final_score']:.2f} Rank: {row['final_rank']:.2f}: Final\n"
                 )
         else:
             logger.info("No stocks found")
@@ -166,7 +166,7 @@ class SocialScanner:
             combined_df["final_rank"] = combined_df["sentiment_rank"] + combined_df["ta_rank"]
             combined_df["final_score"] = combined_df["sentiment_score"] + combined_df["technical_score"]
             return combined_df.sort_values("final_rank").reset_index(drop=True)
-        logger.info("Technical analysis data is empty or invalid.")
+        logger.warning("Technical analysis data is empty or invalid.")
 
         if combined_df.empty:
             logger.info("No stocks found or no technical data available")

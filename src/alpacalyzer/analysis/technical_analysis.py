@@ -377,7 +377,7 @@ class TechnicalAnalyzer:
 
         logger.debug(
             f"\n{symbol} - Technical Analysis:\n"
-            f"ATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']},"
+            f"ATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']}, "
             f"Momentum: {signals['momentum']:1f}, Signals: {signals['signals']}"
         )
         return signals
@@ -390,7 +390,6 @@ class TechnicalAnalyzer:
             cache_entry = self.analysis_cache[symbol]
             # If the cached entry is less than 5 minutes old, reuse it
             if (current_time - cache_entry["timestamp"]).seconds < 270:
-                logger.debug(f"Using cached analysis for {symbol}")
                 return cache_entry["result"]
 
         try:

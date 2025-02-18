@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import pandas as pd
 from alpaca.trading.enums import OrderSide
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
@@ -13,7 +14,7 @@ class DayTrader:
     def __init__(self):
         self.position_manager = PositionManager()
 
-    def manage_existing_positions(self, analyzer: TechnicalAnalyzer, trending_stocks):
+    def manage_existing_positions(self, analyzer: TechnicalAnalyzer, trending_stocks: pd.DataFrame):
         """Manage existing positions."""
         # Update positions
         current_positions = self.position_manager.update_positions()
@@ -28,7 +29,7 @@ class DayTrader:
             technical_data = analyzer.analyze_stock(symbol)
 
             if not technical_data:
-                logger.info(f"Technical data missing for {symbol}")
+                logger.warning(f"Technical data missing for {symbol}")
                 continue
 
             current_positions[symbol].update_ta(technical_data)
@@ -167,7 +168,7 @@ class DayTrader:
 
                 if entry_blockers:
                     for blocker in entry_blockers:
-                        logger.info(blocker)
+                        logger.debug(blocker)
                     continue
 
                 # Calculate position size with sentiment data

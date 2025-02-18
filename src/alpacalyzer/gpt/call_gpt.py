@@ -54,7 +54,7 @@ Focus on high-potential stocks with strong momentum and technical setups.
         }
     )
     top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
-    logger.info(top_tickers_response)
+    logger.debug(top_tickers_response)
     return top_tickers_response
 
 
@@ -113,7 +113,7 @@ as an **intraday scalp** or **skip entirely**.
         }
     )
     top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
-    logger.info(top_tickers_response)
+    logger.debug(top_tickers_response)
     return top_tickers_response
 
 
@@ -207,5 +207,5 @@ and propose one or more trading strategies in valid JSON format.
         }
     )
     response = call_gpt_structured(messages, TradingStrategyResponse)
-    logger.info(response)
+    logger.debug(response)
     return response

@@ -24,8 +24,8 @@ file_handler = TimedRotatingFileHandler(
 console_handler = logging.StreamHandler()  # Logs to console (stdout)
 
 # Set levels for each handler
-file_handler.setLevel(getattr(logging, log_level))
-console_handler.setLevel(getattr(logging, log_level))
+file_handler.setLevel(getattr(logging, "DEBUG"))  # Log all messages to file
+console_handler.setLevel(getattr(logging, "INFO"))  # Log INFO and above to console
 
 # Create a formatter and set it for both handlers
 file_formatter = logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)")

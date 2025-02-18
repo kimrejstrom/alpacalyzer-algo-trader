@@ -53,7 +53,7 @@ class SwingTrader:
             trading_strategies = trading_strategies_response.strategies if trading_strategies_response else []
             self.latest_strategies.extend(trading_strategies)
 
-        logger.info(f"Updated latest strategies: {self.latest_strategies}")
+        logger.debug(f"Updated latest strategies: {self.latest_strategies}")
 
     # Function to check real-time price and execute orders
     def monitor_and_trade(self):
@@ -89,7 +89,7 @@ class SwingTrader:
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type == "long" else OrderSide.SELL
                     qty = 10  # Adjust based on risk management
-                    logger.info(f"{strategy}")
+                    logger.debug(f"{strategy}")
                     bracket_order = LimitOrderRequest(
                         symbol=strategy.ticker,
                         qty=qty,

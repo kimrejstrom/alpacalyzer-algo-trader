@@ -1,13 +1,14 @@
 from datetime import datetime
 from typing import cast
 
-from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
+import pandas as pd
+from alpaca.trading.enums import OrderSide, OrderStatus, QueryOrderStatus, TimeInForce
 from alpaca.trading.models import Order, TradeAccount
 from alpaca.trading.models import Position as AlpacaPosition
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest, MarketOrderRequest
 from dotenv import load_dotenv
 
-from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
+from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_market_status, trading_client
 from alpacalyzer.utils.logger import logger
@@ -24,6 +25,7 @@ class Position:
         self.pl_pct = 0.0  # Current P&L percentage
         self.current_price = float(entry_price)
         self.high_water_mark = float(entry_price)  # Track highest price reached
+        self.technical_data = None  # Technical analysis data
 
     def update_pl(self, current_price):
         """Update position P&L and high water mark."""
@@ -38,7 +40,7 @@ class Position:
         # Calculate drawdown from high
         self.drawdown = ((self.current_price / self.high_water_mark) - 1) * 100
 
-    def update_ta(self, technical_data):
+    def update_ta(self, technical_data: TradingSignals):
         """Update position with technical analysis data."""
         self.technical_data = technical_data
 
@@ -142,7 +144,7 @@ class PositionManager:
             else 0,
         }
 
-    def update_positions(self, show_status=True):
+    def update_positions(self, show_status=True) -> dict[str, Position]:
         """
         Update position tracking with current market data.
 
@@ -275,7 +277,7 @@ class PositionManager:
 
         # Check if we're already at max exposure
         if total_exposure >= self.max_total_exposure:
-            logger.info(f"Maximum total exposure reached: {self.total_exposure:.1%}")
+            logger.info(f"HOLD: Maximum total exposure reached: {self.total_exposure:.1%}")
             return 0, False
 
         # Start with base position size
@@ -318,9 +320,8 @@ class PositionManager:
         target_shares = int(target_position_value / price)
         return target_shares, True
 
-    def should_close_position(self, symbol, technical_data, top_stocks):
+    def should_close_position(self, symbol: str, technical_data: TradingSignals, top_stocks: pd.DataFrame):
         """Determine if a position should be closed based on technical analysis."""
-        logger.debug(f"\nChecking {symbol} for exit conditions...")
         position = self.positions.get(symbol)
         if not position:
             return False
@@ -416,6 +417,8 @@ class PositionManager:
                 "timestamp": datetime.now(),
             }
             logger.info(f"SELL {symbol} due to: {reason_str}")
+            logger.info(f"Position details: {position}")
+            logger.info(f"TA: {position.technical_data}")
             return True
 
         return False
@@ -433,9 +436,9 @@ class PositionManager:
         # in descending order to sell the worst-ranked positions first
         ranked_stocks = ranked_stocks.sort_values(by=["final_rank", "pl_pct"], ascending=[False, False])
 
-        logger.info("\nSorted Positions:")
+        logger.debug("\nSorted Positions:")
         for _, row in ranked_stocks.iterrows():
-            logger.info(f"{row['ticker']}: Rank {row['final_rank']:.2f} - {row['pl_pct']:.1%} P&L")
+            logger.debug(f"{row['ticker']}: Rank {row['final_rank']:.2f}, P&L: {row['pl_pct']:.1%}")
 
         # Calculate over-exposure
         over_exposure = self.get_total_exposure() - self.max_total_exposure
@@ -450,7 +453,7 @@ class PositionManager:
                 position_exposure = current_position.get_exposure(account["equity"])  # Get the exposure of the position
                 logger.info(
                     f"SELL {row['ticker']} due to: Over exposure - sell worst-ranked positions"
-                    f"(Rank {row['final_rank']:.1f})."
+                    f" (Rank {row['final_rank']:.1f})."
                 )
 
                 # Close the position
@@ -538,20 +541,20 @@ class PositionManager:
                         break
 
                 if order_price is None:
-                    logger.info(f"Order queued: {shares} shares of {symbol}")
+                    logger.info(f"Market order queued: {shares} shares of {symbol}")
                 else:
                     position_value = shares * order_price
                     position_pct = (position_value / account_info["equity"]) * 100
-                    logger.info(f"Order queued: {shares} shares of {symbol} ({position_pct:.1f}% position)")
+                    logger.info(f"Market order queued: {shares} shares of {symbol} ({position_pct:.1f}% position)")
             else:
                 # Calculate executed position size if price available
                 account_info = self.get_account_info()
                 if order.filled_avg_price:
                     position_value = shares * float(order.filled_avg_price)
                     position_pct = (position_value / account_info["equity"]) * 100
-                    logger.info(f"Order executed: {shares} shares of {symbol} ({position_pct:.1f}% position)")
+                    logger.info(f"Market order executed: {shares} shares of {symbol} ({position_pct:.1f}% position)")
                 else:
-                    logger.info(f"Order executed: {shares} shares of {symbol}")
+                    logger.info(f"Market order executed: {shares} shares of {symbol}")
 
             return order
         except Exception as e:
@@ -571,7 +574,7 @@ class PositionManager:
             position = cast(AlpacaPosition, position_response)
 
             if not position:
-                logger.info("Position not found")
+                logger.warning("Position not found")
                 return None
 
             if int(position.qty_available if position.qty_available else 0) == 0:
@@ -582,16 +585,22 @@ class PositionManager:
             if market_session == "open":
                 order_response = trading_client.close_position(symbol)
                 order = cast(Order, order_response)
-                if order.status == "accepted":
+                if order.status == OrderStatus.ACCEPTED:
                     self.pending_closes.add(symbol)
                     logger.info(f"Close order queued: {symbol}")
+                    logger.debug(f"Close order details: {order}")
             else:
-                self.place_limit_order(
+                order_response = self.place_limit_order(
                     symbol,
                     abs(int(float(position.qty))),
                     round(float(position.current_price if position.current_price else 0), 2),
                     OrderSide.SELL,
                 )
+                order = cast(Order, order_response)
+                if order.status == OrderStatus.ACCEPTED:
+                    self.pending_closes.add(symbol)
+                    logger.info(f"Close order queued: {symbol}")
+                    logger.debug(f"Close order details: {order}")
 
         except Exception as e:
             logger.error(f"Error closing position {symbol}: {str(e)}")
