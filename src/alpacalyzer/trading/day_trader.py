@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 from alpaca.trading.enums import OrderSide
@@ -88,7 +88,7 @@ class DayTrader:
 
                 entry_blockers = []
 
-                logger.info(f"\nChecking {ticker}...")
+                logger.info(f"\nEvaluating entry for {ticker}")
                 # Skip if we already have a pending order
                 if ticker in pending_orders:
                     entry_blockers.append(f"SKIP {ticker}: Pending order already exists")
@@ -104,7 +104,7 @@ class DayTrader:
                     exit_info = self.position_manager.exited_positions[ticker]
                     exit_reason = exit_info["reason"]
                     exit_time = exit_info["timestamp"]
-                    time_since_exit = (datetime.now() - exit_time).total_seconds() / 3600  # Hours since exit
+                    time_since_exit = (datetime.now(UTC) - exit_time).total_seconds() / 3600  # Hours since exit
 
                     # Clear re-entry blocker if:
                     # 1. More than 1 hour has passed OR
@@ -167,8 +167,9 @@ class DayTrader:
                     entry_blockers.append(f"SKIP {ticker}: Weak technicals: {', '.join(weak_tech_signals)}")
 
                 if entry_blockers:
+                    logger.info("Entry blocked:")
                     for blocker in entry_blockers:
-                        logger.debug(blocker)
+                        logger.info(blocker)
                     continue
 
                 # Calculate position size with sentiment data
@@ -193,13 +194,17 @@ class DayTrader:
                             f"BUY {ticker}: Rank {stock['final_rank']:.1f} "
                             f"(Sentiment: {stock['sentiment_rank']:.1f}, TA: {stock['ta_rank']:.0f})"
                         )
+                        logger.debug(f"Technical signals Daily at BUY: {technical_data['raw_data_daily'].to_string()}")
+                        logger.debug(
+                            f"Technical signals Intraday at BUY: {technical_data['raw_data_intraday'].to_string()}"
+                        )
                         limit_price = self.position_manager.get_limit_price(ticker, OrderSide.BUY)
                         if limit_price:
                             self.position_manager.place_limit_order(ticker, shares, limit_price, side=OrderSide.BUY)
                         else:
                             self.position_manager.place_market_order(ticker, shares, side=OrderSide.BUY)
                     except Exception as e:
-                        logger.error(f"Error placing order: {str(e)}")
+                        logger.error(f"Error placing order: {str(e)}", exc_info=True)
                 else:
                     logger.info(f"SKIP {ticker}: Expanding current position requirements not met")
         else:
@@ -221,7 +226,7 @@ class DayTrader:
         trending_stocks = scanner.get_trending_stocks(20)
         if trending_stocks.empty:
             return
-        scanner.display_top_stocks(trending_stocks, len(trending_stocks))
+        scanner.display_top_stocks(trending_stocks)
 
         # Run full trading cycle
         self.manage_existing_positions(analyzer, trending_stocks)

@@ -61,7 +61,7 @@ def main():  # pragma: no cover
     except KeyboardInterrupt:
         logger.info("\nTrading bot stopped by user.")
     except Exception as e:
-        logger.error(f"\nUnexpected error in main: {str(e)}")
+        logger.error(f"\nUnexpected error in main: {str(e)}", exc_info=True)
     finally:
         logger.info("Shutting down trading bot safely...")
 
@@ -75,7 +75,7 @@ def safe_execute(trading_function):
     try:
         trading_function()
     except Exception as e:
-        logger.error(f"Error in trading function: {str(e)}")
+        logger.error(f"Error in trading function: {str(e)}", exc_info=True)
         logger.info("Retrying in 30 seconds...")
         time.sleep(30)
 

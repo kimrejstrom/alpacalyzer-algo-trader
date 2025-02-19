@@ -61,7 +61,7 @@ class FinvizScanner:
             return pd.DataFrame(stock_list.data)
 
         except Exception as e:
-            logger.error(f"Error fetching data from Finviz: {str(e)}")
+            logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
             return pd.DataFrame()
 
     @timed_lru_cache(seconds=60, maxsize=128)
@@ -82,7 +82,7 @@ class FinvizScanner:
             return pd.DataFrame(stock_list.data)
 
         except Exception as e:
-            logger.error(f"Error fetching data from Finviz: {str(e)}")
+            logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
             return pd.DataFrame()
 
     def get_stock_ranks(self, df: pd.DataFrame):

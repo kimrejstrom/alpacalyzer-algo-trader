@@ -109,7 +109,7 @@ class SwingTrader:
                     logger.info(f"Order placed: {order}")
 
         except Exception as e:
-            logger.error(f"Error in monitor_and_trade: {e}")
+            logger.error(f"Error in monitor_and_trade: {str(e)}", exc_info=True)
 
 
 def check_entry_conditions(strategy: TradingStrategy, df: pd.DataFrame) -> bool:
@@ -168,5 +168,5 @@ def check_entry_conditions(strategy: TradingStrategy, df: pd.DataFrame) -> bool:
         return conditions_met
 
     except Exception as e:
-        logger.error(f"Error checking conditions: {e}")
+        logger.error(f"Error checking conditions: {str(e)}", exc_info=True)
         return False

@@ -17,13 +17,13 @@ class SocialScanner:
     def display_top_stocks(self, df, top_n=10):
         """Display the top N ranked stocks."""
         if not df.empty:
-            logger.info(f"\nTop {top_n} Ranked Stocks")
-            for _, row in df.head(top_n).iterrows():
+            logger.debug(f"\nTop {top_n} Ranked Stocks")
+            for index, row in df.head(top_n).iterrows():
                 logger.debug(
-                    f"\n{row['ticker']}:\n"
+                    f"\n#{index + 1}: {row['ticker']}:\n"
                     f"Score: {row['sentiment_score']:.2f} Rank: {row['sentiment_rank']:.2f}: Sentiment\n"
                     f"Score: {row['technical_score']:.2f} Rank: {row['ta_rank']:.2f}: Technical\n"
-                    f"Score: {row['final_score']:.2f} Rank: {row['final_rank']:.2f}: Final\n"
+                    f"Score: {row['final_score']:.2f} Rank: {row['final_rank']:.2f}: Final"
                 )
         else:
             logger.info("No stocks found")
@@ -46,7 +46,7 @@ class SocialScanner:
             else:
                 logger.info("No trending stocks found from ApeWisdom.")
         except Exception as e:
-            logger.error(f"Error fetching data from ApeWisdom: {e}")
+            logger.error(f"Error fetching data from ApeWisdom: {str(e)}", exc_info=True)
 
         # Fetch trending stocks from Stocktwits
         try:
@@ -57,7 +57,7 @@ class SocialScanner:
             else:
                 logger.info("No trending stocks found from Stocktwits.")
         except Exception as e:
-            logger.error(f"Error fetching data from Stocktwits: {e}")
+            logger.error(f"Error fetching data from Stocktwits: {str(e)}", exc_info=True)
 
         # Fetch trending stocks from Finviz
         try:
@@ -70,7 +70,7 @@ class SocialScanner:
             else:
                 logger.info("No trending stocks found from Finviz.")
         except Exception as e:
-            logger.error(f"Error fetching data from Finviz: {e}")
+            logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
 
         # Combine all unique tickers into a list and filter VOO SPY and QQQ
         tickers_list = list(filter(lambda x: x not in ["VOO", "SPY", "QQQ"], tickers_set))
@@ -92,7 +92,7 @@ class SocialScanner:
             st_ranked = self.stocktwits_scanner.get_stock_ranks(pd.DataFrame({"ticker": tickers_list}))
 
         except Exception as e:
-            logger.error(f"Error fetching ranks from Stocktwits: {e}")
+            logger.error(f"Error fetching ranks from Stocktwits: {str(e)}", exc_info=True)
             st_ranked = pd.DataFrame()
 
         # Fetch ranks for tickers from Finviz
@@ -100,7 +100,7 @@ class SocialScanner:
             finviz_ranked = self.finviz_scanner.get_stock_ranks(pd.DataFrame({"ticker": tickers_list}))
 
         except Exception as e:
-            logger.error(f"Error fetching ranks from Finviz: {e}")
+            logger.error(f"Error fetching ranks from Finviz: {str(e)}", exc_info=True)
             finviz_ranked = pd.DataFrame()
 
         # Combine the ranked results

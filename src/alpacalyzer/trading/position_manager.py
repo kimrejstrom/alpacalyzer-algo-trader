@@ -1,4 +1,5 @@
-from datetime import datetime
+import time
+from datetime import UTC, datetime
 from typing import cast
 
 import pandas as pd
@@ -128,7 +129,7 @@ class PositionManager:
                     )
 
         except Exception as e:
-            logger.error(f"Error updating orders: {str(e)}")
+            logger.error(f"Error updating orders: {str(e)}", exc_info=True)
 
     def get_account_info(self):
         """Get account information."""
@@ -184,9 +185,9 @@ class PositionManager:
                             # Get earliest filled order
                             entry_time = min(order.filled_at for order in order_list if order.filled_at)
                         else:
-                            entry_time = datetime.now()
+                            entry_time = datetime.now(UTC)
                     except Exception:
-                        entry_time = datetime.now()
+                        entry_time = datetime.now(UTC)
 
                     self.position_times[symbol] = entry_time
                     self.save_position_times()
@@ -224,7 +225,7 @@ class PositionManager:
                 logger.info(f"Total Exposure: {self.get_total_exposure():.1%}")
                 for pos in active_positions.values():
                     exposure = pos.get_exposure(self.get_account_info()["equity"])
-                    age_hours = (datetime.now() - pos.entry_time).total_seconds() / 3600
+                    age_hours = (datetime.now(UTC) - pos.entry_time).total_seconds() / 3600
                     age_str = f"{age_hours:.1f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
                     logger.info(
                         f"{pos} now @ ${pos.current_price:.2f}"
@@ -244,7 +245,7 @@ class PositionManager:
             return self.positions
 
         except Exception as e:
-            logger.error(f"Error updating positions: {str(e)}")
+            logger.error(f"Error updating positions: {str(e)}", exc_info=True)
             return {}
 
     def calculate_target_position(
@@ -335,7 +336,7 @@ class PositionManager:
         exit_signals = []
 
         # 0. Market open protection logic
-        position_age_mins = (datetime.now() - position.entry_time).total_seconds() / 60
+        position_age_mins = (datetime.now(UTC) - position.entry_time).total_seconds() / 60
         if position_age_mins < 30:  # 30-min protection period
             # Only exit if:
             # 1. Hard stop hit (-10% from entry)
@@ -396,7 +397,7 @@ class PositionManager:
             exit_signals.extend(tech_signals)
 
         # 5. Mediocre performance with significant age
-        position_age = (datetime.now() - position.entry_time).days
+        position_age = (datetime.now(UTC) - position.entry_time).days
         if position_age > 1:  # At least 1 day old
             if (
                 score < 0.6  # Weaker technicals
@@ -414,11 +415,21 @@ class PositionManager:
             # Store exit reason to block immediate re-entry
             self.exited_positions[symbol] = {
                 "reason": reason_str,
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(UTC),
             }
-            logger.info(f"SELL {symbol} due to: {reason_str}")
+            logger.info(f"\nSELL {symbol} due to: {reason_str}")
             logger.info(f"Position details: {position}")
-            logger.info(f"TA: {position.technical_data}")
+            if position.technical_data:
+                logger.debug(
+                    f"Technical signals Daily at SELL: {position.technical_data['raw_data_daily'].to_string()}"
+                )
+                logger.debug(
+                    f"Technical signals Intraday at SELL: {position.technical_data['raw_data_intraday'].to_string()}"
+                )
+            if position.pl_pct < 0:
+                logger.info(f"LOSS: {position.pl_pct:.1f}% loss on trade")
+            else:
+                logger.info(f"WIN: {position.pl_pct:.1f}% gain on trade")
             return True
 
         return False
@@ -504,7 +515,7 @@ class PositionManager:
                 logger.info(f"Limit Order ({side}) executed: {shares} shares of {symbol} at ${limit_price:.2f}")
             return order
         except Exception as e:
-            logger.error(f"Error placing limit order ({side}): {type(e).__name__} - {str(e)}")
+            logger.error(f"Error placing limit order ({side}): {str(e)}", exc_info=True)
             return None
 
     def place_market_order(self, symbol: str, shares: int, side=OrderSide.BUY):
@@ -558,7 +569,7 @@ class PositionManager:
 
             return order
         except Exception as e:
-            logger.error(f"Error placing order: {type(e).__name__} - {str(e)}")
+            logger.error(f"Error placing order: {str(e)}", exc_info=True)
             return None
 
     def close_position(self, symbol: str):
@@ -578,8 +589,20 @@ class PositionManager:
                 return None
 
             if int(position.qty_available if position.qty_available else 0) == 0:
-                logger.info(f"Skipping {position.symbol} - all shares held for orders")
-                return None
+                logger.info(f"Canceling open sell orders for {symbol} before replacing...")
+
+                # Get open orders for the symbol
+                request_params = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[symbol])
+                open_orders = cast(list[Order], trading_client.get_orders(request_params))
+
+                # Cancel all open sell orders
+                for order in open_orders:
+                    if order.side == OrderSide.SELL:
+                        logger.info(f"Canceling order {order.id} for {symbol}")
+                        trading_client.cancel_order_by_id(order.id)
+                        time.sleep(0.5)  # Small delay to ensure cancellation propagates
+
+                logger.info(f"All open sell orders for {symbol} canceled. Ready to place new orders.")
 
             market_session = get_market_status()
             if market_session == "open":
@@ -593,7 +616,7 @@ class PositionManager:
                 order_response = self.place_limit_order(
                     symbol,
                     abs(int(float(position.qty))),
-                    round(float(position.current_price if position.current_price else 0), 2),
+                    round(float(position.current_price if position.current_price else 0), 2) * 0.98,
                     OrderSide.SELL,
                 )
                 order = cast(Order, order_response)
@@ -603,7 +626,7 @@ class PositionManager:
                     logger.debug(f"Close order details: {order}")
 
         except Exception as e:
-            logger.error(f"Error closing position {symbol}: {str(e)}")
+            logger.error(f"Error closing position {symbol}: {str(e)}", exc_info=True)
             return None
 
     def get_limit_price(self, symbol: str, side: OrderSide) -> float | None:

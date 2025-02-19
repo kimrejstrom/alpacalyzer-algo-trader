@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import TypedDict, cast
+from typing import Annotated, TypedDict, cast
 
 import pandas as pd
 import talib
@@ -24,6 +24,8 @@ class TradingSignals(TypedDict):
     raw_score: int
     score: float  # Normalized score (0-1)
     momentum: float  # 24h momentum
+    raw_data_daily: Annotated[pd.Series, float]
+    raw_data_intraday: Annotated[pd.Series, float]
 
 
 class CacheEntry(TypedDict):
@@ -42,7 +44,7 @@ class TechnicalAnalyzer:
             df = df.reset_index(level=1, drop=True)
         return df
 
-    @timed_lru_cache(seconds=60, maxsize=128)
+    @timed_lru_cache(seconds=3600, maxsize=128)
     def get_vix(self):
         """Get the current VIX index value using yfinance."""
         try:
@@ -55,7 +57,7 @@ class TechnicalAnalyzer:
             logger.warning("VIX data is empty.")
             return None
         except Exception as e:
-            logger.error(f"Error fetching VIX data: {str(e)}")
+            logger.error(f"Error fetching VIX data: {str(e)}", exc_info=True)
             return None
 
     @timed_lru_cache(seconds=60, maxsize=128)
@@ -118,11 +120,11 @@ class TechnicalAnalyzer:
                     ]
                 )
             except Exception as e:
-                logger.error(f"Error fetching stock bars for {symbol}: {str(e)}")
+                logger.error(f"Error fetching stock bars for {symbol}: {str(e)}", exc_info=True)
                 return None
 
         except Exception as e:
-            logger.error(f"Error fetching historical data for {symbol}: {str(e)}")
+            logger.error(f"Error fetching historical data for {symbol}: {str(e)}", exc_info=True)
             return None
 
     def calculate_intraday_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -232,6 +234,8 @@ class TechnicalAnalyzer:
             "raw_score": 0,  # Raw technical analysis score
             "score": 0,  # Normalized score (0-1)
             "momentum": 0,  # 24h momentum
+            "raw_data_daily": latest_daily,  # Raw data for debugging
+            "raw_data_intraday": latest_intraday,  # Raw data for debugging
         }
 
         ### --- DAILY INDICATORS --- ###
@@ -371,7 +375,7 @@ class TechnicalAnalyzer:
 
         ### --- NORMALIZATION --- ###
         # Calculate min-max normalization
-        min_raw_score, max_raw_score = -120, 180  # Define expected range
+        min_raw_score, max_raw_score = -120, 120  # Define expected range
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
         signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 
@@ -388,8 +392,9 @@ class TechnicalAnalyzer:
         # Check if the result is already in the cache
         if symbol in self.analysis_cache:
             cache_entry = self.analysis_cache[symbol]
-            # If the cached entry is less than 5 minutes old, reuse it
-            if (current_time - cache_entry["timestamp"]).seconds < 270:
+            # If the cached entry is less than 60 seconds old, reuse it
+            if (current_time - cache_entry["timestamp"]).seconds < 60:
+                logger.debug(f"Using cached result for {symbol}: {cache_entry['result']}")
                 return cache_entry["result"]
 
         try:
@@ -404,8 +409,9 @@ class TechnicalAnalyzer:
                 return None
             # Store the result in the cache with a timestamp
             self.analysis_cache[symbol] = {"timestamp": current_time, "result": result}
+            logger.debug(f"Storing result in cache for {symbol}: {result}")
             return result
 
         except Exception as e:
-            logger.error(f"Error analyzing stock {symbol}: {type(e).__name__} - {str(e)}")
+            logger.error(f"Error analyzing stock {symbol}: {str(e)}", exc_info=True)
             return None

@@ -41,10 +41,10 @@ class StocktwitsScanner:
                 return df[df["instrument_class"] == "Stock"]
 
             except Exception as e:
-                logger.error(f"Error parsing Stocktwits data: {e}")
+                logger.error(f"Error parsing Stocktwits data: {str(e)}", exc_info=True)
                 return pd.DataFrame()
         except Exception as e:
-            logger.error(f"Error fetching trending stocks: {e}")
+            logger.error(f"Error fetching trending stocks: {str(e)}", exc_info=True)
             return pd.DataFrame()
 
     # Get sentiment from messages
@@ -83,12 +83,12 @@ class StocktwitsScanner:
 
             return 0.5, 0
         except Exception as e:
-            logger.error(f"Error fetching sentiment for {ticker}: {e}")
+            logger.error(f"Error fetching sentiment for {ticker}: {str(e)}", exc_info=True)
             return 0.5, 0
 
     def get_stock_ranks(self, df: pd.DataFrame) -> pd.DataFrame:
         if "ticker" not in df:
-            logger.error("DataFrame must contain 'ticker' column")
+            logger.warning("DataFrame must contain 'ticker' column")
             return pd.DataFrame()
 
         # Add bullish ratio and mentions if missing

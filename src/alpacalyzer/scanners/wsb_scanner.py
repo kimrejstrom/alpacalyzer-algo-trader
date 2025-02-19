@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pandas as pd
 import requests
 
@@ -45,15 +43,11 @@ class WSBScanner:
             df["score"] = df["rank"].rank(pct=True)  # Percentile rank (0-1)
             df["sentiment"] = df["score"]  # Same as score since ApeWisdom already factors in sentiment
 
-            # Add source and timestamp
-            df["source"] = "apewisdom"
-            df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
             # Get top N stocks (already ranked by ApeWisdom)
             return df.head(limit)
 
         except Exception as e:
-            logger.error(f"Error fetching ApeWisdom data: {str(e)}")
+            logger.error(f"Error fetching ApeWisdom data: {str(e)}", exc_info=True)
             return pd.DataFrame()
 
 
