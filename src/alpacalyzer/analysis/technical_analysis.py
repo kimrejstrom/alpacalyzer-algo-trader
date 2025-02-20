@@ -3,7 +3,6 @@ from typing import Annotated, TypedDict, cast
 
 import pandas as pd
 import talib
-import yfinance as yf
 from alpaca.data.enums import Adjustment
 from alpaca.data.models import Bar, BarSet
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
@@ -43,22 +42,6 @@ class TechnicalAnalyzer:
         if isinstance(df.index, pd.MultiIndex):
             df = df.reset_index(level=1, drop=True)
         return df
-
-    @timed_lru_cache(seconds=3600, maxsize=128)
-    def get_vix(self):
-        """Get the current VIX index value using yfinance."""
-        try:
-            # Fetch VIX data using yfinance
-            vix = yf.Ticker("^VIX")
-            vix_data = vix.history(period="1d")  # Get latest daily data
-
-            if not vix_data.empty:
-                return vix_data["Close"].iloc[-1]
-            logger.warning("VIX data is empty.")
-            return None
-        except Exception as e:
-            logger.error(f"Error fetching VIX data: {str(e)}", exc_info=True)
-            return None
 
     @timed_lru_cache(seconds=60, maxsize=128)
     def get_historical_data(self, symbol, request_type="minute") -> pd.DataFrame | None:
@@ -375,7 +358,7 @@ class TechnicalAnalyzer:
 
         ### --- NORMALIZATION --- ###
         # Calculate min-max normalization
-        min_raw_score, max_raw_score = -120, 120  # Define expected range
+        min_raw_score, max_raw_score = -150, 150  # Define expected range
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
         signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 
@@ -394,7 +377,6 @@ class TechnicalAnalyzer:
             cache_entry = self.analysis_cache[symbol]
             # If the cached entry is less than 60 seconds old, reuse it
             if (current_time - cache_entry["timestamp"]).seconds < 60:
-                logger.debug(f"Using cached result for {symbol}: {cache_entry['result']}")
                 return cache_entry["result"]
 
         try:
@@ -409,7 +391,6 @@ class TechnicalAnalyzer:
                 return None
             # Store the result in the cache with a timestamp
             self.analysis_cache[symbol] = {"timestamp": current_time, "result": result}
-            logger.debug(f"Storing result in cache for {symbol}: {result}")
             return result
 
         except Exception as e:

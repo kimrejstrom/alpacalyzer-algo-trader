@@ -73,12 +73,6 @@ class PositionManager:
         # Total exposure
         self.get_total_exposure()
 
-        # Position entry times (persist between runs)
-        self.position_times = {}  # symbol -> entry time
-
-        # Load position times from file if exists
-        self.load_position_times()
-
         # Initialize current positions and pending orders
         self.update_positions()
         self.update_pending_orders()
@@ -89,22 +83,6 @@ class PositionManager:
         active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
         self.total_exposure = sum(p.get_exposure(account["equity"]) for p in active_positions.values())
         return self.total_exposure
-
-    def load_position_times(self):
-        """Load position entry times from file."""
-        try:
-            with open("position_times.txt") as f:
-                for line in f:
-                    symbol, timestamp = line.strip().split(",")
-                    self.position_times[symbol] = datetime.fromtimestamp(float(timestamp))
-        except FileNotFoundError:
-            pass
-
-    def save_position_times(self):
-        """Save position entry times to file."""
-        with open("position_times.txt", "w") as f:
-            for symbol, entry_time in self.position_times.items():
-                f.write(f"{symbol},{entry_time.timestamp()}\n")
 
     def update_pending_orders(self):
         """Update list of pending orders, removing executed ones."""
@@ -166,35 +144,28 @@ class PositionManager:
                 entry_price = float(p.avg_entry_price)
                 side = OrderSide.BUY if qty > 0 else OrderSide.SELL
 
-                # Try to get entry time from saved times or order history
-                if symbol in self.position_times:
-                    entry_time = self.position_times[symbol]
-                else:
-                    # Try to find original order time
-                    try:
-                        req = GetOrdersRequest(
-                            status=QueryOrderStatus.CLOSED,
-                            symbols=[symbol],
-                            side=side,
-                            limit=1,
-                            nested=True,  # Include nested orders
-                        )
-                        orders = trading_client.get_orders(req)
-                        order_list = cast(list[Order], orders)
-                        if order_list:
-                            # Get earliest filled order
-                            entry_time = min(order.filled_at for order in order_list if order.filled_at)
-                        else:
-                            entry_time = datetime.now(UTC)
-                    except Exception:
+                # Try to find original order time
+                try:
+                    req = GetOrdersRequest(
+                        status=QueryOrderStatus.CLOSED,
+                        symbols=[symbol],
+                        side=side,
+                        limit=1,
+                        nested=True,  # Include nested orders
+                    )
+                    orders = trading_client.get_orders(req)
+                    order_list = cast(list[Order], orders)
+                    if order_list:
+                        # Get earliest filled order
+                        entry_time = min(order.filled_at for order in order_list if order.filled_at)
+                    else:
                         entry_time = datetime.now(UTC)
-
-                    self.position_times[symbol] = entry_time
-                    self.save_position_times()
+                except Exception:
+                    entry_time = datetime.now(UTC)
 
                 if symbol not in self.positions:
                     # New position with stored entry time
-                    self.positions[symbol] = Position(symbol, qty, entry_price, side, self.position_times[symbol])
+                    self.positions[symbol] = Position(symbol, qty, entry_price, side, entry_time)
 
                 # Update position data
                 pos = self.positions[symbol]
@@ -206,19 +177,10 @@ class PositionManager:
             closed_positions = set(self.positions.keys()) - current_symbols
             for symbol in closed_positions:
                 self.positions.pop(symbol)
-                if symbol in self.position_times:
-                    self.position_times.pop(symbol)
-                    self.save_position_times()
 
             # Update positions dict
             self.positions = {s: p for s, p in self.positions.items() if s in current_symbols}
-
-            # # Calculate total exposure excluding pending closes
-            # account = self.get_account_info()
             active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
-            # total_exposure = sum(
-            #     p.get_exposure(account["equity"]) for p in active_positions.values()
-            # )
 
             if show_status:
                 logger.info(f"\nCurrent Portfolio Status: {len(active_positions)} active positions")
@@ -427,9 +389,9 @@ class PositionManager:
                     f"Technical signals Intraday at SELL: {position.technical_data['raw_data_intraday'].to_string()}"
                 )
             if position.pl_pct < 0:
-                logger.info(f"LOSS: {position.pl_pct:.1f}% loss on trade")
+                logger.info(f"LOSS: {position.pl_pct:.1%} P&L loss on trade")
             else:
-                logger.info(f"WIN: {position.pl_pct:.1f}% gain on trade")
+                logger.info(f"WIN: {position.pl_pct:.1%} P&L gain on trade")
             return True
 
         return False
@@ -616,7 +578,7 @@ class PositionManager:
                 order_response = self.place_limit_order(
                     symbol,
                     abs(int(float(position.qty))),
-                    round(float(position.current_price if position.current_price else 0), 2) * 0.98,
+                    round(float(position.current_price if position.current_price else 0) * 0.995, 2),
                     OrderSide.SELL,
                 )
                 order = cast(Order, order_response)

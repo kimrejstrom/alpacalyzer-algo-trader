@@ -7,12 +7,14 @@ from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
 from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_market_status
 from alpacalyzer.trading.position_manager import PositionManager
+from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import logger
 
 
 class DayTrader:
     def __init__(self):
         self.position_manager = PositionManager()
+        self.yfinance_client = YFinanceClient()
 
     def manage_existing_positions(self, analyzer: TechnicalAnalyzer, trending_stocks: pd.DataFrame):
         """Manage existing positions."""
@@ -79,7 +81,7 @@ class DayTrader:
         pending_orders = {order["symbol"] for order in self.position_manager.pending_orders}
 
         # Get VIX and ATR data
-        vix_close = analyzer.get_vix()
+        vix_close = self.yfinance_client.get_vix()
 
         # Enter new positions only if not at max exposure
         if self.position_manager.get_total_exposure() < self.position_manager.max_total_exposure:
