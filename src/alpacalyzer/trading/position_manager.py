@@ -328,35 +328,22 @@ class PositionManager:
         if position.pl_pct > 0.10:  # In +10% profit
             if position.drawdown < -5:  # Tighter 5% trailing stop
                 exit_signals.append(
-                    f"Profit protection: {position.drawdown:.1f}% drop from high while +{position.pl_pct:.1f}% up"
+                    f"Profit protection: {position.drawdown:.1%}% drop from high while +{position.pl_pct:.1%}% up"
                 )
         elif position.drawdown < -7.5:  # Normal 7.5% trailing stop
-            exit_signals.append(f"Trailing stop: {position.drawdown:.1f}% from high")
+            exit_signals.append(f"Trailing stop: {position.drawdown:.1%}% from high")
 
         # 2. Quick Momentum Shifts - Only exit if significant drop
         if momentum < -5 and position.pl_pct > 0:  # Need profit to use quick exit
             if position.pl_pct > 0.05:  # Need 5% profit to use quick exit
-                exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{position.pl_pct:.1f}% up")
+                exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{position.pl_pct:.1%}% up")
 
-        # 3. Technical Weakness - Need multiple confirmations
-        tech_signals = []
+        # 3. Technical Weakness
         if score < 0.6:  # Weak technical score
-            if any("TA: price below both MAs" in signal for signal in signals):
-                tech_signals.append("Below MAs")
-            if any("TA: Strong bearish MACD" in signal for signal in signals):
-                tech_signals.append("Bearish MACD")
-            if any("TA: Shooting Star (Daily)" in signal for signal in signals):
-                tech_signals.append("Shooting Star")
-            if any("TA: Bearish Engulfing (Daily)" in signal for signal in signals):
-                tech_signals.append("Bearish Engulfing")
-            if any("TA: Overbought RSI" in signal for signal in signals):
-                tech_signals.append("Overbought RSI")
-            if momentum < -3:  # Lower threshold with weak technicals
-                tech_signals.append(f"{momentum:.1f}% momentum")
-
-        # Only exit on technical weakness if multiple signals
-        if len(tech_signals) >= 2:
-            exit_signals.extend(tech_signals)
+            weak_tech_signals = self.technical_analyzer.weak_technicals(signals)
+            # Only exit on technical weakness if multiple signals
+            if weak_tech_signals is not None:
+                exit_signals.append(weak_tech_signals)
 
         # 5. Mediocre performance with significant age
         position_age = (datetime.now(UTC) - position.entry_time).days

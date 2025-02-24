@@ -279,6 +279,9 @@ class TechnicalAnalyzer:
             signals["raw_score"] += 40
         elif rvol_daily > 2:
             signals["raw_score"] += 25  # High relative volume = significant activity
+        elif rvol_daily < 1.5:
+            signals["raw_score"] -= 10
+            signals["signals"].append("TA: High RVOL missing")
         elif rvol_daily < 0.7:
             signals["raw_score"] -= 20  # Low relative volume = lack of interest
 
@@ -336,7 +339,7 @@ class TechnicalAnalyzer:
                 else:
                     signals["score"] += 10
             else:
-                if macd_diff < -0.5:
+                if macd_diff < -0.2:
                     signals["score"] -= 30
                     signals["signals"].append("TA: Strong bearish MACD")
                 else:
@@ -365,7 +368,7 @@ class TechnicalAnalyzer:
         logger.debug(
             f"\n{symbol} - Technical Analysis:\n"
             f"ATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']}, "
-            f"Momentum: {signals['momentum']:1f}, Signals: {signals['signals']}"
+            f"Momentum: {signals['momentum']:1%}, Signals: {signals['signals']}"
         )
         return signals
 
@@ -396,3 +399,21 @@ class TechnicalAnalyzer:
         except Exception as e:
             logger.error(f"Error analyzing stock {symbol}: {str(e)}", exc_info=True)
             return None
+
+    def weak_technicals(self, signals: list[str]) -> str | None:
+        weak_signal_checks = {
+            "TA: price below both MAs": "Below MAs",
+            "TA: Strong bearish MACD": "Bearish MACD",
+            "TA: Shooting Star (Daily)": "Shooting Star",
+            "TA: Bearish Engulfing (Daily)": "Bearish Engulfing",
+            "TA: Overbought RSI": "Overbought RSI",
+            "TA: High RVOL missing": "High RVOL missing",
+        }
+
+        weak_tech_signals = [
+            description for signal, description in weak_signal_checks.items() if any(signal in s for s in signals)
+        ]
+
+        if len(weak_tech_signals) >= 1:
+            return f"Weak technicals: {', '.join(weak_tech_signals)}"
+        return None

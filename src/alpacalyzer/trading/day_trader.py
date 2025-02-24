@@ -93,12 +93,12 @@ class DayTrader:
                 logger.info(f"\nEvaluating entry for {ticker}")
                 # Skip if we already have a pending order
                 if ticker in pending_orders:
-                    entry_blockers.append(f"SKIP {ticker}: Pending order already exists")
+                    entry_blockers.append("Pending order already exists")
                     continue
 
                 technical_data = analyzer.analyze_stock(ticker)
                 if not technical_data:
-                    entry_blockers.append(f"SKIP {ticker}: Technical data missing")
+                    entry_blockers.append("Technical data missing")
                     continue
 
                 # Check if stock was previously exited and decide if it's cleared
@@ -134,12 +134,15 @@ class DayTrader:
 
                 if technical_data["score"] < ta_threshold:
                     entry_blockers.append(
-                        f"SKIP {ticker}: Technical data too weak: {technical_data['score']:.2f} < {ta_threshold:.2f}"
+                        f"Technical data too weak: {technical_data['score']:.2f} < {ta_threshold:.2f}"
                     )
 
                 # Check for conflicting signals
                 if momentum < 0 and stock["sentiment_rank"] > 20:
-                    entry_blockers.append(f"SKIP {ticker}: Conflicting momentum and sentiment signals.")
+                    entry_blockers.append("Conflicting momentum and sentiment signals.")
+
+                if momentum < -3:
+                    entry_blockers.append(f"Weak momentum {momentum:.1f}%")
 
                 # Only allow weaker setups if breakout pattern detected
                 if (
@@ -147,31 +150,17 @@ class DayTrader:
                     and technical_data["score"] < 0.8
                     and not any("TA: Breakout" in signal for signal in signals)
                 ):
-                    entry_blockers.append(f"SKIP {ticker}: No breakout pattern detected")
+                    entry_blockers.append("No breakout pattern detected")
 
                 # 3. Technical Weakness
-                weak_tech_signals = []
-                if any("TA: price below both MAs" in signal for signal in signals):
-                    weak_tech_signals.append("Below MAs")
-                if any("TA: Strong bearish MACD" in signal for signal in signals):
-                    weak_tech_signals.append("Bearish MACD")
-                if any("TA: Shooting Star (Daily)" in signal for signal in signals):
-                    weak_tech_signals.append("Shooting Star")
-                if any("TA: Bearish Engulfing (Daily)" in signal for signal in signals):
-                    weak_tech_signals.append("Bearish Engulfing")
-                if any("TA: Overbought RSI" in signal for signal in signals):
-                    weak_tech_signals.append("Overbought RSI")
-                if momentum < -3:
-                    weak_tech_signals.append(f"{momentum:.1f}% momentum")
-
-                # Only block entry on technical weakness if multiple signals present
-                if len(weak_tech_signals) >= 2:
-                    entry_blockers.append(f"SKIP {ticker}: Weak technicals: {', '.join(weak_tech_signals)}")
+                weak_tech_signals = analyzer.weak_technicals(signals)
+                if weak_tech_signals is not None:
+                    entry_blockers.append(f"{weak_tech_signals}")
 
                 if entry_blockers:
-                    logger.info("Entry blocked:")
+                    logger.info(f"Entry blocked for {ticker}:")
                     for blocker in entry_blockers:
-                        logger.info(blocker)
+                        logger.info(f"- {blocker}")
                     continue
 
                 # Calculate position size with sentiment data
