@@ -1,10 +1,13 @@
+import json
 import os
 from typing import TypeVar, cast
 
+import pandas as pd
 from dotenv import load_dotenv
 from openai import OpenAI
 from pandas import DataFrame
 
+from alpacalyzer.analysis.technical_analysis import TradingSignals
 from alpacalyzer.gpt.response_models import TopTickersResponse, TradingStrategyResponse
 from alpacalyzer.scanners.reddit_scanner import fetch_reddit_posts, fetch_user_posts
 from alpacalyzer.utils.logger import logger
@@ -17,6 +20,48 @@ api_key = os.getenv("OPENAI_API_KEY")
 if api_key is None:
     raise ValueError("Missing OpenAI API Key")
 client.api_key = api_key
+
+
+def dataframe_to_compact_csv(df: pd.DataFrame, max_rows: int) -> str:
+    """Convert DataFrame to a compact CSV format with rounding and row limits."""
+
+    # Keep only the most recent `max_rows`
+    df = df.tail(max_rows)
+
+    # Rename "symbol" to "ticker" if present
+    if "symbol" in df.columns:
+        df = df.rename(columns={"symbol": "ticker"})
+
+    # Round all float values to 3 decimal places
+    df = df.map(lambda x: round(x, 3) if isinstance(x, float) else x)
+
+    # Convert timestamp columns to string (ISO format)
+    if "timestamp" in df.columns:
+        df["timestamp"] = df["timestamp"].astype(str)
+
+    csv = df.to_csv(index=False)
+    return cast(str, csv)
+
+
+def serialize_trading_signals(signals: TradingSignals) -> str:
+    """Convert TradingSignals object into a JSON-compatible format with CSV data."""
+
+    json_ready_signals = {
+        "ticker": signals["symbol"],  # Rename at the top level
+        "current_price": signals["price"],
+        "ta_score_from_0_to_1": signals["score"],
+        "atr": signals["atr"],
+        "rvol": signals["rvol"],
+        "momentum": signals["momentum"],
+        "3_months_daily_candles_csv": dataframe_to_compact_csv(
+            signals["raw_data_daily"], max_rows=90
+        ),  # Daily candles 3 months
+        "10_hours_5min_candles_csv": dataframe_to_compact_csv(
+            signals["raw_data_intraday"], max_rows=120
+        ),  # 5-min candles 10 hours
+    }
+
+    return json.dumps(json_ready_signals)  # Convert to JSON string
 
 
 def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
@@ -47,6 +92,7 @@ Focus on high-potential stocks with strong momentum and technical setups.
     winning_watch_list_ideas = fetch_user_posts("WinningWatchlist")
     combined_ideas = trading_edge_ideas + winning_watch_list_ideas
     formatted_reddit_ideas = "\n\n".join([f"Title: {post['title']}\nBody: {post['body']}" for post in combined_ideas])
+    logger.debug(f"Reddit insights input: {formatted_reddit_ideas}")
     messages.append(
         {
             "role": "user",
@@ -54,7 +100,7 @@ Focus on high-potential stocks with strong momentum and technical setups.
         }
     )
     top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
-    logger.debug(top_tickers_response)
+    logger.debug(f"Reddit insights output: {top_tickers_response}")
     return top_tickers_response
 
 
@@ -106,6 +152,8 @@ as an **intraday scalp** or **skip entirely**.
         },
     ]
     formatted_finviz_data = finviz_df.to_json(orient="records")
+    logger.debug(f"Top candidates input: {formatted_finviz_data}")
+    logger.debug(formatted_finviz_data)
     messages.append(
         {
             "role": "user",
@@ -113,11 +161,11 @@ as an **intraday scalp** or **skip entirely**.
         }
     )
     top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
-    logger.debug(top_tickers_response)
+    logger.debug(f"Top candidates output: {top_tickers_response}")
     return top_tickers_response
 
 
-def get_trading_strategies(ticker_data: DataFrame, ticker: str) -> TradingStrategyResponse | None:
+def get_trading_strategies(ticker_data: TradingSignals, ticker: str) -> TradingStrategyResponse | None:
     messages = [
         {
             "role": "system",
@@ -126,17 +174,17 @@ You are Chart Pattern Analyst GPT, a financial analysis assistant specializing i
 short-term trading strategies.
 
 ## Role & Expertise
-- Your goal is to analyze each chart, identify notable patterns, highlight support/resistance levels, and propose
+- Your goal is to analyze candlestick data, identify notable patterns, highlight support/resistance levels, and propose
 potential trading scenarios with an emphasis on risk management.
 - You apply technical analysis (candlesticks, trendlines, support/resistance, indicators, volume)
 and propose one or more trading strategies in valid JSON format.
 
 ## Key Objectives
-1. Identify & Explain Candlestick Patterns (hammer, shooting star, doji, engulfing, etc.).
-1. Mark Support & Resistance areas to guide entry/exit levels.
+1. Identify & utilize Candlestick Patterns (hammer, shooting star, doji, engulfing, etc.).
+1. Note Support & Resistance areas to guide entry/exit levels.
 1. Incorporate Technical Indicators (moving averages, RSI, MACD, Bollinger Bands) as needed.
 1. Analyze Volume for confirmation or divergence.
-1. Use Multi-Timeframe Analysis (top-down approach).
+1. Use Multi-Timeframe Analysis (data has both intraday 5 min candles as well as 3month daily candles).
 1. Suggest Risk Management steps (stop-loss, position sizing, risk/reward).
 1. Communicate your analysis in a concise, structured way.
 1. Responds with a JSON output that matches the provided schema.
@@ -181,6 +229,8 @@ and propose one or more trading strategies in valid JSON format.
 - **Mandatory JSON Output:** Conclude with a valid JSON object that adheres to the JSON schema.
 - **Indicate trade type:** Long or short depending on the setup.
 - **Give a clear entry criteria:** Give one condition that must be met for the trade to be valid.
+- **Relevant entries:** Input data includes latest price, and candles have the same information,
+    make sure your suggestions are relevant with respect to current price.
 
 ## TIPS & BEST PRACTICES
 1. **Always Keep It Clear & Actionable**
@@ -195,11 +245,12 @@ and propose one or more trading strategies in valid JSON format.
         },
         {
             "role": "user",
-            "content": f"Analyze the candle stick data and indicators of the stock and generate trading strategies for {ticker}"  # noqa: E501
+            "content": f"Analyze the candle stick data and indicators of the stock and generate trading strategies for {ticker}, make sure to use up to date price data."  # noqa: E501
             f"",
         },
     ]
-    formatted_ticker_data = ticker_data.rename(columns={"symbol": "ticker"}).to_json(orient="records")
+    formatted_ticker_data = serialize_trading_signals(ticker_data)
+    logger.debug(f"Trading strategies input: {formatted_ticker_data}")
     messages.append(
         {
             "role": "user",
@@ -207,5 +258,5 @@ and propose one or more trading strategies in valid JSON format.
         }
     )
     response = call_gpt_structured(messages, TradingStrategyResponse)
-    logger.debug(response)
+    logger.debug(f"Trading strategies output: {response}")
     return response

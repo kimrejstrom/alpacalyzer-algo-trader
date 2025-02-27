@@ -20,7 +20,6 @@ class EntryType(Enum):
     PRICE_NEAR_RESISTANCE = "price_near_resistance"  # Price is at/near a resistance level
     BREAKOUT_ABOVE = "breakout_above"  # Price breaking above a level (e.g., prior high)
     BREAKDOWN_BELOW = "breakdown_below"  # Price breaking below a level (e.g., prior low)
-    VOLUME_SPIKE = "volume_spike"  # Sudden increase in trading volume (RVOL threshold)
     RSI_OVERSOLD = "rsi_oversold"  # RSI below a certain threshold (typically 30)
     RSI_OVERBOUGHT = "rsi_overbought"  # RSI above a certain threshold (typically 70)
     ABOVE_MOVING_AVERAGE_20 = "above_ma20"  # Price is above the 20-day SMA/EMA
@@ -33,9 +32,6 @@ class EntryType(Enum):
     SHOOTING_STAR = "shooting_star"
     HAMMER = "hammer"
     DOJI = "doji"
-
-    MOMENTUM_CONTINUATION = "momentum_continuation"  # Strong move continuing in one direction
-    MOMENTUM_REVERSAL = "momentum_reversal"  # Strong move reversing direction
 
 
 class EntryCriteria(BaseModel):
@@ -53,7 +49,6 @@ class TradingStrategy(BaseModel):
     strategy_notes: str
     trade_type: str  # "long" or "short"
     entry_criteria: list[EntryCriteria]
-    executed: bool  # Track if the strategy has been executed
 
 
 class TradingStrategyResponse(BaseModel):

@@ -170,8 +170,6 @@ TOTAL                               7      2    71%
 
 TODO:
 
-- [ ] Cancel Buy orders that have not triggered after 5 minutes
-- [ ] Cancel all open orders when the market closes
-- [ ] Add custom client-id to the orders
 - [ ] Take sqlite3 database in to use and save swing trade strategies to db
-- [ ] Calculate the order exposure for swing trades
+- [ ] Dont cancel swing trade pending orders in position manager
+- [ ] Use intraday candlestick patterns on day trader

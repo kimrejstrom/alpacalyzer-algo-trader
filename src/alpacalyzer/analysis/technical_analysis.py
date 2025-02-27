@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, TypedDict, cast
+from typing import TypedDict, cast
 
 import pandas as pd
 import talib
@@ -9,7 +9,7 @@ from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.enums import OrderSide
 
-from alpacalyzer.trading.alpaca_client import history_client
+from alpacalyzer.trading.alpaca_client import get_market_status, history_client
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import logger
 
@@ -23,8 +23,8 @@ class TradingSignals(TypedDict):
     raw_score: int
     score: float  # Normalized score (0-1)
     momentum: float  # 24h momentum
-    raw_data_daily: Annotated[pd.Series, float]
-    raw_data_intraday: Annotated[pd.Series, float]
+    raw_data_daily: pd.DataFrame
+    raw_data_intraday: pd.DataFrame
 
 
 class CacheEntry(TypedDict):
@@ -48,7 +48,7 @@ class TechnicalAnalyzer:
         """Get historical data from Alpaca."""
         try:
             now_utc = datetime.now(UTC)  # Get the current UTC time
-            end = now_utc - timedelta(seconds=930)
+            end = now_utc - timedelta(seconds=930)  # 15.5 minutes ago
 
             # Determine the `start` time based on the `request_type`
             if request_type == "minute":
@@ -75,16 +75,19 @@ class TechnicalAnalyzer:
                 if not candles or candles is None:
                     return None
 
-                # Fetch the latest bar for minute data
-                latest_bar_response = history_client.get_stock_latest_bar(
-                    StockLatestBarRequest(
-                        symbol_or_symbols=symbol,
+                # Check market status
+                if get_market_status() == "open":
+                    # Fetch the latest bar for fresh data (only available during market hours)
+                    latest_bar_response = history_client.get_stock_latest_bar(
+                        StockLatestBarRequest(symbol_or_symbols=symbol)
                     )
-                )
-                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
+                    latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
 
-                if latest_bar:
-                    candles.append(latest_bar)
+                    # Append the latest bar if available, otherwise duplicate the last candle
+                    candles.append(latest_bar if latest_bar else candles[-1])
+                else:
+                    # Market is closed, duplicate the last candle
+                    candles.append(candles[-1])
 
                 return pd.DataFrame(
                     [
@@ -123,7 +126,6 @@ class TechnicalAnalyzer:
         # Volume
         df["Volume_MA"] = talib.SMA(df["volume"].to_numpy(), timeperiod=30)  # Average volume
         df["RVOL"] = df["volume"] / df["Volume_MA"]  # Relative Volume
-
         # Bollinger Bands
         upper, middle, lower = talib.BBANDS(df["close"].to_numpy())
         df["BB_Upper"] = upper
@@ -135,6 +137,15 @@ class TechnicalAnalyzer:
             df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
         )
         df["Bearish_Engulfing"] = talib.CDLENGULFING(
+            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+        )
+        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(
+            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+        )
+        df["Hammer"] = talib.CDLHAMMER(
+            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+        )
+        df["Doji"] = talib.CDLDOJI(
             df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
         )
 
@@ -198,27 +209,27 @@ class TechnicalAnalyzer:
         Bollinger Bands.
         """
 
-        latest_intraday = intraday_df.iloc[-1]
-        latest_daily = daily_df.iloc[-1]
+        latest_intraday = intraday_df.iloc[-2]
+        latest_daily = daily_df.iloc[-2]
         prev_daily = daily_df.iloc[-2]
 
         if latest_intraday is None or latest_daily is None or prev_daily is None:
             return None
 
-        price = latest_intraday.get("close", 0)
+        price = intraday_df["close"].iloc[-1]
 
         # Initialize signals structure
         signals: TradingSignals = {
             "symbol": symbol,
             "price": price,
             "atr": latest_daily["ATR"],
-            "rvol": latest_daily["RVOL"],
+            "rvol": latest_intraday["RVOL"],
             "signals": [],  # List of trading signals
             "raw_score": 0,  # Raw technical analysis score
             "score": 0,  # Normalized score (0-1)
             "momentum": 0,  # 24h momentum
-            "raw_data_daily": latest_daily,  # Raw data for debugging
-            "raw_data_intraday": latest_intraday,  # Raw data for debugging
+            "raw_data_daily": daily_df,  # Raw data for debugging
+            "raw_data_intraday": intraday_df,  # Raw data for debugging
         }
 
         ### --- DAILY INDICATORS --- ###
@@ -234,7 +245,9 @@ class TechnicalAnalyzer:
         else:
             if price < sma20_daily and price < sma50_daily:
                 signals["raw_score"] -= 30  # Strong downtrend
-                signals["signals"].append("TA: price below both MAs")
+                signals["signals"].append(
+                    f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})"
+                )
             else:
                 signals["raw_score"] -= 10  # Weak downtrend
 
@@ -264,7 +277,7 @@ class TechnicalAnalyzer:
         elif rsi_daily > 70:  # Overbought
             if side != OrderSide.BUY:
                 signals["raw_score"] -= 30
-                signals["signals"].append("TA: Overbought RSI")
+                signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
             else:
                 signals["raw_score"] += 15
 
@@ -281,7 +294,6 @@ class TechnicalAnalyzer:
             signals["raw_score"] += 25  # High relative volume = significant activity
         elif rvol_daily < 1.5:
             signals["raw_score"] -= 10
-            signals["signals"].append("TA: High RVOL missing")
         elif rvol_daily < 0.7:
             signals["raw_score"] -= 20  # Low relative volume = lack of interest
 
@@ -325,6 +337,12 @@ class TechnicalAnalyzer:
             elif latest_intraday["Bearish_Engulfing"] == -100:
                 signals["raw_score"] -= 15  # Short-term bearish signal
                 signals["signals"].append("TA: Bearish Engulfing (Intraday)")
+            if latest_intraday["Hammer"] == 100 and rsi_daily < 30:
+                signals["raw_score"] += 25  # Hammer confirmed by oversold RSI
+                signals["signals"].append("TA: Hammer (Intraday)")
+            elif latest_intraday["Shooting_Star"] == -100 and rsi_daily > 70:
+                signals["raw_score"] -= 25  # Shooting Star confirmed by overbought RSI
+                signals["signals"].append("TA: Shooting Star (Intraday)")
 
             # 3. MACD Analysis (Intraday)
             macd = latest_intraday["MACD"]
@@ -341,7 +359,7 @@ class TechnicalAnalyzer:
             else:
                 if macd_diff < -0.2:
                     signals["score"] -= 30
-                    signals["signals"].append("TA: Strong bearish MACD")
+                    signals["signals"].append(f"TA: Strong bearish MACD ({macd_diff:.2f} < -0.2)")
                 else:
                     signals["score"] -= 10
 
@@ -357,30 +375,44 @@ class TechnicalAnalyzer:
             # 5. Volume spike based breakout
             if price > latest_daily["SMA_50"] and latest_intraday["volume"] > 2 * latest_daily["Volume_MA"]:
                 signals["raw_score"] += 40
-                signals["signals"].append("TA: Breakout")
+                signals["signals"].append(
+                    f"TA: Breakout (Volume spike {latest_intraday['volume']:.0f} > 2 * {latest_daily['Volume_MA']:.0f})"
+                )
+
+            # 4. Relative Volume (RVOL)
+            rvol_intraday = latest_intraday["RVOL"]
+            if rvol_intraday > 5:
+                signals["raw_score"] += 40
+            elif rvol_intraday > 2:
+                signals["raw_score"] += 25  # High relative volume = significant activity
+            elif rvol_intraday < 1.5:
+                signals["raw_score"] -= 10
+                signals["signals"].append(f"TA: High RVOL missing ({rvol_intraday:.1f} < 1.5)")
+            elif rvol_intraday < 0.7:
+                signals["raw_score"] -= 20  # Low relative volume = lack of interest
 
         ### --- NORMALIZATION --- ###
         # Calculate min-max normalization
-        min_raw_score, max_raw_score = -150, 150  # Define expected range
+        min_raw_score, max_raw_score = -130, 130  # Define expected range
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
         signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 
         logger.debug(
             f"\n{symbol} - Technical Analysis:\n"
             f"ATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']}, "
-            f"Momentum: {signals['momentum']:1%}, Signals: {signals['signals']}"
+            f"Momentum: {signals['momentum']:1f}, Signals: {signals['signals']}"
         )
         return signals
 
     def analyze_stock(self, symbol: str) -> TradingSignals | None:
-        current_time = datetime.now(UTC)
+        # current_time = datetime.now(UTC)
 
         # Check if the result is already in the cache
-        if symbol in self.analysis_cache:
-            cache_entry = self.analysis_cache[symbol]
-            # If the cached entry is less than 60 seconds old, reuse it
-            if (current_time - cache_entry["timestamp"]).seconds < 60:
-                return cache_entry["result"]
+        # if symbol in self.analysis_cache:
+        #     cache_entry = self.analysis_cache[symbol]
+        #     # If the cached entry is less than 60 seconds old, reuse it
+        #     if (current_time - cache_entry["timestamp"]).seconds < 60:
+        #         return cache_entry["result"]
 
         try:
             intraday = self.analyze_stock_intraday(symbol)
@@ -392,28 +424,40 @@ class TechnicalAnalyzer:
             result = self.calculate_technical_analysis_score(symbol, daily, intraday)
             if result is None:
                 return None
-            # Store the result in the cache with a timestamp
-            self.analysis_cache[symbol] = {"timestamp": current_time, "result": result}
+            # # Store the result in the cache with a timestamp
+            # self.analysis_cache[symbol] = {"timestamp": current_time, "result": result}
             return result
 
         except Exception as e:
             logger.error(f"Error analyzing stock {symbol}: {str(e)}", exc_info=True)
             return None
 
-    def weak_technicals(self, signals: list[str]) -> str | None:
-        weak_signal_checks = {
-            "TA: price below both MAs": "Below MAs",
-            "TA: Strong bearish MACD": "Bearish MACD",
-            "TA: Shooting Star (Daily)": "Shooting Star",
-            "TA: Bearish Engulfing (Daily)": "Bearish Engulfing",
-            "TA: Overbought RSI": "Overbought RSI",
-            "TA: High RVOL missing": "High RVOL missing",
-        }
+    def weak_technicals(self, signals: list[str], side: OrderSide) -> str | None:
+        if side == OrderSide.BUY:
+            weak_signal_checks = {
+                "Price below both MAs",
+                "Strong bearish MACD",
+                "Shooting Star (Daily)",
+                "Bearish Engulfing (Daily)",
+                "Shooting Star (Intraday)",
+                "Bearish Engulfing (Intraday)",
+                "Overbought RSI",
+                "High RVOL missing",
+            }
+        else:
+            weak_signal_checks = {
+                "Price below both MAs",
+                "Strong bearish MACD",
+                "Shooting Star (Daily)",
+                "Bearish Engulfing (Daily)",
+                "Shooting Star (Intraday)",
+                "Bearish Engulfing (Intraday)",
+                "Overbought RSI",
+            }
 
-        weak_tech_signals = [
-            description for signal, description in weak_signal_checks.items() if any(signal in s for s in signals)
-        ]
+        # Find signals that match any of the weak_signal_checks substrings
+        weak_tech_signals = [signal for signal in signals if any(key in signal for key in weak_signal_checks)]
 
-        if len(weak_tech_signals) >= 1:
+        if weak_tech_signals:
             return f"Weak technicals: {', '.join(weak_tech_signals)}"
         return None

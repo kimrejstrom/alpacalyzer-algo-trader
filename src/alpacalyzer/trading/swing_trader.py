@@ -1,8 +1,10 @@
-import pandas as pd
+from typing import cast
+
 from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.models import Asset, Order, TradeAccount
 from alpaca.trading.requests import LimitOrderRequest
 
-from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
+from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.gpt.call_gpt import (
     get_reddit_insights,
     get_top_candidates,
@@ -17,8 +19,9 @@ from alpacalyzer.utils.logger import logger
 class SwingTrader:
     def __init__(self):
         """Initialize the SwingTrader instance."""
-
+        self.technical_analyzer = TechnicalAnalyzer()
         self.latest_strategies: list[TradingStrategy] = []
+        self.finviz_scanner = FinvizScanner()
 
     def analyze_and_swing_trade(self):
         """Main swing-trading loop."""
@@ -30,30 +33,41 @@ class SwingTrader:
 
         logger.info(f"\n=== Swing Trading Prospect Loop Starting - Market Status: {market_status} ===")
 
-        reddit_insights = get_reddit_insights()
-        reddit_picks = reddit_insights.top_tickers if reddit_insights else []
-        finviz_df = FinvizScanner().get_trending_stocks()
-        finviz_tickers = finviz_df["Ticker"].tolist()
-        reddit_tickers = [x.ticker for x in reddit_picks]
-        top_tickers = list(set(reddit_tickers + finviz_tickers))
+        try:
+            reddit_insights = get_reddit_insights()
+            reddit_picks = reddit_insights.top_tickers if reddit_insights else []
+            # finviz_df = self.finviz_scanner.get_trending_stocks()
+            # finviz_tickers = finviz_df["Ticker"].tolist()
+            reddit_tickers = [x.ticker for x in reddit_picks]
+            top_tickers = list(set(reddit_tickers))
+            logger.info(f"Top tickers: {top_tickers}")
+            input_ta_df = self.finviz_scanner.fetch_stock_data(tuple(top_tickers))
+            analyzer_response = get_top_candidates(input_ta_df)
+            analyzer_picks = analyzer_response.top_tickers if analyzer_response else []
 
-        input_ta_df = FinvizScanner().fetch_stock_data(tuple(top_tickers))
-        analyzer_response = get_top_candidates(input_ta_df)
-        analyzer_picks = analyzer_response.top_tickers if analyzer_response else []
+            final_tickers = [x.ticker for x in analyzer_picks]
+            self.latest_strategies = []
 
-        final_tickers = [x.ticker for x in analyzer_picks]
-        self.latest_strategies = []
+            for ticker in final_tickers:
+                signals = self.technical_analyzer.analyze_stock(ticker)
+                if signals is None:
+                    continue
+                trading_strategies_response = get_trading_strategies(signals, ticker)
+                trading_strategies = trading_strategies_response.strategies if trading_strategies_response else []
+                if len(trading_strategies) > 0:
+                    self.latest_strategies.extend(trading_strategies)
+                    logger.info(f"Added {len(trading_strategies)} new strategies for {ticker}")
 
-        for ticker in final_tickers:
-            logger.info(f"Analyzing {ticker}...")
-            df = TechnicalAnalyzer().analyze_stock_daily(ticker)
-            if df is None or df.empty:
-                continue
-            trading_strategies_response = get_trading_strategies(df, ticker)
-            trading_strategies = trading_strategies_response.strategies if trading_strategies_response else []
-            self.latest_strategies.extend(trading_strategies)
-
-        logger.debug(f"Updated latest strategies: {self.latest_strategies}")
+            for strategy in self.latest_strategies:
+                logger.info(
+                    f"Added strategy for {strategy.ticker}:\n"
+                    f"Type: {strategy.trade_type}, Entry: {strategy.entry_point}, "
+                    f"Target: {strategy.target_price}, Stop Loss: {strategy.stop_loss}\n"
+                    f"Criteria: {strategy.entry_criteria}\n"
+                    f"Notes: {strategy.strategy_notes}\n\n"
+                )
+        except Exception as e:
+            logger.error(f"Error in analyze_and_swing_trade: {str(e)}", exc_info=True)
 
     # Function to check real-time price and execute orders
     def monitor_and_trade(self):
@@ -70,29 +84,46 @@ class SwingTrader:
             return
 
         logger.info(f"\n=== Swing Trading Monitor Loop Starting - Market Status: {market_status} ===")
+        logger.info(f"Active Strategies: {len(self.latest_strategies)}")
 
-        analyzer = TechnicalAnalyzer()
+        executed_tickers = set()  # Track tickers whose strategies have been executed
 
         try:
-            for strategy in self.latest_strategies:
-                if strategy.executed:
-                    continue  # Skip strategies already executed
+            for strategy in self.latest_strategies[:]:
+                if strategy.ticker in executed_tickers:
+                    continue  # Skip strategies for tickers that already executed
 
-                daily_ta = analyzer.analyze_stock_daily(strategy.ticker)
-                if daily_ta is None or daily_ta.empty:
+                signals = self.technical_analyzer.analyze_stock(strategy.ticker)
+                if signals is None:
                     continue
 
+                logger.info(
+                    f"\nChecking strategy for {strategy.ticker} (Current price: {signals['price']}):\n"
+                    f"Type: {strategy.trade_type}, Entry: {strategy.entry_point}, "
+                    f"Target: {strategy.target_price}, Stop Loss: {strategy.stop_loss}"
+                )
+
                 # Check if entry conditions are met
-                if check_entry_conditions(strategy, daily_ta):
-                    logger.info(f"Executing strategy: {strategy.strategy_notes}")
+                if check_entry_conditions(strategy, signals):
+                    asset_response = trading_client.get_asset(strategy.ticker)
+                    asset = cast(Asset, asset_response)
+                    if not (asset.tradable and asset.shortable and strategy.trade_type == "short"):
+                        logger.info(f"Asset can not be shorted {strategy.ticker} - Removing strategy")
+                        self.latest_strategies.remove(strategy)
+                        continue
+
+                    logger.info(f"Executing strategy for {strategy.ticker}:\n{strategy.strategy_notes}")
 
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type == "long" else OrderSide.SELL
-                    qty = 10  # Adjust based on risk management
+                    target_shares = calculate_position_size(strategy.ticker, strategy.entry_point, side, 0.10)
+                    if target_shares is None:
+                        continue
                     logger.debug(f"{strategy}")
+
                     bracket_order = LimitOrderRequest(
                         symbol=strategy.ticker,
-                        qty=qty,
+                        qty=target_shares,
                         side=side,
                         type="limit",
                         time_in_force=TimeInForce.DAY,
@@ -100,73 +131,151 @@ class SwingTrader:
                         order_class="bracket",
                         stop_loss={"stop_price": strategy.stop_loss},
                         take_profit={"limit_price": strategy.target_price},
-                        client_order_id=f"{strategy.ticker}-{strategy.entry_point}-{strategy.trade_type}",
+                        client_order_id=f"swing-{strategy.ticker}-{strategy.entry_point}-{strategy.trade_type}",
                     )
                     # Submit order with bracket structure
-                    order = trading_client.submit_order(bracket_order)
+                    order_resp = trading_client.submit_order(bracket_order)
+                    order = cast(Order, order_resp)
+                    log_order(order)
 
-                    strategy.executed = True  # Mark strategy as executed
-                    logger.info(f"Order placed: {order}")
+                    # Mark strategy as executed
+                    executed_tickers.add(strategy.ticker)
+
+            # Remove all strategies for executed tickers
+            self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]
 
         except Exception as e:
             logger.error(f"Error in monitor_and_trade: {str(e)}", exc_info=True)
 
 
-def check_entry_conditions(strategy: TradingStrategy, df: pd.DataFrame) -> bool:
+def calculate_position_size(ticker: str, price: float, side: OrderSide, target_pct: float) -> int | None:
+    """Calculate the position size based on the target percentage."""
     try:
-        latest = df.iloc[-1]
-        price = latest["close"]
-        recent_high = latest["high"].max()  # Highest price in last 50 periods
-        recent_low = latest["low"].min()  # Lowest price in last 50 periods
-        rsi = latest["RSI"]
-        volume_spike = latest["RVOL"]  # Relative volume
-        sma20 = latest["SMA_20"]
-        sma50 = latest["SMA_50"]
+        account_resp = trading_client.get_account()
+        account = cast(TradeAccount, account_resp)
+        equity = float(account.equity or 0)
+        position_size = int((equity * target_pct) / price)
+
+        if position_size < 1:
+            logger.info(f"Skipping {side} order for {ticker}: Insufficient funds")
+            return None
+
+        return position_size
+    except Exception as e:
+        logger.error(f"Error calculating position size: {str(e)}", exc_info=True)
+        return None
+
+
+def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -> bool:
+    try:
+        latest_daily = signals["raw_data_daily"].iloc[-2]
+        latest_intraday = signals["raw_data_intraday"].iloc[-2]
+        price = signals["price"]
+        rsi = latest_daily["RSI"]
+        sma20 = latest_daily["SMA_20"]
+        sma50 = latest_daily["SMA_50"]
 
         conditions_met = True
 
         for criteria in strategy.entry_criteria:
-            if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT and price > criteria.value:
+            if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT and not criteria.value * (
+                1 - 0.005
+            ) <= price <= criteria.value * (1 + 0.005):
+                logger.info(f"Price near support: {price} +/- 0.5% from {criteria.value}")
                 conditions_met = False
-            if criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE and price < criteria.value:
+            if criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE and not criteria.value * (
+                1 - 0.005
+            ) <= price <= criteria.value * (1 + 0.005):
+                logger.info(f"Price near resistance: {price} +/- 0.5% from {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BREAKOUT_ABOVE and price <= criteria.value:
+                logger.info(f"Breakout above: {price} <= {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.RSI_OVERSOLD and rsi > criteria.value:
+                logger.info(f"RSI oversold: {rsi} > {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.RSI_OVERBOUGHT and rsi < criteria.value:
-                conditions_met = False
-            if criteria.entry_type == EntryType.VOLUME_SPIKE and volume_spike < criteria.value:
+                logger.info(f"RSI overbought: {rsi} < {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_20 and price < sma20:
+                logger.info(f"Price above SMA20: {price} < {sma20}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_20 and price > sma20:
+                logger.info(f"Price below SMA20: {price} > {sma20}")
                 conditions_met = False
             if criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_50 and price < sma50:
+                logger.info(f"Price above SMA50: {price} < {sma50}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_50 and price > sma50:
+                logger.info(f"Price below SMA50: {price} > {sma50}")
                 conditions_met = False
-            if criteria.entry_type == EntryType.MOMENTUM_CONTINUATION:
-                if price < recent_high * 0.98:  # Ensures strong continuation (2% off high)
-                    conditions_met = False
-            if criteria.entry_type == EntryType.MOMENTUM_REVERSAL:
-                if price > recent_low * 1.02:  # Ensures strong reversal (2% off low)
-                    conditions_met = False
+            if criteria.entry_type == EntryType.BULLISH_ENGULFING and latest_intraday["Bullish_Engulfing"] != 100:
+                logger.info("Bullish Engulfing not detected")
+                conditions_met = False
+            if criteria.entry_type == EntryType.BEARISH_ENGULFING and latest_intraday["Bearish_Engulfing"] != -100:
+                logger.info("Bearish Engulfing not detected")
+                conditions_met = False
+            if criteria.entry_type == EntryType.SHOOTING_STAR and latest_intraday["Shooting_Star"] != 100:
+                logger.info("Shooting Star not detected")
+                conditions_met = False
+            if criteria.entry_type == EntryType.HAMMER and latest_intraday["Hammer"] != 100:
+                logger.info("Hammer not detected")
+                conditions_met = False
+            if criteria.entry_type == EntryType.DOJI and latest_intraday["Doji"] != 100:
+                logger.info("Doji not detected")
+                conditions_met = False
 
-            # Check Candlestick Patterns
-            if criteria.entry_type == EntryType.BULLISH_ENGULFING:
-                conditions_met = conditions_met and latest["Bullish_Engulfing"] == 100
-            if criteria.entry_type == EntryType.BEARISH_ENGULFING:
-                conditions_met = conditions_met and latest["Bearish_Engulfing"] == -100
-            if criteria.entry_type == EntryType.SHOOTING_STAR:
-                conditions_met = conditions_met and latest["Shooting_Star"] == 100
-            if criteria.entry_type == EntryType.HAMMER:
-                conditions_met = conditions_met and latest["Hammer"] == 100
-            if criteria.entry_type == EntryType.DOJI:
-                conditions_met = conditions_met and latest["Doji"] == 100
-
+        logger.info(f"Entry conditions met for {strategy.ticker}: {conditions_met}")
         return conditions_met
 
     except Exception as e:
         logger.error(f"Error checking conditions: {str(e)}", exc_info=True)
         return False
+
+
+def log_order(order: Order) -> None:
+    """Logs key details of an Alpaca order in a readable format."""
+    log_message = f"""
+    ======================================
+    Order Summary - {order.symbol}
+    ======================================
+    Order ID: {order.id}
+    Client Order ID: {order.client_order_id}
+    Order Type: {order.order_type or "N/A"}
+    Order Class: {order.order_class.value}
+    Side: {order.side}
+    Quantity: {order.qty}
+    Limit Price: {order.limit_price or "N/A"}
+    Stop Price: {order.stop_price or "N/A"}
+    Time in Force: {order.time_in_force.value}
+    Status: {order.status.value}
+    Created At: {order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
+    Updated At: {order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
+    Filled Quantity: {order.filled_qty}
+    Filled Avg Price: {order.filled_avg_price or "N/A"}
+    Expiration: {order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"}
+    Extended Hours: {"Yes" if order.extended_hours else "No"}
+
+    Bracket Order Details:
+    --------------------------------------
+    """
+
+    # Log bracket orders if present
+    if order.legs:
+        for leg in order.legs:
+            log_message += f"""
+            Leg Order: {leg.side}
+            Order Type: {leg.order_type}
+            Quantity: {leg.qty}
+            Limit Price: {leg.limit_price or "N/A"}
+            Stop Price: {leg.stop_price or "N/A"}
+            Status: {leg.status.value}
+            Client Order ID: {leg.client_order_id}
+            Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
+            """
+    else:
+        log_message += "No bracket legs found.\n"
+
+    log_message += "\n======================================="
+
+    logger.info(log_message)  # Log the formatted message

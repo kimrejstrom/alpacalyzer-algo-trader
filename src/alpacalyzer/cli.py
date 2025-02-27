@@ -38,7 +38,7 @@ def main():  # pragma: no cover
             safe_execute(swing_trader.analyze_and_swing_trade)
             schedule.every(4).hours.do(lambda: safe_execute(swing_trader.analyze_and_swing_trade))
 
-            # Run immediately & schedule every 2 minutes
+            # Run immediately & schedule every 1 minutes
             safe_execute(swing_trader.monitor_and_trade)
             schedule.every(60).seconds.do(lambda: safe_execute(swing_trader.monitor_and_trade))
 

@@ -47,11 +47,14 @@ def intraday_df():
         "volume": [500, 600, 700],
         "vwap": [108, 109, 110],
         "MACD": [0.5, 0.6, 0.7],
+        "RVOL": [1, 1.2, 1.5],
         "MACD_Signal": [0.4, 0.5, 0.6],
         "BB_Lower": [107, 108, 109],
         "BB_Upper": [109, 110, 111],
         "Bullish_Engulfing": [0, 0, 100],
         "Bearish_Engulfing": [0, 0, -100],
+        "Hammer": [0, 0, 100],
+        "Shooting_Star": [0, 0, -100],
     }
     return pd.DataFrame(data)
 
@@ -63,8 +66,8 @@ def test_calculate_technical_analysis_score(analyzer, daily_df, intraday_df):
     assert result is not None
     assert result["symbol"] == symbol
     assert result["price"] == 110
-    assert result["atr"] == 2
-    assert result["rvol"] == 1.5
+    assert result["atr"] == 1.5
+    assert result["rvol"] == 1.2
     assert isinstance(result["signals"], list)
     assert isinstance(result["raw_score"], int)
     assert 0 <= result["score"] <= 1
@@ -78,8 +81,8 @@ def test_calculate_technical_analysis_score_with_side(analyzer, daily_df, intrad
     assert result is not None
     assert result["symbol"] == symbol
     assert result["price"] == 110
-    assert result["atr"] == 2
-    assert result["rvol"] == 1.5
+    assert result["atr"] == 1.5
+    assert result["rvol"] == 1.2
     assert isinstance(result["signals"], list)
     assert isinstance(result["raw_score"], int)
     assert 0 <= result["score"] <= 1

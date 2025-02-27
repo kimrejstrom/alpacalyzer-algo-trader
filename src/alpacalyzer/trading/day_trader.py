@@ -153,7 +153,7 @@ class DayTrader:
                     entry_blockers.append("No breakout pattern detected")
 
                 # 3. Technical Weakness
-                weak_tech_signals = analyzer.weak_technicals(signals)
+                weak_tech_signals = analyzer.weak_technicals(signals, OrderSide.BUY)
                 if weak_tech_signals is not None:
                     entry_blockers.append(f"{weak_tech_signals}")
 
@@ -185,9 +185,12 @@ class DayTrader:
                             f"BUY {ticker}: Rank {stock['final_rank']:.1f} "
                             f"(Sentiment: {stock['sentiment_rank']:.1f}, TA: {stock['ta_rank']:.0f})"
                         )
-                        logger.debug(f"Technical signals Daily at BUY: {technical_data['raw_data_daily'].to_string()}")
                         logger.debug(
-                            f"Technical signals Intraday at BUY: {technical_data['raw_data_intraday'].to_string()}"
+                            f"Technical signals Daily at BUY: {technical_data['raw_data_daily'].iloc[-2].to_string()}"
+                        )
+                        logger.debug(
+                            f"Technical signals Intraday at BUY: "
+                            f"{technical_data['raw_data_intraday'].iloc[-2].to_string()}"
                         )
                         limit_price = self.position_manager.get_limit_price(ticker, OrderSide.BUY)
                         if limit_price:

@@ -65,7 +65,7 @@ class FinvizScanner:
             return pd.DataFrame()
 
     @timed_lru_cache(seconds=60, maxsize=128)
-    def fetch_stock_data(self, tickers: tuple[str]) -> pd.DataFrame:
+    def fetch_stock_data(self, tickers: tuple[str, ...]) -> pd.DataFrame:
         """
         Fetches stocks from the custom Finviz screener.
 

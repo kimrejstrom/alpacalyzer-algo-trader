@@ -1,5 +1,5 @@
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pandas as pd
@@ -91,12 +91,27 @@ class PositionManager:
             orders = trading_client.get_orders()
             orders_instance = cast(list[Order], orders)
 
+            # Filter only pending orders where order ID contains "day"
+            filtered_orders = [
+                order
+                for order in orders_instance
+                if order.status in ["new", "accepted", "pending"] and "day" in order.client_order_id.lower()
+            ]
+
             # Clear old pending orders
             self.pending_orders = []
 
+            # Current time in UTC
+            now = datetime.now(UTC)
+
             # Only track orders that are still pending
-            for order in orders_instance:
-                if order.status in ["new", "accepted", "pending"]:
+            for order in filtered_orders:
+                order_age = now - order.submitted_at
+                if order_age > timedelta(minutes=5):
+                    # Cancel the order if it's older than 5 minutes
+                    trading_client.cancel_order_by_id(order.id)
+                    logger.info(f"Cancelled pending BUY order for {order.symbol} due to timeout.")
+                else:
                     self.pending_orders.append(
                         {
                             "symbol": order.symbol,
@@ -340,8 +355,7 @@ class PositionManager:
 
         # 3. Technical Weakness
         if score < 0.6:  # Weak technical score
-            weak_tech_signals = self.technical_analyzer.weak_technicals(signals)
-            # Only exit on technical weakness if multiple signals
+            weak_tech_signals = self.technical_analyzer.weak_technicals(signals, OrderSide.SELL)
             if weak_tech_signals is not None:
                 exit_signals.append(weak_tech_signals)
 
@@ -370,10 +384,11 @@ class PositionManager:
             logger.info(f"Position details: {position}")
             if position.technical_data:
                 logger.debug(
-                    f"Technical signals Daily at SELL: {position.technical_data['raw_data_daily'].to_string()}"
+                    f"Technical signals Daily at SELL: {position.technical_data['raw_data_daily'].iloc[-2].to_string()}"
                 )
                 logger.debug(
-                    f"Technical signals Intraday at SELL: {position.technical_data['raw_data_intraday'].to_string()}"
+                    f"Technical signals Intraday at SELL: "
+                    f"{position.technical_data['raw_data_intraday'].iloc[-2].to_string()}"
                 )
             if position.pl_pct < 0:
                 logger.info(f"LOSS: {position.pl_pct:.1%} P&L loss on trade")
@@ -444,6 +459,7 @@ class PositionManager:
             limit_price=limit_price,
             time_in_force=TimeInForce.DAY,
             extended_hours=True,  # Allow after-hours trading
+            client_order_id=f"day-{symbol}-{limit_price}-{side}",
         )
 
         try:
@@ -472,7 +488,13 @@ class PositionManager:
         if shares <= 0:
             return None
 
-        order_details = MarketOrderRequest(symbol=symbol, qty=shares, side=side, time_in_force=TimeInForce.DAY)
+        order_details = MarketOrderRequest(
+            symbol=symbol,
+            qty=shares,
+            side=side,
+            time_in_force=TimeInForce.DAY,
+            client_order_id=f"day-{symbol}-market-{side}",
+        )
 
         try:
             # Place order and track status
@@ -594,11 +616,11 @@ class PositionManager:
         if intraday_df is None or intraday_df.empty:
             return None
 
-        latest = intraday_df.iloc[-1]
+        latest = intraday_df.iloc[-2]
         rvol = float(latest.get("RVOL", 1))  # Default to 1 if RVOL isn't available
         atr = float(latest["ATR"])
         vwap = float(latest["vwap"])
-        close_price = float(latest["close"])
+        close_price = float(intraday_df.iloc[-1]["close"])
         bb_lower = float(latest["BB_Lower"])
         bb_upper = float(latest["BB_Upper"])
 
