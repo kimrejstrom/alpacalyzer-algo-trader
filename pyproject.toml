@@ -11,7 +11,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 dependencies = [
     "alpaca-py>=0.38.0",
     "finviz",
-    "numpy>=2.2.2",
+    "numpy>=2.2.3",
     "openai>=1.61.1",
     "pandas>=2.2.3",
     "pandas-stubs>=2.2.3.241126",
@@ -24,7 +24,7 @@ dependencies = [
     "ta-lib>=0.6.3",
     "types-requests>=2.32.0.20241016",
     "websockets>=14.2",
-    "yfinance>=0.2.52",
+    "yfinance>=0.2.54",
 ]
 
 [project.scripts]

@@ -285,3 +285,4 @@ pyrightconfig.json
 # Project specific
 position_times.txt
 *.log*
+trading_positions.db

@@ -34,7 +34,6 @@ class DayTrader:
                 logger.warning(f"Technical data missing for {symbol}")
                 continue
 
-            current_positions[symbol].update_ta(technical_data)
             if self.position_manager.should_close_position(symbol, technical_data, top_stocks):
                 self.position_manager.close_position(symbol)
 

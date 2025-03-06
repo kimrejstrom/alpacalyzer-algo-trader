@@ -12,6 +12,16 @@ valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 if log_level not in valid_levels:
     raise ValueError(f"Invalid log level: {log_level}. Must be one of {valid_levels}")
 
+
+# Custom filter to **suppress stack traces in the console handler**
+class NoTracebackConsoleFilter(logging.Filter):
+    def filter(self, record):
+        # Remove exception info (traceback) from the console log
+        record.exc_info = None
+        record.exc_text = None
+        return True
+
+
 # Create a logger
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, log_level))  # Set minimum logging level
@@ -32,6 +42,9 @@ file_formatter = logging.Formatter("%(message)s         (%(levelname)s - %(ascti
 console_formatter = logging.Formatter("%(message)s")
 file_handler.setFormatter(file_formatter)
 console_handler.setFormatter(console_formatter)
+
+# Apply the filter to the console handler
+console_handler.addFilter(NoTracebackConsoleFilter())
 
 # Add handlers to the logger
 logger.addHandler(file_handler)

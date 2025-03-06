@@ -1,32 +1,35 @@
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pandas as pd
 from alpaca.trading.enums import OrderSide, OrderStatus, QueryOrderStatus, TimeInForce
-from alpaca.trading.models import Order, TradeAccount
+from alpaca.trading.models import Order
 from alpaca.trading.models import Position as AlpacaPosition
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest, MarketOrderRequest
 from dotenv import load_dotenv
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
+from alpacalyzer.db.db import (
+    get_strategy_positions,
+    update_prices,
+)
 from alpacalyzer.scanners.social_scanner import SocialScanner
-from alpacalyzer.trading.alpaca_client import get_market_status, trading_client
+from alpacalyzer.trading.alpaca_client import get_account_info, get_market_status, log_order, trading_client
 from alpacalyzer.utils.logger import logger
 
 
 class Position:
-    def __init__(self, symbol, qty, entry_price, side, entry_time):
+    def __init__(self, symbol, qty, entry_price, high_water_mark, side, entry_time):
         self.symbol = symbol
         self.qty = float(qty)
         self.entry_price = float(entry_price)
         self.side = side
         self.entry_time = entry_time
-        self.target_qty = float(qty)  # For gradual position building/reduction
         self.pl_pct = 0.0  # Current P&L percentage
         self.current_price = float(entry_price)
-        self.high_water_mark = float(entry_price)  # Track highest price reached
-        self.technical_data = None  # Technical analysis data
+        self.high_water_mark = float(high_water_mark)  # Track highest price reached
 
     def update_pl(self, current_price):
         """Update position P&L and high water mark."""
@@ -40,10 +43,7 @@ class Position:
 
         # Calculate drawdown from high
         self.drawdown = ((self.current_price / self.high_water_mark) - 1) * 100
-
-    def update_ta(self, technical_data: TradingSignals):
-        """Update position with technical analysis data."""
-        self.technical_data = technical_data
+        update_prices("day", self.symbol, self.current_price, self.high_water_mark, self.pl_pct)
 
     def get_exposure(self, equity: float):
         """Calculate position exposure as percentage of equity."""
@@ -77,9 +77,39 @@ class PositionManager:
         self.update_positions()
         self.update_pending_orders()
 
+    def show_status(self):
+        """
+        Show position manager status.
+
+        Logs the current portfolio status including active positions,
+        total exposure, pending close orders, and pending new orders.
+        """
+        active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
+        logger.info(f"\nCurrent Portfolio Status: {len(active_positions)} active positions")
+        logger.info(f"Total Exposure: {self.get_total_exposure():.1%}")
+
+        for pos in active_positions.values():
+            exposure = pos.get_exposure(get_account_info()["equity"])
+            age_hours = (datetime.now(UTC) - pos.entry_time).total_seconds() / 3600
+            age_str = f"{age_hours:.1f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
+            logger.info(
+                f"{pos} now @ ${pos.current_price:.2f} "
+                f"({exposure:.1%} exposure, {age_str} old, {pos.drawdown:.1f}% from high)"
+            )
+
+        if self.pending_closes:
+            logger.info("\nPending Close Orders:")
+            for symbol in self.pending_closes:
+                logger.info(f"- {symbol}")
+
+        if self.pending_orders:
+            logger.info("\nPending New Orders:")
+            for order in self.pending_orders:
+                logger.info(f"- {order['symbol']} ({order['side']})")
+
     def get_total_exposure(self):
         """Calculate current total exposure."""
-        account = self.get_account_info()
+        account = get_account_info()
         active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
         self.total_exposure = sum(p.get_exposure(account["equity"]) for p in active_positions.values())
         return self.total_exposure
@@ -124,20 +154,6 @@ class PositionManager:
         except Exception as e:
             logger.error(f"Error updating orders: {str(e)}", exc_info=True)
 
-    def get_account_info(self):
-        """Get account information."""
-        account = trading_client.get_account()
-        account_instance = cast(TradeAccount, account)
-        return {
-            "equity": float(account_instance.equity) if account_instance.equity else 0,
-            "buying_power": float(account_instance.buying_power) if account_instance.buying_power else 0,
-            "initial_margin": float(account_instance.initial_margin) if account_instance.initial_margin else 0,
-            "margin_multiplier": float(account_instance.multiplier) if account_instance.multiplier else 0,
-            "daytrading_buying_power": float(account_instance.daytrading_buying_power)
-            if account_instance.daytrading_buying_power
-            else 0,
-        }
-
     def update_positions(self, show_status=True) -> dict[str, Position]:
         """
         Update position tracking with current market data.
@@ -146,78 +162,43 @@ class PositionManager:
             show_status: Whether to print current portfolio status
         """
         try:
+            # Get fresh positions from Alpaca
             alpaca_positions = trading_client.get_all_positions()
-            positions = cast(list[AlpacaPosition], alpaca_positions)
+            alpaca_positions = cast(list[AlpacaPosition], alpaca_positions)
+            logger.info(f"Current Alpaca positions: {len(alpaca_positions)}")
+
+            # Retrieve all day strategy positions from the DB
+            db_day_rows = get_strategy_positions("day")
+            db_day_positions = {row["symbol"]: row for row in db_day_rows}
+
             current_symbols = set()
-
-            # Update existing positions and add new ones
-            for p in positions:
+            for p in alpaca_positions:
                 symbol = p.symbol
-                current_symbols.add(symbol)
-                qty = float(p.qty)
-                current_price = float(p.current_price) if p.current_price else 0
-                entry_price = float(p.avg_entry_price)
-                side = OrderSide.BUY if qty > 0 else OrderSide.SELL
+                # Process only positions with a day strategy record
+                if symbol in db_day_positions:
+                    current_symbols.add(symbol)
+                    db_record = db_day_positions[symbol]
 
-                # Try to find original order time
-                try:
-                    req = GetOrdersRequest(
-                        status=QueryOrderStatus.CLOSED,
-                        symbols=[symbol],
-                        side=side,
-                        limit=1,
-                        nested=True,  # Include nested orders
-                    )
-                    orders = trading_client.get_orders(req)
-                    order_list = cast(list[Order], orders)
-                    if order_list:
-                        # Get earliest filled order
-                        entry_time = min(order.filled_at for order in order_list if order.filled_at)
-                    else:
-                        entry_time = datetime.now(UTC)
-                except Exception:
-                    entry_time = datetime.now(UTC)
+                    qty = float(p.qty)
+                    current_price = float(p.current_price) if p.current_price else 0.0
+                    entry_price = float(db_record["entry_price"])
+                    entry_time = datetime.fromisoformat(db_record["entry_time"])
+                    # Use the higher of the DB high water mark or the fresh current price
+                    high_water_mark = max(db_record["high_water_mark"], current_price)
+                    side = OrderSide.BUY if qty > 0 else OrderSide.SELL
 
-                if symbol not in self.positions:
-                    # New position with stored entry time
-                    self.positions[symbol] = Position(symbol, qty, entry_price, side, entry_time)
+                    # Update in-memory positions
+                    if symbol not in self.positions:
+                        self.positions[symbol] = Position(symbol, qty, entry_price, high_water_mark, side, entry_time)
+                    self.positions[symbol].update_pl(current_price)
 
-                # Update position data
-                pos = self.positions[symbol]
-                pos.qty = qty
-                pos.entry_price = entry_price
-                pos.update_pl(current_price)
-
-            # Remove closed positions and their times
-            closed_positions = set(self.positions.keys()) - current_symbols
-            for symbol in closed_positions:
-                self.positions.pop(symbol)
-
-            # Update positions dict
-            self.positions = {s: p for s, p in self.positions.items() if s in current_symbols}
-            active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
+            # Remove positions that are no longer active in Alpaca
+            for symbol in list(self.positions.keys()):
+                if symbol not in current_symbols:
+                    self.positions.pop(symbol)
 
             if show_status:
-                logger.info(f"\nCurrent Portfolio Status: {len(active_positions)} active positions")
-                logger.info(f"Total Exposure: {self.get_total_exposure():.1%}")
-                for pos in active_positions.values():
-                    exposure = pos.get_exposure(self.get_account_info()["equity"])
-                    age_hours = (datetime.now(UTC) - pos.entry_time).total_seconds() / 3600
-                    age_str = f"{age_hours:.1f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
-                    logger.info(
-                        f"{pos} now @ ${pos.current_price:.2f}"
-                        f"({exposure:.1%} exposure, {age_str} old, {pos.drawdown:.1f}% from high)"
-                    )
-
-                if self.pending_closes:
-                    logger.info("\nPending Close Orders:")
-                    for symbol in self.pending_closes:
-                        logger.info(f"- {symbol}")
-
-                if self.pending_orders:
-                    logger.info("\nPending New Orders:")
-                    for order in self.pending_orders:
-                        logger.info(f"- {order['symbol']} ({order['side']})")
+                self.show_status()
 
             return self.positions
 
@@ -246,7 +227,7 @@ class PositionManager:
             sentiment_data: Social sentiment data
         Returns target shares and whether to allow the trade
         """
-        account = self.get_account_info()
+        account = get_account_info()
         equity = account["equity"]
 
         # Calculate current total exposure excluding pending closes
@@ -318,12 +299,12 @@ class PositionManager:
             # Only exit if:
             # 1. Hard stop hit (-10% from entry)
             if position.pl_pct < -0.1:
-                exit_signals.append(f"Hard stop: {position.pl_pct:.1f}% loss")
+                exit_signals.append(f"Hard stop: {position.pl_pct:.1%} loss")
 
             # 2. Big profit + reversal (lock in gains)
             if position.pl_pct > 0.075 and position.drawdown < -5:
                 exit_signals.append(
-                    f"Profit lock: {position.drawdown:.1f}% drop from high while +{position.pl_pct:.1f}% up"
+                    f"Profit lock: {position.drawdown:.1f}% drop from high while +{position.pl_pct:.1%} up"
                 )
 
         # 1. Adaptive ATR-based dynamic stop-loss
@@ -382,14 +363,10 @@ class PositionManager:
             }
             logger.info(f"\nSELL {symbol} due to: {reason_str}")
             logger.info(f"Position details: {position}")
-            if position.technical_data:
-                logger.debug(
-                    f"Technical signals Daily at SELL: {position.technical_data['raw_data_daily'].iloc[-2].to_string()}"
-                )
-                logger.debug(
-                    f"Technical signals Intraday at SELL: "
-                    f"{position.technical_data['raw_data_intraday'].iloc[-2].to_string()}"
-                )
+            logger.debug(f"Technical signals Daily at SELL: {technical_data['raw_data_daily'].iloc[-2].to_string()}")
+            logger.debug(
+                f"Technical signals Intraday at SELL: {technical_data['raw_data_intraday'].iloc[-2].to_string()}"
+            )
             if position.pl_pct < 0:
                 logger.info(f"LOSS: {position.pl_pct:.1%} P&L loss on trade")
             else:
@@ -415,9 +392,10 @@ class PositionManager:
         for _, row in ranked_stocks.iterrows():
             logger.debug(f"{row['ticker']}: Rank {row['final_rank']:.2f}, P&L: {row['pl_pct']:.1%}")
 
-        # Calculate over-exposure
+        # Calculate over-exposure TODO: Implement a more sophisticated over-exposure handling
         over_exposure = self.get_total_exposure() - self.max_total_exposure
-        account = self.get_account_info()
+        logger.info(f"Current total exposure: {self.total_exposure:.1%}, Over-exposure: {over_exposure:.1%}")
+        account = get_account_info()
 
         # Iterate through the worst-ranked positions until over_exposure is resolved
         for _, row in ranked_stocks.iterrows():
@@ -459,7 +437,7 @@ class PositionManager:
             limit_price=limit_price,
             time_in_force=TimeInForce.DAY,
             extended_hours=True,  # Allow after-hours trading
-            client_order_id=f"day-{symbol}-{limit_price}-{side}",
+            client_order_id=f"day-{symbol}-{side}-{uuid.uuid4()}",
         )
 
         try:
@@ -478,6 +456,7 @@ class PositionManager:
                 logger.info(f"Limit order ({side}) queued: {shares} shares of {symbol} at ${limit_price:.2f}")
             else:
                 logger.info(f"Limit Order ({side}) executed: {shares} shares of {symbol} at ${limit_price:.2f}")
+            log_order(order)
             return order
         except Exception as e:
             logger.error(f"Error placing limit order ({side}): {str(e)}", exc_info=True)
@@ -493,13 +472,14 @@ class PositionManager:
             qty=shares,
             side=side,
             time_in_force=TimeInForce.DAY,
-            client_order_id=f"day-{symbol}-market-{side}",
+            client_order_id=f"day-{symbol}-{side}-{uuid.uuid4()}",
         )
 
         try:
             # Place order and track status
             order_response = trading_client.submit_order(order_details)
             order = cast(Order, order_response)
+            account_info = get_account_info()
             if order.status in ["new", "accepted", "pending"]:
                 self.pending_orders.append(
                     {
@@ -510,7 +490,6 @@ class PositionManager:
                     }
                 )
                 # Calculate position size as % of equity
-                account_info = self.get_account_info()
                 # Use first available price
                 order_price = None
                 for price_field in [
@@ -530,14 +509,13 @@ class PositionManager:
                     logger.info(f"Market order queued: {shares} shares of {symbol} ({position_pct:.1f}% position)")
             else:
                 # Calculate executed position size if price available
-                account_info = self.get_account_info()
                 if order.filled_avg_price:
                     position_value = shares * float(order.filled_avg_price)
                     position_pct = (position_value / account_info["equity"]) * 100
                     logger.info(f"Market order executed: {shares} shares of {symbol} ({position_pct:.1f}% position)")
                 else:
                     logger.info(f"Market order executed: {shares} shares of {symbol}")
-
+            log_order(order)
             return order
         except Exception as e:
             logger.error(f"Error placing order: {str(e)}", exc_info=True)
@@ -582,7 +560,7 @@ class PositionManager:
                 if order.status == OrderStatus.ACCEPTED:
                     self.pending_closes.add(symbol)
                     logger.info(f"Close order queued: {symbol}")
-                    logger.debug(f"Close order details: {order}")
+                    log_order(order)
             else:
                 order_response = self.place_limit_order(
                     symbol,
@@ -594,7 +572,7 @@ class PositionManager:
                 if order.status == OrderStatus.ACCEPTED:
                     self.pending_closes.add(symbol)
                     logger.info(f"Close order queued: {symbol}")
-                    logger.debug(f"Close order details: {order}")
+                    log_order(order)
 
         except Exception as e:
             logger.error(f"Error closing position {symbol}: {str(e)}", exc_info=True)

@@ -41,6 +41,7 @@ def dataframe_to_compact_csv(df: pd.DataFrame, max_rows: int) -> str:
 
     csv = df.to_csv(index=False)
     return cast(str, csv)
+    # return df.to_csv(index=False)
 
 
 def serialize_trading_signals(signals: TradingSignals) -> str:
@@ -137,10 +138,6 @@ as an **intraday scalp** or **skip entirely**.
   - **Premarket High:** Serves as a **breakout trigger**.
   - **Consolidation Bottom:** Serves as **support/stop-loss consideration**.
 
-## **Targets**
-1. **Percentage Gain:** Aim for **5%+**.
-2. **Risk:Reward:** Minimum target is **1:3**.
-
 ## **Expected Output**
 - List **exactly 5 tickers** (1, 2, 3, 4, 5) that meet the above conditions.
 - Provide a **short rationale** for each selection.
@@ -220,6 +217,10 @@ and propose one or more trading strategies in valid JSON format.
 ### Risk Management
 - Aim for at least **1:4 risk:reward**.
 - Use **stop-loss orders** near support/resistance.
+
+## **Targets**
+1. **Percentage Gain:** Aim for **4%+**.
+2. **Risk:Reward:** Minimum target is **1:3**.
 
 ## Response Style & Format
 - **Concise & Structured:** Provide analysis in short paragraphs or bullet points, covering each key aspect in order

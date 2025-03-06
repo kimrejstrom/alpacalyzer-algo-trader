@@ -3,6 +3,7 @@ import time
 
 import schedule
 
+from alpacalyzer.db.db import init_db
 from alpacalyzer.trading.day_trader import DayTrader
 from alpacalyzer.trading.swing_trader import SwingTrader
 from alpacalyzer.utils.logger import logger
@@ -27,7 +28,9 @@ def main():  # pragma: no cover
 
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
     parser.add_argument("--swing", action="store_true", help="Enable swing trading mode")
+    parser.add_argument("--day", action="store_true", help="Enable day trading mode")
     args = parser.parse_args()
+    init_db()
 
     try:
         if args.swing:
@@ -42,7 +45,7 @@ def main():  # pragma: no cover
             safe_execute(swing_trader.monitor_and_trade)
             schedule.every(60).seconds.do(lambda: safe_execute(swing_trader.monitor_and_trade))
 
-        else:
+        if args.day:
             logger.info("Day Trading Mode Enabled")
             day_trader = DayTrader()
 

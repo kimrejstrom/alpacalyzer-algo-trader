@@ -69,7 +69,7 @@ class YFinanceClient:
             pd.DataFrame: The historical VIX data.
         """
         vix_data = self._fetch_data("^VIX", period=period)
-        if vix_data and not vix_data.empty:
-            return vix_data["Close"].iloc[-1]
-        logger.warning("VIX data is empty.")
-        return 25.0
+        if vix_data is None or vix_data.empty:
+            logger.warning("VIX data is empty.")
+            return 25.0
+        return vix_data["Close"].iloc[-1]

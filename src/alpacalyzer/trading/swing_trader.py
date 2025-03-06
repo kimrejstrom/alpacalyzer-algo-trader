@@ -1,3 +1,4 @@
+import uuid
 from typing import cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -12,7 +13,7 @@ from alpacalyzer.gpt.call_gpt import (
 )
 from alpacalyzer.gpt.response_models import EntryType, TradingStrategy
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
-from alpacalyzer.trading.alpaca_client import get_market_status, trading_client
+from alpacalyzer.trading.alpaca_client import get_market_status, log_order, trading_client
 from alpacalyzer.utils.logger import logger
 
 
@@ -79,7 +80,7 @@ class SwingTrader:
 
         market_status = get_market_status()
 
-        if market_status == "closed":
+        if market_status != "open":
             logger.info(f"=== Swing Trading Monitor Loop Paused - Market Status: {market_status} ===")
             return
 
@@ -107,7 +108,13 @@ class SwingTrader:
                 if check_entry_conditions(strategy, signals):
                     asset_response = trading_client.get_asset(strategy.ticker)
                     asset = cast(Asset, asset_response)
-                    if not (asset.tradable and asset.shortable and strategy.trade_type == "short"):
+
+                    if not asset.tradable:
+                        logger.info(f"Asset is not tradable {strategy.ticker} - Removing strategy")
+                        self.latest_strategies.remove(strategy)
+                        continue
+
+                    if strategy.trade_type == "short" and not asset.shortable:
                         logger.info(f"Asset can not be shorted {strategy.ticker} - Removing strategy")
                         self.latest_strategies.remove(strategy)
                         continue
@@ -126,12 +133,12 @@ class SwingTrader:
                         qty=target_shares,
                         side=side,
                         type="limit",
-                        time_in_force=TimeInForce.DAY,
+                        time_in_force=TimeInForce.GTC,
                         limit_price=strategy.entry_point,
                         order_class="bracket",
                         stop_loss={"stop_price": strategy.stop_loss},
                         take_profit={"limit_price": strategy.target_price},
-                        client_order_id=f"swing-{strategy.ticker}-{strategy.entry_point}-{strategy.trade_type}",
+                        client_order_id=f"swing-{strategy.ticker}-{side}-{uuid.uuid4()}",
                     )
                     # Submit order with bracket structure
                     order_resp = trading_client.submit_order(bracket_order)
@@ -231,51 +238,3 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
     except Exception as e:
         logger.error(f"Error checking conditions: {str(e)}", exc_info=True)
         return False
-
-
-def log_order(order: Order) -> None:
-    """Logs key details of an Alpaca order in a readable format."""
-    log_message = f"""
-    ======================================
-    Order Summary - {order.symbol}
-    ======================================
-    Order ID: {order.id}
-    Client Order ID: {order.client_order_id}
-    Order Type: {order.order_type or "N/A"}
-    Order Class: {order.order_class.value}
-    Side: {order.side}
-    Quantity: {order.qty}
-    Limit Price: {order.limit_price or "N/A"}
-    Stop Price: {order.stop_price or "N/A"}
-    Time in Force: {order.time_in_force.value}
-    Status: {order.status.value}
-    Created At: {order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-    Updated At: {order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-    Filled Quantity: {order.filled_qty}
-    Filled Avg Price: {order.filled_avg_price or "N/A"}
-    Expiration: {order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"}
-    Extended Hours: {"Yes" if order.extended_hours else "No"}
-
-    Bracket Order Details:
-    --------------------------------------
-    """
-
-    # Log bracket orders if present
-    if order.legs:
-        for leg in order.legs:
-            log_message += f"""
-            Leg Order: {leg.side}
-            Order Type: {leg.order_type}
-            Quantity: {leg.qty}
-            Limit Price: {leg.limit_price or "N/A"}
-            Stop Price: {leg.stop_price or "N/A"}
-            Status: {leg.status.value}
-            Client Order ID: {leg.client_order_id}
-            Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-            """
-    else:
-        log_message += "No bracket legs found.\n"
-
-    log_message += "\n======================================="
-
-    logger.info(log_message)  # Log the formatted message
