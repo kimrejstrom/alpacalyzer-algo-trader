@@ -170,6 +170,8 @@ TOTAL                               7      2    71%
 
 TODO:
 
-- [ ] Take sqlite3 database in to use and save swing trade strategies to db
-- [ ] Dont cancel swing trade pending orders in position manager
-- [ ] Use intraday candlestick patterns on day trader
+- [ ] Add more tests
+- [ ] Add more documentation
+- [ ] Utilize yfinance news
+- [ ] Add gpt agent check before day trader buys
+- [ ] use hedge-fund progress and agent structure along with formatted output

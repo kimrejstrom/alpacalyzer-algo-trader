@@ -1,9 +1,11 @@
 import argparse
+import threading
 import time
 
 import schedule
 
 from alpacalyzer.db.db import init_db
+from alpacalyzer.trading.alpaca_client import consume_trade_updates
 from alpacalyzer.trading.day_trader import DayTrader
 from alpacalyzer.trading.swing_trader import SwingTrader
 from alpacalyzer.utils.logger import logger
@@ -16,6 +18,7 @@ def main():  # pragma: no cover
 
     `python -m alpacalyzer` and `$ alpacalyzer `.
     `--swing` flag enables swing trading mode.
+    `--day` flag enables day trading mode.
 
     This is your program's entry point.
 
@@ -29,10 +32,17 @@ def main():  # pragma: no cover
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
     parser.add_argument("--swing", action="store_true", help="Enable swing trading mode")
     parser.add_argument("--day", action="store_true", help="Enable day trading mode")
+    parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
     args = parser.parse_args()
     init_db()
 
     try:
+        if args.stream:
+            logger.info("Websocket Streaming Enabled")
+            # Start streaming in a separate thread so it runs concurrently
+            stream_thread = threading.Thread(target=consume_trade_updates, daemon=True)
+            stream_thread.start()
+
         if args.swing:
             logger.info("Swing Trading Mode Enabled")
             swing_trader = SwingTrader()

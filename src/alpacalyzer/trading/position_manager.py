@@ -3,9 +3,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
-import pandas as pd
 from alpaca.trading.enums import OrderSide, OrderStatus, QueryOrderStatus, TimeInForce
-from alpaca.trading.models import Order
+from alpaca.trading.models import Order, TradeAccount
 from alpaca.trading.models import Position as AlpacaPosition
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest, MarketOrderRequest
 from dotenv import load_dotenv
@@ -13,9 +12,9 @@ from dotenv import load_dotenv
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.db.db import (
     get_strategy_positions,
+    remove_position,
     update_prices,
 )
-from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_account_info, get_market_status, log_order, trading_client
 from alpacalyzer.utils.logger import logger
 
@@ -55,27 +54,22 @@ class Position:
 
 
 class PositionManager:
-    def __init__(self):
+    def __init__(self, max_position_size=0.05, max_total_exposure=0.5, strategy="day"):
         load_dotenv()
-        self.social_scanner = SocialScanner()
         self.technical_analyzer = TechnicalAnalyzer()
         self.positions: dict[str, Position] = {}  # symbol -> Position object
         self.pending_closes = set()  # Symbols with pending close orders
         self.pending_orders = []  # List of pending new position orders
         self.exited_positions = {}  # Stores exit reasons
+        self.strategy = strategy
 
         # Position sizing parameters
-        self.max_position_size = 0.05  # 5% max per position
-        self.position_step_size = 0.02  # 2% per trade for gradual building
-        self.max_total_exposure = 0.5  # 50% total exposure limit
+        self.max_position_size = max_position_size  # 5% of equity per trade
+        self.max_total_exposure = max_total_exposure  # 50% of equity total exposure
         self.total_exposure = 0  # Current total exposure
 
         # Total exposure
         self.get_total_exposure()
-
-        # Initialize current positions and pending orders
-        self.update_positions()
-        self.update_pending_orders()
 
     def show_status(self):
         """
@@ -85,7 +79,9 @@ class PositionManager:
         total exposure, pending close orders, and pending new orders.
         """
         active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
-        logger.info(f"\nCurrent Portfolio Status: {len(active_positions)} active positions")
+        logger.info(
+            f"\nCurrent Portfolio Status: {len(active_positions)} active positions for {self.strategy} strategy"
+        )
         logger.info(f"Total Exposure: {self.get_total_exposure():.1%}")
 
         for pos in active_positions.values():
@@ -121,11 +117,11 @@ class PositionManager:
             orders = trading_client.get_orders()
             orders_instance = cast(list[Order], orders)
 
-            # Filter only pending orders where order ID contains "day"
+            # Filter only pending orders where order ID contains strategy name
             filtered_orders = [
                 order
                 for order in orders_instance
-                if order.status in ["new", "accepted", "pending"] and "day" in order.client_order_id.lower()
+                if order.status in ["new", "accepted", "pending"] and self.strategy in order.client_order_id.lower()
             ]
 
             # Clear old pending orders
@@ -163,28 +159,34 @@ class PositionManager:
         """
         try:
             # Get fresh positions from Alpaca
-            alpaca_positions = trading_client.get_all_positions()
-            alpaca_positions = cast(list[AlpacaPosition], alpaca_positions)
+            alpaca_positions_response = trading_client.get_all_positions()
+            alpaca_positions = cast(list[AlpacaPosition], alpaca_positions_response)
+            alpaca_symbols = {p.symbol for p in alpaca_positions}
             logger.info(f"Current Alpaca positions: {len(alpaca_positions)}")
 
-            # Retrieve all day strategy positions from the DB
-            db_day_rows = get_strategy_positions("day")
-            db_day_positions = {row["symbol"]: row for row in db_day_rows}
+            # Retrieve all selected strategy positions from the DB
+            db_strategy_rows = get_strategy_positions(self.strategy)
+            db_strategy_positions = {row["symbol"]: row for row in db_strategy_rows}
+
+            # Remove positions from the DB that no longer exist in Alpaca
+            for symbol in db_strategy_positions:
+                if symbol not in alpaca_symbols:  # Only remove if it's missing in Alpaca
+                    logger.info(f"Removing stale position from DB: {symbol}")
+                    remove_position(symbol, self.strategy)
 
             current_symbols = set()
             for p in alpaca_positions:
                 symbol = p.symbol
-                # Process only positions with a day strategy record
-                if symbol in db_day_positions:
+                if symbol in db_strategy_positions.keys():
                     current_symbols.add(symbol)
-                    db_record = db_day_positions[symbol]
+                    db_record = db_strategy_positions[symbol]
 
                     qty = float(p.qty)
                     current_price = float(p.current_price) if p.current_price else 0.0
                     entry_price = float(db_record["entry_price"])
                     entry_time = datetime.fromisoformat(db_record["entry_time"])
                     # Use the higher of the DB high water mark or the fresh current price
-                    high_water_mark = max(db_record["high_water_mark"], current_price)
+                    high_water_mark = max(float(db_record["high_water_mark"]), current_price)
                     side = OrderSide.BUY if qty > 0 else OrderSide.SELL
 
                     # Update in-memory positions
@@ -208,13 +210,10 @@ class PositionManager:
 
     def calculate_target_position(
         self,
-        symbol,
-        price,
-        side,
-        target_pct=None,
-        technical_data=None,
-        sentiment_data=None,
-    ):
+        symbol: str,
+        price: float,
+        technical_data: TradingSignals,
+    ) -> tuple[int, bool]:
         """
         Calculate target position size considering risk factors.
 
@@ -227,8 +226,9 @@ class PositionManager:
             sentiment_data: Social sentiment data
         Returns target shares and whether to allow the trade
         """
-        account = get_account_info()
-        equity = account["equity"]
+        account_resp = trading_client.get_account()
+        account = cast(TradeAccount, account_resp)
+        equity = float(account.equity or 0)
 
         # Calculate current total exposure excluding pending closes
         active_positions = {s: p for s, p in self.positions.items() if s not in self.pending_closes}
@@ -240,24 +240,18 @@ class PositionManager:
             return 0, False
 
         # Start with base position size
-        position_size = target_pct if target_pct is not None else self.max_position_size
+        position_size = self.max_position_size
 
         # Adjust size based on technical strength (0.7 to 1.0 multiplier)
-        if technical_data:
-            tech_multiplier = max(0.4, technical_data["score"])
+        if technical_data and self.strategy == "day":
+            tech_multiplier = max(0.7, technical_data["score"])
             position_size *= tech_multiplier
-
-        # Adjust for sentiment strength if available
-        if sentiment_data:
-            # Higher rank = smaller size
-            rank_multiplier = max(0.5, 1.0 - (sentiment_data["final_rank"] / 40))
-            position_size *= rank_multiplier
 
         # Calculate value with adjusted size
         target_position_value = equity * position_size
         current_position = active_positions.get(symbol)
 
-        if current_position:
+        if current_position and self.strategy == "day":
             # Position exists - check if we should add more
             current_exposure = current_position.get_exposure(equity)
 
@@ -279,152 +273,6 @@ class PositionManager:
         target_shares = int(target_position_value / price)
         return target_shares, True
 
-    def should_close_position(self, symbol: str, technical_data: TradingSignals, top_stocks: pd.DataFrame):
-        """Determine if a position should be closed based on technical analysis."""
-        position = self.positions.get(symbol)
-        if not position:
-            return False
-
-        signals = technical_data["signals"]
-        momentum = technical_data["momentum"]
-        score = technical_data["score"]
-        atr = technical_data["atr"]
-
-        # Close if any of these conditions are met:
-        exit_signals = []
-
-        # 0. Market open protection logic
-        position_age_mins = (datetime.now(UTC) - position.entry_time).total_seconds() / 60
-        if position_age_mins < 30:  # 30-min protection period
-            # Only exit if:
-            # 1. Hard stop hit (-10% from entry)
-            if position.pl_pct < -0.1:
-                exit_signals.append(f"Hard stop: {position.pl_pct:.1%} loss")
-
-            # 2. Big profit + reversal (lock in gains)
-            if position.pl_pct > 0.075 and position.drawdown < -5:
-                exit_signals.append(
-                    f"Profit lock: {position.drawdown:.1f}% drop from high while +{position.pl_pct:.1%} up"
-                )
-
-        # 1. Adaptive ATR-based dynamic stop-loss
-        if atr:
-            hard_stop_price = position.entry_price - (atr * 2)  # Example: 2x ATR as stop-loss
-            trailing_stop_price = position.high_water_mark - (atr * 2)
-            if position.current_price <= hard_stop_price:
-                exit_signals.append(f"ATR-based hard stop: {position.current_price} <= {hard_stop_price}")
-            elif position.current_price <= trailing_stop_price:
-                exit_signals.append(f"ATR-based trailing stop: {position.current_price} <= {trailing_stop_price}")
-
-        # 1. Significant loss
-        if position.pl_pct < -0.05:  # -5% stop loss
-            exit_signals.append(f"Stop loss hit: {position.pl_pct:.1%} P&L")
-
-        # 2. Protect Profits - Tighten stops as profit grows
-        if position.pl_pct > 0.10:  # In +10% profit
-            if position.drawdown < -5:  # Tighter 5% trailing stop
-                exit_signals.append(
-                    f"Profit protection: {position.drawdown:.1%}% drop from high while +{position.pl_pct:.1%}% up"
-                )
-        elif position.drawdown < -7.5:  # Normal 7.5% trailing stop
-            exit_signals.append(f"Trailing stop: {position.drawdown:.1%}% from high")
-
-        # 2. Quick Momentum Shifts - Only exit if significant drop
-        if momentum < -5 and position.pl_pct > 0:  # Need profit to use quick exit
-            if position.pl_pct > 0.05:  # Need 5% profit to use quick exit
-                exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{position.pl_pct:.1%}% up")
-
-        # 3. Technical Weakness
-        if score < 0.6:  # Weak technical score
-            weak_tech_signals = self.technical_analyzer.weak_technicals(signals, OrderSide.SELL)
-            if weak_tech_signals is not None:
-                exit_signals.append(weak_tech_signals)
-
-        # 5. Mediocre performance with significant age
-        position_age = (datetime.now(UTC) - position.entry_time).days
-        if position_age > 1:  # At least 1 day old
-            if (
-                score < 0.6  # Weaker technicals
-                and abs(position.pl_pct) < 0.03  # Little movement
-                and symbol not in top_stocks["ticker"].values  # Not in top 15
-            ):
-                exit_signals.append(f"Stale position ({position_age:.1f}h old, weak technicals and not in top 15)")
-
-        if position_age > 3 and abs(position.pl_pct) < 0.01:
-            exit_signals.append(f"Stagnant position after {position_age} days")
-
-        # Check if any exit signals triggered
-        if exit_signals:
-            reason_str = ", ".join(exit_signals)
-            # Store exit reason to block immediate re-entry
-            self.exited_positions[symbol] = {
-                "reason": reason_str,
-                "timestamp": datetime.now(UTC),
-            }
-            logger.info(f"\nSELL {symbol} due to: {reason_str}")
-            logger.info(f"Position details: {position}")
-            logger.debug(f"Technical signals Daily at SELL: {technical_data['raw_data_daily'].iloc[-2].to_string()}")
-            logger.debug(
-                f"Technical signals Intraday at SELL: {technical_data['raw_data_intraday'].iloc[-2].to_string()}"
-            )
-            if position.pl_pct < 0:
-                logger.info(f"LOSS: {position.pl_pct:.1%} P&L loss on trade")
-            else:
-                logger.info(f"WIN: {position.pl_pct:.1%} P&L gain on trade")
-            return True
-
-        return False
-
-    def handle_over_exposure(self):
-        # Get rankings for current positions
-        tickers_list = list(self.positions.keys())
-        ranked_stocks = self.social_scanner.rank_stocks(tickers_list, limit=len(tickers_list))
-
-        # add position.pl_pct to the ranked_stocks
-        for symbol, position in self.positions.items():
-            ranked_stocks.loc[ranked_stocks["ticker"] == symbol, "pl_pct"] = position.pl_pct
-
-        # Sort ranked_stocks by final_rank and pl_pct (negative is worst)
-        # in descending order to sell the worst-ranked positions first
-        ranked_stocks = ranked_stocks.sort_values(by=["final_rank", "pl_pct"], ascending=[False, False])
-
-        logger.debug("\nSorted Positions:")
-        for _, row in ranked_stocks.iterrows():
-            logger.debug(f"{row['ticker']}: Rank {row['final_rank']:.2f}, P&L: {row['pl_pct']:.1%}")
-
-        # Calculate over-exposure TODO: Implement a more sophisticated over-exposure handling
-        over_exposure = self.get_total_exposure() - self.max_total_exposure
-        logger.info(f"Current total exposure: {self.total_exposure:.1%}, Over-exposure: {over_exposure:.1%}")
-        account = get_account_info()
-
-        # Iterate through the worst-ranked positions until over_exposure is resolved
-        for _, row in ranked_stocks.iterrows():
-            # Get the current position for the ticker
-            current_position = self.positions.get(row["ticker"])
-
-            if current_position is not None:  # Ensure the position exists
-                position_exposure = current_position.get_exposure(account["equity"])  # Get the exposure of the position
-                logger.info(
-                    f"SELL {row['ticker']} due to: Over exposure - sell worst-ranked positions"
-                    f" (Rank {row['final_rank']:.1f})."
-                )
-
-                # Close the position
-                self.close_position(row["ticker"])
-
-                # Reduce exposure
-                over_exposure -= position_exposure
-
-                # Exit loop if over-exposure is resolved
-                if over_exposure <= 0:
-                    break
-
-        # Log remaining over-exposure if applicable
-        if over_exposure > 0:
-            logger.info(f"Warning: Over-exposure of {over_exposure} remains after selling positions.")
-        else:
-            logger.info("Successfully resolved over-exposure.")
-
     def place_limit_order(self, symbol: str, shares: int, limit_price: float, side=OrderSide.BUY):
         """Place a limit order."""
         if shares <= 0 or limit_price is None:
@@ -437,7 +285,7 @@ class PositionManager:
             limit_price=limit_price,
             time_in_force=TimeInForce.DAY,
             extended_hours=True,  # Allow after-hours trading
-            client_order_id=f"day-{symbol}-{side}-{uuid.uuid4()}",
+            client_order_id=f"day_{symbol}_{side}_{uuid.uuid4()}",
         )
 
         try:
@@ -462,7 +310,7 @@ class PositionManager:
             logger.error(f"Error placing limit order ({side}): {str(e)}", exc_info=True)
             return None
 
-    def place_market_order(self, symbol: str, shares: int, side=OrderSide.BUY):
+    def place_market_order(self, symbol: str, shares: int, side=OrderSide.BUY) -> Order | None:
         """Place a market order."""
         if shares <= 0:
             return None
@@ -472,7 +320,7 @@ class PositionManager:
             qty=shares,
             side=side,
             time_in_force=TimeInForce.DAY,
-            client_order_id=f"day-{symbol}-{side}-{uuid.uuid4()}",
+            client_order_id=f"day_{symbol}_{side}_{uuid.uuid4()}",
         )
 
         try:
@@ -529,15 +377,15 @@ class PositionManager:
             return None
 
         try:
-            # Get current position
-            position_response = trading_client.get_open_position(symbol)
-            position = cast(AlpacaPosition, position_response)
-
-            if not position:
-                logger.warning("Position not found")
+            try:
+                # Get fresh position from Alpaca
+                alpaca_resp = trading_client.get_open_position(symbol)
+                alpaca_position = cast(AlpacaPosition, alpaca_resp)
+            except Exception as e:
+                logger.warning(f"Error fetching position for {symbol}: {str(e)}", exc_info=True)
                 return None
 
-            if int(position.qty_available if position.qty_available else 0) == 0:
+            if int(alpaca_position.qty_available if alpaca_position.qty_available else 0) == 0:
                 logger.info(f"Canceling open sell orders for {symbol} before replacing...")
 
                 # Get open orders for the symbol
@@ -564,8 +412,8 @@ class PositionManager:
             else:
                 order_response = self.place_limit_order(
                     symbol,
-                    abs(int(float(position.qty))),
-                    round(float(position.current_price if position.current_price else 0) * 0.995, 2),
+                    abs(int(float(alpaca_position.qty))),
+                    round(float(alpaca_position.current_price if alpaca_position.current_price else 0) * 0.995, 2),
                     OrderSide.SELL,
                 )
                 order = cast(Order, order_response)
@@ -578,7 +426,7 @@ class PositionManager:
             logger.error(f"Error closing position {symbol}: {str(e)}", exc_info=True)
             return None
 
-    def get_limit_price(self, symbol: str, side: OrderSide) -> float | None:
+    def get_limit_price(self, side: OrderSide, technical_data: TradingSignals) -> float | None:
         """
         Calculate a dynamic limit price based on RVOL, ATR, and technical indicators.
 
@@ -590,7 +438,7 @@ class PositionManager:
             float: The calculated limit price.
         """
         market_session = get_market_status()
-        intraday_df = self.technical_analyzer.analyze_stock_intraday(symbol)
+        intraday_df = technical_data["raw_data_intraday"]
         if intraday_df is None or intraday_df.empty:
             return None
 

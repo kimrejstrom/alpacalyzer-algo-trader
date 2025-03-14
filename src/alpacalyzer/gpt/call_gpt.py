@@ -44,7 +44,7 @@ def dataframe_to_compact_csv(df: pd.DataFrame, max_rows: int) -> str:
     # return df.to_csv(index=False)
 
 
-def serialize_trading_signals(signals: TradingSignals) -> str:
+def serialize_trading_signals(signals: TradingSignals, recommendations: list[str]) -> str:
     """Convert TradingSignals object into a JSON-compatible format with CSV data."""
 
     json_ready_signals = {
@@ -54,12 +54,15 @@ def serialize_trading_signals(signals: TradingSignals) -> str:
         "atr": signals["atr"],
         "rvol": signals["rvol"],
         "momentum": signals["momentum"],
+        # TODO: trim to open, close, volume, high, low and format dates
         "3_months_daily_candles_csv": dataframe_to_compact_csv(
             signals["raw_data_daily"], max_rows=90
         ),  # Daily candles 3 months
+        # TODO: trim to open, close, volume, high, low and format dates
         "10_hours_5min_candles_csv": dataframe_to_compact_csv(
             signals["raw_data_intraday"], max_rows=120
         ),  # 5-min candles 10 hours
+        "recommendations": recommendations,
     }
 
     return json.dumps(json_ready_signals)  # Convert to JSON string
@@ -67,7 +70,8 @@ def serialize_trading_signals(signals: TradingSignals) -> str:
 
 def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
     response = client.beta.chat.completions.parse(
-        model="gpt-4o",
+        model="o3-mini",
+        reasoning_effort="medium",
         messages=messages,
         response_format=function_schema,
     )
@@ -80,8 +84,9 @@ def get_reddit_insights() -> TopTickersResponse | None:
             "role": "system",
             "content": """
 You are a Swing trader expert analyst, an AI that analyzes trading data to identify top opportunities.
-Your goal is to provide a list of top swing trade tickers based on the latest market insights from select reddit posts.
-Focus on high-potential stocks with strong momentum and technical setups.
+Your goal is to provide a list of the top 5 swing trade tickers
+based on the latest market insights from select reddit posts.
+Focus on high-potential stocks with strong momentum and technical setups or great short-selling opportunities.
 """,
         },
         {
@@ -139,7 +144,7 @@ as an **intraday scalp** or **skip entirely**.
   - **Consolidation Bottom:** Serves as **support/stop-loss consideration**.
 
 ## **Expected Output**
-- List **exactly 5 tickers** (1, 2, 3, 4, 5) that meet the above conditions.
+- List **exactly 3 tickers** (1, 2, 3) that meet the above conditions.
 - Provide a **short rationale** for each selection.
 """,
         },
@@ -162,19 +167,19 @@ as an **intraday scalp** or **skip entirely**.
     return top_tickers_response
 
 
-def get_trading_strategies(ticker_data: TradingSignals, ticker: str) -> TradingStrategyResponse | None:
+def get_trading_strategies(ticker_data: TradingSignals, recommendations: list[str]) -> TradingStrategyResponse | None:
     messages = [
         {
             "role": "system",
             "content": """
-You are Chart Pattern Analyst GPT, a financial analysis assistant specializing in candlestick chart interpretation and
-short-term trading strategies.
+You are Chart Pattern Analyst GPT, a financial analysis expert specializing in candlestick chart interpretation and
+swing trading strategies.
 
 ## Role & Expertise
 - Your goal is to analyze candlestick data, identify notable patterns, highlight support/resistance levels, and propose
-potential trading scenarios with an emphasis on risk management.
+potential swing trading scenarios with an emphasis on risk management.
 - You apply technical analysis (candlesticks, trendlines, support/resistance, indicators, volume)
-and propose one or more trading strategies in valid JSON format.
+and propose exactly one optimal trading strategy for the given ticker.
 
 ## Key Objectives
 1. Identify & utilize Candlestick Patterns (hammer, shooting star, doji, engulfing, etc.).
@@ -214,13 +219,9 @@ and propose one or more trading strategies in valid JSON format.
 ### Multi-Timeframe Approach
 - Start from higher time frames (daily/weekly) for context, then narrow down to lower (1h, 5m).
 
-### Risk Management
-- Aim for at least **1:4 risk:reward**.
-- Use **stop-loss orders** near support/resistance.
-
 ## **Targets**
-1. **Percentage Gain:** Aim for **4%+**.
-2. **Risk:Reward:** Minimum target is **1:3**.
+1. **Percentage Gain:** Aim for **3%+**.
+2. **Risk:Reward:** Target is **1:3**.
 
 ## Response Style & Format
 - **Concise & Structured:** Provide analysis in short paragraphs or bullet points, covering each key aspect in order
@@ -246,11 +247,11 @@ and propose one or more trading strategies in valid JSON format.
         },
         {
             "role": "user",
-            "content": f"Analyze the candle stick data and indicators of the stock and generate trading strategies for {ticker}, make sure to use up to date price data."  # noqa: E501
+            "content": f"Analyze the candle stick data and indicators of the stock and generate trading strategies for {ticker_data['symbol']}, make sure to use up to date price data."  # noqa: E501
             f"",
         },
     ]
-    formatted_ticker_data = serialize_trading_signals(ticker_data)
+    formatted_ticker_data = serialize_trading_signals(ticker_data, recommendations)
     logger.debug(f"Trading strategies input: {formatted_ticker_data}")
     messages.append(
         {

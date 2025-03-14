@@ -2,7 +2,7 @@ import uuid
 from typing import cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
-from alpaca.trading.models import Asset, Order, TradeAccount
+from alpaca.trading.models import Asset, Order
 from alpaca.trading.requests import LimitOrderRequest
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
@@ -14,12 +14,14 @@ from alpacalyzer.gpt.call_gpt import (
 from alpacalyzer.gpt.response_models import EntryType, TradingStrategy
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.trading.alpaca_client import get_market_status, log_order, trading_client
+from alpacalyzer.trading.position_manager import PositionManager
 from alpacalyzer.utils.logger import logger
 
 
 class SwingTrader:
     def __init__(self):
         """Initialize the SwingTrader instance."""
+        self.position_manager = PositionManager(max_position_size=0.10, max_total_exposure=0.5, strategy="swing")
         self.technical_analyzer = TechnicalAnalyzer()
         self.latest_strategies: list[TradingStrategy] = []
         self.finviz_scanner = FinvizScanner()
@@ -28,7 +30,7 @@ class SwingTrader:
         """Main swing-trading loop."""
         market_status = get_market_status()
 
-        if market_status == "closed":
+        if market_status != "open":
             logger.info(f"=== Swing Trading Prospect Loop Paused - Market Status: {market_status} ===")
             return
 
@@ -37,11 +39,8 @@ class SwingTrader:
         try:
             reddit_insights = get_reddit_insights()
             reddit_picks = reddit_insights.top_tickers if reddit_insights else []
-            # finviz_df = self.finviz_scanner.get_trending_stocks()
-            # finviz_tickers = finviz_df["Ticker"].tolist()
             reddit_tickers = [x.ticker for x in reddit_picks]
             top_tickers = list(set(reddit_tickers))
-            logger.info(f"Top tickers: {top_tickers}")
             input_ta_df = self.finviz_scanner.fetch_stock_data(tuple(top_tickers))
             analyzer_response = get_top_candidates(input_ta_df)
             analyzer_picks = analyzer_response.top_tickers if analyzer_response else []
@@ -53,7 +52,12 @@ class SwingTrader:
                 signals = self.technical_analyzer.analyze_stock(ticker)
                 if signals is None:
                     continue
-                trading_strategies_response = get_trading_strategies(signals, ticker)
+                # Combine recommendations from Reddit and Finviz
+                reddit_recommendations = [x.recommendation for x in reddit_picks if x.ticker == ticker]
+                finviz_recommendations = [x.recommendation for x in analyzer_picks if x.ticker == ticker]
+                recommendations = list(reddit_recommendations + finviz_recommendations)
+
+                trading_strategies_response = get_trading_strategies(signals, recommendations)
                 trading_strategies = trading_strategies_response.strategies if trading_strategies_response else []
                 if len(trading_strategies) > 0:
                     self.latest_strategies.extend(trading_strategies)
@@ -87,10 +91,15 @@ class SwingTrader:
         logger.info(f"\n=== Swing Trading Monitor Loop Starting - Market Status: {market_status} ===")
         logger.info(f"Active Strategies: {len(self.latest_strategies)}")
 
-        executed_tickers = set()  # Track tickers whose strategies have been executed
+        # Update positions and orders silently
+        current_positions = self.position_manager.update_positions()
+        self.position_manager.update_pending_orders()
+
+        executed_tickers = set(current_positions.keys())  # Track tickers whose strategies have been executed
 
         try:
             for strategy in self.latest_strategies[:]:
+                logger.info(f"executed_tickers: {executed_tickers}")
                 if strategy.ticker in executed_tickers:
                     continue  # Skip strategies for tickers that already executed
 
@@ -122,55 +131,38 @@ class SwingTrader:
                     logger.info(f"Executing strategy for {strategy.ticker}:\n{strategy.strategy_notes}")
 
                     # Determine order type
-                    side = OrderSide.BUY if strategy.trade_type == "long" else OrderSide.SELL
-                    target_shares = calculate_position_size(strategy.ticker, strategy.entry_point, side, 0.10)
-                    if target_shares is None:
-                        continue
-                    logger.debug(f"{strategy}")
-
-                    bracket_order = LimitOrderRequest(
-                        symbol=strategy.ticker,
-                        qty=target_shares,
-                        side=side,
-                        type="limit",
-                        time_in_force=TimeInForce.GTC,
-                        limit_price=strategy.entry_point,
-                        order_class="bracket",
-                        stop_loss={"stop_price": strategy.stop_loss},
-                        take_profit={"limit_price": strategy.target_price},
-                        client_order_id=f"swing-{strategy.ticker}-{side}-{uuid.uuid4()}",
+                    side = OrderSide.BUY if strategy.trade_type.lower() == "long" else OrderSide.SELL
+                    shares, allow_trade = self.position_manager.calculate_target_position(
+                        symbol=strategy.ticker, price=strategy.entry_point, technical_data=signals
                     )
-                    # Submit order with bracket structure
-                    order_resp = trading_client.submit_order(bracket_order)
-                    order = cast(Order, order_resp)
-                    log_order(order)
 
-                    # Mark strategy as executed
-                    executed_tickers.add(strategy.ticker)
+                    if allow_trade and shares > 0:
+                        bracket_order = LimitOrderRequest(
+                            symbol=strategy.ticker,
+                            qty=shares,
+                            side=side,
+                            type="limit",
+                            time_in_force=TimeInForce.GTC,
+                            limit_price=strategy.entry_point,
+                            order_class="bracket",
+                            stop_loss={"stop_price": strategy.stop_loss},
+                            take_profit={"limit_price": strategy.target_price},
+                            client_order_id=f"swing_{strategy.ticker}_{side}_{uuid.uuid4()}",
+                        )
+                        # Submit order with bracket structure
+                        logger.debug(f"Submitting order: {bracket_order}")
+                        order_resp = trading_client.submit_order(bracket_order)
+                        order = cast(Order, order_resp)
+                        log_order(order)
+
+                        # Mark strategy as executed
+                        executed_tickers.add(strategy.ticker)
 
             # Remove all strategies for executed tickers
             self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]
 
         except Exception as e:
             logger.error(f"Error in monitor_and_trade: {str(e)}", exc_info=True)
-
-
-def calculate_position_size(ticker: str, price: float, side: OrderSide, target_pct: float) -> int | None:
-    """Calculate the position size based on the target percentage."""
-    try:
-        account_resp = trading_client.get_account()
-        account = cast(TradeAccount, account_resp)
-        equity = float(account.equity or 0)
-        position_size = int((equity * target_pct) / price)
-
-        if position_size < 1:
-            logger.info(f"Skipping {side} order for {ticker}: Insufficient funds")
-            return None
-
-        return position_size
-    except Exception as e:
-        logger.error(f"Error calculating position size: {str(e)}", exc_info=True)
-        return None
 
 
 def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -> bool:
