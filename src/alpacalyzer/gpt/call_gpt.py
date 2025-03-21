@@ -39,9 +39,9 @@ def dataframe_to_compact_csv(df: pd.DataFrame, max_rows: int) -> str:
     if "timestamp" in df.columns:
         df["timestamp"] = df["timestamp"].astype(str)
 
-    csv = df.to_csv(index=False)
-    return cast(str, csv)
-    # return df.to_csv(index=False)
+    # csv = df.to_csv(index=False)
+    # return cast(str, csv)
+    return df.to_csv(index=False)
 
 
 def serialize_trading_signals(signals: TradingSignals, recommendations: list[str]) -> str:

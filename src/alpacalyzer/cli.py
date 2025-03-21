@@ -5,6 +5,7 @@ import time
 import schedule
 
 from alpacalyzer.db.db import init_db
+from alpacalyzer.hedge_fund import run_hedge_fund
 from alpacalyzer.trading.alpaca_client import consume_trade_updates
 from alpacalyzer.trading.day_trader import DayTrader
 from alpacalyzer.trading.swing_trader import SwingTrader
@@ -63,6 +64,39 @@ def main():  # pragma: no cover
             safe_execute(day_trader.analyze_and_day_trade)
 
             schedule.every(2).minutes.do(lambda: safe_execute(day_trader.analyze_and_day_trade))
+
+        if args.hedge:
+            # New trading flow
+            # Run opportunity scanners every 2 minutes and 4 hours
+            # Saves opportunity tickers in memory
+            # Run hedge fund every 5 minutes if new positions are available
+            # Creates trading strategies for each ticker
+            # Monitor trading strategies every 2 minutes
+            # Execute trading strategies
+
+            # New exit flow
+            # Monitor positions every 2 minutes
+            # Exit positions on signals
+            logger.info("Hedge Fund Mode Enabled")
+
+            # Execute immediately
+            swing_trader = SwingTrader()
+            safe_execute(swing_trader.analyze_and_swing_trade)
+            schedule.every(4).hours.do(lambda: safe_execute(swing_trader.analyze_and_swing_trade))
+
+            # Execute immediately
+            day_trader = DayTrader()
+            safe_execute(day_trader.analyze_and_day_trade)
+            schedule.every(2).minutes.do(lambda: safe_execute(day_trader.analyze_and_day_trade))
+
+            # Run hedge fund every 5 minutes
+            schedule.every(5).minutes.do(lambda: safe_execute(run_hedge_fund))
+
+            # Monitor Trading strategies every 2 minutes
+            schedule.every(2).minutes.do(lambda: safe_execute(swing_trader.monitor_and_trade))
+
+            # Monitor positions every 2 minutes
+            schedule.every(2).minutes.do(lambda: safe_execute(day_trader.manage_existing_positions))
 
         # Start the scheduler thread
         start_scheduler()

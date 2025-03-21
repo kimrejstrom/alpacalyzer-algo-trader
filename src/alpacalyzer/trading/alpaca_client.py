@@ -1,8 +1,13 @@
 import os
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
+import pandas as pd
+from alpaca.data.enums import Adjustment
 from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.models import Bar, BarSet
+from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide
 from alpaca.trading.models import Calendar, Clock, Order, Position, TradeAccount, TradeUpdate
@@ -128,6 +133,82 @@ def get_market_status() -> str:
     return "closed"  # Default case: market is fully closed
 
 
+@timed_lru_cache(seconds=60, maxsize=128)
+def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
+    """Get historical data from Alpaca."""
+    try:
+        now_utc = datetime.now(UTC)  # Get the current UTC time
+        end = now_utc - timedelta(seconds=930)  # 15.5 minutes ago
+
+        # Determine the `start` time based on the `request_type`
+        if request_type == "minute":
+            start = end - timedelta(minutes=1440)  # Last 24 hours
+            request = StockBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=TimeFrame(5, TimeFrameUnit.Minute),
+                start=start,
+                end=end,
+                adjustment=Adjustment.ALL,
+            )
+        else:
+            start = end - timedelta(days=100)  # Last 100 days
+            request = StockBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=TimeFrame.Day,
+                start=start,
+                end=end,
+                adjustment=Adjustment.ALL,
+            )
+        try:
+            bars_response = history_client.get_stock_bars(request)
+            candles = cast(BarSet, bars_response).data.get(symbol)
+            if not candles or candles is None:
+                return None
+
+            # Check market status
+            if get_market_status() == "open":
+                # Fetch the latest bar for fresh data (only available during market hours)
+                latest_bar_response = history_client.get_stock_latest_bar(
+                    StockLatestBarRequest(symbol_or_symbols=symbol)
+                )
+                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
+
+                # Append the latest bar if available, otherwise duplicate the last candle
+                candles.append(latest_bar if latest_bar else candles[-1])
+            else:
+                # Market is closed, duplicate the last candle
+                candles.append(candles[-1])
+
+            return bars_to_df(candles)
+
+        except Exception as e:
+            logger.error(f"Error fetching stock bars for {symbol}: {str(e)}", exc_info=True)
+            return None
+
+    except Exception as e:
+        logger.error(f"Error fetching historical data for {symbol}: {str(e)}", exc_info=True)
+        return None
+
+
+def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
+    """Convert the list of Alpaca Bars to a DataFrame."""
+    # Convert list of Bar objects to dictionaries
+    df = pd.DataFrame([bar.model_dump() for bar in bars])
+
+    # Ensure timestamp is converted to datetime and set as index
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df.set_index("timestamp", inplace=True)
+
+    # Convert numeric columns to appropriate types
+    numeric_cols = ["open", "high", "low", "close", "volume", "trade_count", "vwap"]
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
+
+    # Sort by timestamp (ascending order)
+    df.sort_index(inplace=True)
+
+    return df
+
+
 def get_account_info():
     """Get account information."""
     account = trading_client.get_account()
@@ -140,6 +221,7 @@ def get_account_info():
         "daytrading_buying_power": float(account_instance.daytrading_buying_power)
         if account_instance.daytrading_buying_power
         else 0,
+        "maintenance_margin": float(account_instance.maintenance_margin) if account_instance.maintenance_margin else 0,
     }
 
 

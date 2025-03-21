@@ -27,16 +27,7 @@ class TradingSignals(TypedDict):
     raw_data_intraday: pd.DataFrame
 
 
-class CacheEntry(TypedDict):
-    timestamp: datetime
-    result: TradingSignals
-
-
 class TechnicalAnalyzer:
-    def __init__(self):
-        # Cache to store analysis results
-        self.analysis_cache: dict[str, CacheEntry] = {}
-
     def preprocess_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Normalize index and clean up the DataFrame."""
         if isinstance(df.index, pd.MultiIndex):
@@ -405,15 +396,6 @@ class TechnicalAnalyzer:
         return signals
 
     def analyze_stock(self, symbol: str) -> TradingSignals | None:
-        # current_time = datetime.now(UTC)
-
-        # Check if the result is already in the cache
-        # if symbol in self.analysis_cache:
-        #     cache_entry = self.analysis_cache[symbol]
-        #     # If the cached entry is less than 60 seconds old, reuse it
-        #     if (current_time - cache_entry["timestamp"]).seconds < 60:
-        #         return cache_entry["result"]
-
         try:
             intraday = self.analyze_stock_intraday(symbol)
             daily = self.analyze_stock_daily(symbol)
@@ -424,8 +406,6 @@ class TechnicalAnalyzer:
             result = self.calculate_technical_analysis_score(symbol, daily, intraday)
             if result is None:
                 return None
-            # # Store the result in the cache with a timestamp
-            # self.analysis_cache[symbol] = {"timestamp": current_time, "result": result}
             return result
 
         except Exception as e:
@@ -461,3 +441,25 @@ class TechnicalAnalyzer:
         if weak_tech_signals:
             return f"Weak technicals: {', '.join(weak_tech_signals)}"
         return None
+
+    def calculate_ta_threshold(self, vix_close, rel_vol, atr_pct):
+        """Dynamically adjust technical score threshold based on VIX, volume, and volatility."""
+
+        logger.debug(f"VIX: {vix_close:.1f}, Rel Vol: {rel_vol:.1f}, ATR %: {atr_pct:.2f}")
+        if vix_close > 35:
+            if rel_vol >= 3 and atr_pct < 0.08:  # Slightly raised ATR limit
+                return 0.8  # Allow strong setups
+            return 0.9  # Stricter threshold
+
+        if 30 <= vix_close <= 35:
+            if rel_vol >= 2 and atr_pct < 0.10:  # Allow higher ATR in high VIX
+                return 0.7
+            return 0.75
+
+        if 20 <= vix_close <= 30:
+            if rel_vol >= 1.5 and atr_pct < 0.12:  # More flexibility in calm markets
+                return 0.6
+            return 0.65
+
+        # VIX < 20 (Calm market)
+        return 0.5  # Allow all setups

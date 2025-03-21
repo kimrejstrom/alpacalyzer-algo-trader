@@ -42,6 +42,7 @@ class EntryCriteria(BaseModel):
 # Pydantic model for trading strategy
 class TradingStrategy(BaseModel):
     ticker: str
+    quantity: int
     entry_point: float
     stop_loss: float
     target_price: float
