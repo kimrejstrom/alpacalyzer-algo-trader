@@ -2,7 +2,6 @@ import json
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
 
 from alpacalyzer.data.models import PortfolioManagerOutput
 from alpacalyzer.gpt.call_gpt import call_gpt_structured
@@ -71,14 +70,14 @@ def portfolio_management_agent(state: AgentState):
 
     # Create the portfolio management message
     message = HumanMessage(
-        content=json.dumps({ticker: decision.model_dump() for ticker, decision in result.decisions.items()}),
+        content=json.dumps({decision.ticker: decision.model_dump() for decision in result.decisions}),
         name="portfolio_management",
     )
 
     # Print the decision if the flag is set
     if state["metadata"]["show_reasoning"]:
         show_agent_reasoning(
-            {ticker: decision.model_dump() for ticker, decision in result.decisions.items()},
+            {decision.ticker: decision.model_dump() for decision in result.decisions},
             "Portfolio Management Agent",
         )
 
@@ -102,92 +101,89 @@ def generate_trading_decision(
 ) -> PortfolioManagerOutput | None:
     """Attempts to get a decision from the LLM with retry logic"""
     # Create the prompt template
-    template = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """You are a portfolio manager making final trading decisions based on multiple tickers.
+    # Define the static system message with trading instructions
+    system_message = {
+        "role": "system",
+        "content": (
+            "You are a portfolio manager making final trading decisions based on multiple tickers.\n\n"
+            "Trading Rules:\n"
+            "- For long positions:\n"
+            "  * Only buy if you have available cash\n"
+            "  * Only sell if you currently hold long shares of that ticker\n"
+            "  * Sell quantity must be ≤ current long position shares\n"
+            "  * Buy quantity must be ≤ max_shares for that ticker\n\n"
+            "- For short positions:\n"
+            "  * Only short if you have available margin (50% of position value required)\n"
+            "  * Only cover if you currently have short shares of that ticker\n"
+            "  * Cover quantity must be ≤ current short position shares\n"
+            "  * Short quantity must respect margin requirements\n\n"
+            "- The max_shares values are pre-calculated to respect position limits\n"
+            "- Consider both long and short opportunities based on signals\n"
+            "- Maintain appropriate risk management with both long and short exposure\n\n"
+            "Available Actions:\n"
+            '- "buy": Open or add to long position\n'
+            '- "sell": Close or reduce long position\n'
+            '- "short": Open or add to short position\n'
+            '- "cover": Close or reduce short position\n'
+            '- "hold": No action\n\n'
+            "Inputs:\n"
+            "- signals_by_ticker: dictionary of ticker → signals\n"
+            "- max_shares: maximum shares allowed per ticker\n"
+            "- portfolio_cash: current cash in portfolio\n"
+            "- portfolio_positions: current positions (both long and short)\n"
+            "- current_prices: current prices for each ticker\n"
+            "- margin_requirement: current margin requirement for short positions"
+        ),
+    }
 
-              Trading Rules:
-              - For long positions:
-                * Only buy if you have available cash
-                * Only sell if you currently hold long shares of that ticker
-                * Sell quantity must be ≤ current long position shares
-                * Buy quantity must be ≤ max_shares for that ticker
-
-              - For short positions:
-                * Only short if you have available margin (50% of position value required)
-                * Only cover if you currently have short shares of that ticker
-                * Cover quantity must be ≤ current short position shares
-                * Short quantity must respect margin requirements
-
-              - The max_shares values are pre-calculated to respect position limits
-              - Consider both long and short opportunities based on signals
-              - Maintain appropriate risk management with both long and short exposure
-
-              Available Actions:
-              - "buy": Open or add to long position
-              - "sell": Close or reduce long position
-              - "short": Open or add to short position
-              - "cover": Close or reduce short position
-              - "hold": No action
-
-              Inputs:
-              - signals_by_ticker: dictionary of ticker → signals
-              - max_shares: maximum shares allowed per ticker
-              - portfolio_cash: current cash in portfolio
-              - portfolio_positions: current positions (both long and short)
-              - current_prices: current prices for each ticker
-              - margin_requirement: current margin requirement for short positions
-              """,
-            ),
-            (
-                "human",
-                """Based on the team's analysis, make your trading decisions for each ticker.
-
-              Here are the signals by ticker:
-              {signals_by_ticker}
-
-              Current Prices:
-              {current_prices}
-
-              Maximum Shares Allowed For Purchases:
-              {max_shares}
-
-              Portfolio Cash: {portfolio_cash}
-              Current Positions: {portfolio_positions}
-              Current Margin Requirement: {margin_requirement}
-
-              Output strictly in JSON with the following structure:
-              {{
-                "decisions": {{
-                  "TICKER1": {{
-                    "action": "buy/sell/short/cover/hold",
-                    "quantity": integer,
-                    "confidence": float,
-                    "reasoning": "string"
-                  }},
-                  "TICKER2": {{
-                    ...
-                  }},
-                  ...
-                }}
-              }}
-              """,
-            ),
-        ]
+    # Define a template for the user (human) message
+    human_template = (
+        "Based on the team's analysis, make your trading decisions for each ticker.\n\n"
+        "Here are the signals by ticker:\n{signals_by_ticker}\n\n"
+        "Current Prices:\n{current_prices}\n\n"
+        "Maximum Shares Allowed For Purchases:\n{max_shares}\n\n"
+        "Portfolio Cash: {portfolio_cash}\n"
+        "Current Positions: {portfolio_positions}\n"
+        "Current Margin Requirement: {margin_requirement}\n\n"
+        "Output strictly in JSON with the following structure:\n"
+        "{{\n"
+        '  "decisions": {{\n'
+        '    "TICKER1": {{\n'
+        '      "action": "buy/sell/short/cover/hold",\n'
+        '      "quantity": integer,\n'
+        '      "confidence": float,\n'
+        '      "reasoning": "string"\n'
+        "    }},\n"
+        '    "TICKER2": {{\n'
+        "      ...\n"
+        "    }},\n"
+        "    ...\n"
+        "  }}\n"
+        "}}"
     )
 
-    # Generate the prompt
-    prompt = template.invoke(
-        {
-            "signals_by_ticker": json.dumps(signals_by_ticker, indent=2),
-            "current_prices": json.dumps(current_prices, indent=2),
-            "max_shares": json.dumps(max_shares, indent=2),
-            "portfolio_cash": f"{portfolio.get('cash', 0):.2f}",
-            "portfolio_positions": json.dumps(portfolio.get("positions", {}), indent=2),
-            "margin_requirement": f"{portfolio.get('margin_requirement', 0):.2f}",
-        }
-    )
+    # Prepare dynamic input values (assumes these variables are defined)
+    signals_by_ticker_str = json.dumps(signals_by_ticker, indent=2)
+    current_prices_str = json.dumps(current_prices, indent=2)
+    max_shares_str = json.dumps(max_shares, indent=2)
+    portfolio_cash_str = f"{portfolio.get('cash', 0):.2f}"
+    portfolio_positions_str = json.dumps(portfolio.get("positions", {}), indent=2)
+    margin_requirement_str = f"{portfolio.get('margin_requirement', 0):.2f}"
 
-    return call_gpt_structured(messages=prompt.to_messages(), function_schema=PortfolioManagerOutput)
+    # Format the human message using the template
+    human_message = {
+        "role": "user",
+        "content": human_template.format(
+            signals_by_ticker=signals_by_ticker_str,
+            current_prices=current_prices_str,
+            max_shares=max_shares_str,
+            portfolio_cash=portfolio_cash_str,
+            portfolio_positions=portfolio_positions_str,
+            margin_requirement=margin_requirement_str,
+        ),
+    }
+
+    # Combine the messages into a list that you can send to your API
+    messages = [system_message, human_message]
+
+    return call_gpt_structured(messages=messages, function_schema=PortfolioManagerOutput)

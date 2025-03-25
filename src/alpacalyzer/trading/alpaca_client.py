@@ -6,7 +6,7 @@ import pandas as pd
 from alpaca.data.enums import Adjustment
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.models import Bar, BarSet
-from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
+from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest, StockLatestTradeRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide
@@ -131,6 +131,25 @@ def get_market_status() -> str:
         return "after-hours"
 
     return "closed"  # Default case: market is fully closed
+
+
+@timed_lru_cache(seconds=60, maxsize=128)
+def get_current_price(ticker: str) -> float | None:
+    """
+    Fetches the latest trade price for the given ticker from Alpaca.
+
+    Args:
+        ticker (str): Stock ticker symbol (e.g., 'AAPL')
+
+    Returns:
+        Optional[float]: Latest trade price or None if not found
+    """
+    try:
+        response = history_client.get_stock_latest_trade(StockLatestTradeRequest(symbol_or_symbols=ticker))
+        return response[ticker].price
+    except Exception as e:
+        logger.debug(f"Error fetching price for {ticker}: {str(e)}", exc_info=True)
+        return None
 
 
 @timed_lru_cache(seconds=60, maxsize=128)

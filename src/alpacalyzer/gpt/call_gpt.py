@@ -144,8 +144,9 @@ as an **intraday scalp** or **skip entirely**.
   - **Consolidation Bottom:** Serves as **support/stop-loss consideration**.
 
 ## **Expected Output**
-- List **exactly 3 tickers** (1, 2, 3) that meet the above conditions.
+- List **3-5 great tickers** (1, 2, 3) that meet the above conditions.
 - Provide a **short rationale** for each selection.
+- Give confidence score on a scale from 0-100 for each ticker.
 """,
         },
         {

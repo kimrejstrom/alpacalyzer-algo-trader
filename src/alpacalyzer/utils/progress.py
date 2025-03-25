@@ -52,6 +52,8 @@ class AgentProgress:
                 return (2, agent_name)
             if "portfolio_management" in agent_name:
                 return (3, agent_name)
+            if "trading_strategist" in agent_name:
+                return (4, agent_name)
             return (1, agent_name)
 
         for agent_name, info in sorted(self.agent_status.items(), key=sort_key):

@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 
 from alpacalyzer.agents.agents import get_analyst_nodes
+from alpacalyzer.gpt.response_models import TopTickers
 from alpacalyzer.graph.state import AgentState
 from alpacalyzer.trading.portfolio_manager import portfolio_management_agent
 from alpacalyzer.trading.risk_manager import risk_management_agent
@@ -34,8 +35,8 @@ def parse_hedge_fund_response(response):
 
 
 ##### Run the Hedge Fund #####
-def run_hedge_fund(
-    tickers: list[str],
+def call_hedge_fund_agents(
+    tickers: list[TopTickers],
     show_reasoning: bool = False,
 ):
     # Start progress tracking
@@ -46,6 +47,13 @@ def run_hedge_fund(
         workflow = create_workflow(selected_analysts=None)
         agent = workflow.compile()
 
+        potential_candidates = {}
+        for ticker in tickers:
+            potential_candidates[ticker.ticker] = {
+                "signal": ticker.recommendation,
+                "confidence": ticker.confidence,
+            }
+
         final_state = agent.invoke(
             {
                 "messages": [
@@ -54,8 +62,9 @@ def run_hedge_fund(
                     )
                 ],
                 "data": {
-                    "tickers": tickers,
-                    "analyst_signals": {},
+                    "tickers": [x.ticker for x in tickers],
+                    "analyst_signals": {"potential_candidates_agent": potential_candidates},
+                    "portfolio": {},
                 },
                 "metadata": {
                     "show_reasoning": show_reasoning,
@@ -94,7 +103,7 @@ def create_workflow(selected_analysts=None):
         workflow.add_node(node_name, node_func)
         workflow.add_edge("start_node", node_name)
 
-    # Always add risk and portfolio management
+    # Always add risk-, portfolio management and trading strategist agents
     workflow.add_node("risk_management_agent", risk_management_agent)
     workflow.add_node("portfolio_management_agent", portfolio_management_agent)
     workflow.add_node("trading_strategist_agent", trading_strategist_agent)

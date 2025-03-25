@@ -38,6 +38,9 @@ class EntryCriteria(BaseModel):
     entry_type: EntryType
     value: float
 
+    class Config:
+        use_enum_values = True
+
 
 # Pydantic model for trading strategy
 class TradingStrategy(BaseModel):

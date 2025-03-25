@@ -11,6 +11,7 @@ from alpacalyzer.gpt.call_gpt import (
     get_top_candidates,
 )
 from alpacalyzer.gpt.response_models import EntryType, TopTickers, TradingStrategy
+from alpacalyzer.hedge_fund import call_hedge_fund_agents
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_market_status, log_order, trading_client
@@ -34,7 +35,7 @@ class Trader:
         """Main trading loop."""
         market_status = get_market_status()
 
-        if market_status != "open":
+        if market_status == "closed":
             logger.info(f"=== Opportunity Scanner #1 Paused - Market Status: {market_status} ===")
             return None
 
@@ -56,11 +57,11 @@ class Trader:
         except Exception as e:
             logger.error(f"Error in scan_for_insight_opportunities: {str(e)}", exc_info=True)
 
-    def scan_for_tehcnical_opportunities(self):
+    def scan_for_technical_opportunities(self):
         """Main trading loop."""
         market_status = get_market_status()
 
-        if market_status != "open":
+        if market_status == "closed":
             logger.info(f"=== Opportunity Scanner #2 Paused - Market Status: {market_status} ===")
             return
 
@@ -123,10 +124,18 @@ class Trader:
                         logger.info(f"- {blocker}")
                     continue
 
+                # Convert back to signal
+                if trading_signals["score"] > 0.8:
+                    signal = "bullish"
+                elif trading_signals["score"] < 0.5:
+                    signal = "bearish"
+                else:
+                    signal = "neutral"
+
                 opportunity = TopTickers(
                     ticker=stock["ticker"],
-                    confidence=stock["confidence"],
-                    recommendation=stock["recommendation"],
+                    confidence=80,
+                    recommendation=signal,
                 )
 
                 if opportunity.ticker not in [o.ticker for o in self.opportunities]:
@@ -134,6 +143,31 @@ class Trader:
 
         except Exception as e:
             logger.error(f"Error in scan_for_tehcnical_opportunities: {str(e)}", exc_info=True)
+
+    def run_hedge_fund(self):
+        """Hedge fund."""
+        market_status = get_market_status()
+
+        if market_status == "closed":
+            logger.info(f"=== Hedge Fund Paused - Market Status: {market_status} ===")
+            return
+
+        logger.info(f"\n=== Hedge Fund Starting - Market Status: {market_status} ===")
+
+        self.opportunities.append(TopTickers(ticker="AAPL", confidence=70, recommendation="bullish"))
+
+        try:
+            if not self.opportunities:
+                logger.info("No opportunities available.")
+                return
+
+            hedge_fund_response = call_hedge_fund_agents(self.opportunities, show_reasoning=True)
+            logger.info(f"Hedge Fund Response: {hedge_fund_response}")
+            # TODO: clear opportunities after hedge fund run
+            # TODO - Create trading strategies from hedge fund response
+
+        except Exception as e:
+            logger.error(f"Error in run_hedge_fund: {str(e)}", exc_info=True)
 
     # Function to check real-time price and execute orders
     def monitor_and_trade(self):
@@ -146,10 +180,10 @@ class Trader:
         market_status = get_market_status()
 
         if market_status != "open":
-            logger.info(f"=== Swing Trading Monitor Loop Paused - Market Status: {market_status} ===")
+            logger.info(f"=== Trading Monitor Loop Paused - Market Status: {market_status} ===")
             return
 
-        logger.info(f"\n=== Swing Trading Monitor Loop Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Trading Monitor Loop Starting - Market Status: {market_status} ===")
         logger.info(f"Active Strategies: {len(self.latest_strategies)}")
 
         # Update positions and orders silently
@@ -193,31 +227,27 @@ class Trader:
 
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type.lower() == "long" else OrderSide.SELL
-                    shares, allow_trade = self.position_manager.calculate_target_position(
-                        symbol=strategy.ticker, price=strategy.entry_point, technical_data=signals
+
+                    bracket_order = LimitOrderRequest(
+                        symbol=strategy.ticker,
+                        qty=strategy.quantity,
+                        side=side,
+                        type="limit",
+                        time_in_force=TimeInForce.GTC,
+                        limit_price=strategy.entry_point,
+                        order_class="bracket",
+                        stop_loss={"stop_price": strategy.stop_loss},
+                        take_profit={"limit_price": strategy.target_price},
+                        client_order_id=f"swing_{strategy.ticker}_{side}_{uuid.uuid4()}",
                     )
+                    # Submit order with bracket structure
+                    logger.debug(f"Submitting order: {bracket_order}")
+                    order_resp = trading_client.submit_order(bracket_order)
+                    order = cast(Order, order_resp)
+                    log_order(order)
 
-                    if allow_trade and shares > 0:
-                        bracket_order = LimitOrderRequest(
-                            symbol=strategy.ticker,
-                            qty=shares,
-                            side=side,
-                            type="limit",
-                            time_in_force=TimeInForce.GTC,
-                            limit_price=strategy.entry_point,
-                            order_class="bracket",
-                            stop_loss={"stop_price": strategy.stop_loss},
-                            take_profit={"limit_price": strategy.target_price},
-                            client_order_id=f"swing_{strategy.ticker}_{side}_{uuid.uuid4()}",
-                        )
-                        # Submit order with bracket structure
-                        logger.debug(f"Submitting order: {bracket_order}")
-                        order_resp = trading_client.submit_order(bracket_order)
-                        order = cast(Order, order_resp)
-                        log_order(order)
-
-                        # Mark strategy as executed
-                        executed_tickers.add(strategy.ticker)
+                    # Mark strategy as executed
+                    executed_tickers.add(strategy.ticker)
 
             # Remove all strategies for executed tickers
             self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]

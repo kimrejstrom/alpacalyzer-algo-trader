@@ -2,20 +2,14 @@
 
 from typing import cast
 
-from alpacalyzer.agents.momentum_agent import momentum_agent
 from alpacalyzer.agents.technicals_agent import technical_analyst_agent
 
 # Define analyst configuration - single source of truth
 ANALYST_CONFIG = {
-    "momentum": {
-        "display_name": "Momentum",
-        "agent_func": momentum_agent,
-        "order": 0,
-    },
     "technical_analyst": {
         "display_name": "Technical Analyst",
         "agent_func": technical_analyst_agent,
-        "order": 1,
+        "order": 0,
     },
 }
 

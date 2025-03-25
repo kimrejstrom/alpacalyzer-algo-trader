@@ -152,6 +152,7 @@ class AgentStateMetadata(BaseModel):
 
 
 class PortfolioDecision(BaseModel):
+    ticker: str
     action: Literal["buy", "sell", "short", "cover", "hold"]
     quantity: int = Field(description="Number of shares to trade")
     confidence: float = Field(description="Confidence in the decision, between 0.0 and 100.0")
@@ -159,4 +160,4 @@ class PortfolioDecision(BaseModel):
 
 
 class PortfolioManagerOutput(BaseModel):
-    decisions: dict[str, PortfolioDecision] = Field(description="Dictionary of ticker to trading decisions")
+    decisions: list[PortfolioDecision]
