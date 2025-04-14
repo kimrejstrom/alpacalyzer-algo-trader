@@ -86,14 +86,15 @@ def main():  # pragma: no cover
             # schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
 
             # # Execute immediately
-            # safe_execute(trader.scan_for_technical_opportunities)
-            # schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
+            safe_execute(trader.scan_for_technical_opportunities)
+            schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
 
             # Run hedge fund every 5 minutes
             safe_execute(trader.run_hedge_fund)
             schedule.every(2).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
 
             # Monitor Trading strategies every 2 minutes
+            safe_execute(trader.monitor_and_trade)
             schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
 
         # Start the scheduler thread

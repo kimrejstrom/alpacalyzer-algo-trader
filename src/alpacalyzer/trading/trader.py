@@ -36,10 +36,10 @@ class Trader:
         market_status = get_market_status()
 
         if market_status == "closed":
-            logger.info(f"=== Opportunity Scanner #1 Paused - Market Status: {market_status} ===")
+            logger.info(f"=== Reddit Scanner Paused - Market Status: {market_status} ===")
             return None
 
-        logger.info(f"\n=== Opportunity Scanner #1 Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Reddit Scanner Starting - Market Status: {market_status} ===")
 
         try:
             reddit_insights = get_reddit_insights()
@@ -62,10 +62,10 @@ class Trader:
         market_status = get_market_status()
 
         if market_status == "closed":
-            logger.info(f"=== Opportunity Scanner #2 Paused - Market Status: {market_status} ===")
+            logger.info(f"=== Momentum Scanner Paused - Market Status: {market_status} ===")
             return
 
-        logger.info(f"\n=== Opportunity Scanner #2 Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Momentum Scanner Starting - Market Status: {market_status} ===")
 
         try:
             # Get ranked stocks
@@ -80,8 +80,12 @@ class Trader:
             # Get technical analysis for each stock
             for _, stock in trending_stocks.iterrows():
                 entry_blockers = []
-
                 trading_signals = cast(TradingSignals, stock["trading_signals"])
+
+                if not isinstance(trading_signals, dict):
+                    logger.info(f"Skipping {stock['ticker']} - No trading signals")
+                    continue
+
                 # Check technicals
                 signals = trading_signals["signals"]
                 momentum = trading_signals["momentum"]
@@ -163,8 +167,20 @@ class Trader:
 
             hedge_fund_response = call_hedge_fund_agents(self.opportunities, show_reasoning=True)
             logger.info(f"Hedge Fund Response: {hedge_fund_response}")
-            # TODO: clear opportunities after hedge fund run
+            self.opportunities = []
+            if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
+                logger.info("No trade decisions from hedge fund.")
+                return
             # TODO - Create trading strategies from hedge fund response
+            for data in hedge_fund_response["decisions"].values():
+                strategies = data.get("strategies", [])
+                for strategy in strategies:
+                    strategy = TradingStrategy.model_validate(strategy)
+                    if strategy.ticker in [s.ticker for s in self.latest_strategies]:
+                        logger.info(f"Strategy already exists for {strategy.ticker} - Skipping")
+                        continue
+                    self.latest_strategies.append(strategy)
+                    logger.info(f"New strategy created: {strategy}")
 
         except Exception as e:
             logger.error(f"Error in run_hedge_fund: {str(e)}", exc_info=True)
@@ -187,10 +203,10 @@ class Trader:
         logger.info(f"Active Strategies: {len(self.latest_strategies)}")
 
         # Update positions and orders silently
-        current_positions = self.position_manager.update_positions()
-        self.position_manager.update_pending_orders()
+        # current_positions = self.position_manager.update_positions()
+        # self.position_manager.update_pending_orders()
 
-        executed_tickers = set(current_positions.keys())  # Track tickers whose strategies have been executed
+        executed_tickers: list[str] = []  # Track tickers whose strategies have been executed
 
         try:
             for strategy in self.latest_strategies[:]:
@@ -227,6 +243,11 @@ class Trader:
 
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type.lower() == "long" else OrderSide.SELL
+                    # Correct rounding for limit price
+                    if strategy.entry_point > 1:
+                        limit_price = round(strategy.entry_point, 2)
+                    else:
+                        limit_price = round(strategy.entry_point, 4)
 
                     bracket_order = LimitOrderRequest(
                         symbol=strategy.ticker,
@@ -234,7 +255,7 @@ class Trader:
                         side=side,
                         type="limit",
                         time_in_force=TimeInForce.GTC,
-                        limit_price=strategy.entry_point,
+                        limit_price=limit_price,
                         order_class="bracket",
                         stop_loss={"stop_price": strategy.stop_loss},
                         take_profit={"limit_price": strategy.target_price},
@@ -247,7 +268,7 @@ class Trader:
                     log_order(order)
 
                     # Mark strategy as executed
-                    executed_tickers.add(strategy.ticker)
+                    executed_tickers.append(strategy.ticker)
 
             # Remove all strategies for executed tickers
             self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]

@@ -68,16 +68,18 @@ def portfolio_management_agent(state: AgentState):
             "data": state["data"],
         }
 
+    portfolio_decisions = {decision.ticker: decision.model_dump() for decision in result.decisions}
+
     # Create the portfolio management message
     message = HumanMessage(
-        content=json.dumps({decision.ticker: decision.model_dump() for decision in result.decisions}),
+        content=json.dumps(portfolio_decisions),
         name="portfolio_management",
     )
 
     # Print the decision if the flag is set
     if state["metadata"]["show_reasoning"]:
         show_agent_reasoning(
-            {decision.ticker: decision.model_dump() for decision in result.decisions},
+            portfolio_decisions,
             "Portfolio Management Agent",
         )
 
