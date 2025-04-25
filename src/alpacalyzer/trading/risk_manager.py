@@ -35,7 +35,8 @@ def risk_management_agent(state: AgentState):
         position = next((p for p in alpaca_positions if p.symbol == ticker), None)
 
         if position is not None:
-            state["data"]["portfolio"]["positions"][ticker] = (
+            positions = state["data"]["portfolio"].get("positions", {})
+            positions[ticker] = (
                 {
                     "quantity": float(position.qty),  # Number of shares held long
                     "cost_basis": float(position.cost_basis),  # Average cost basis for long positions

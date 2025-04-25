@@ -172,6 +172,6 @@ TODO:
 
 - [ ] Add more tests
 - [ ] Add more documentation
+- [ ] Add more agents
 - [ ] Utilize yfinance news
-- [ ] Add gpt agent check before day trader buys
 - [ ] use hedge-fund progress and agent structure along with formatted output

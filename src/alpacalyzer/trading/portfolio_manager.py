@@ -86,7 +86,7 @@ def portfolio_management_agent(state: AgentState):
     progress.update_status("portfolio_management_agent", None, "Done")
 
     # Add the signal to the analyst_signals list
-    state["data"]["analyst_signals"]["portfolio_management_agent"] = result
+    state["data"]["analyst_signals"]["portfolio_management_agent"] = portfolio_decisions
 
     return {
         "messages": list(state["messages"]) + [message],

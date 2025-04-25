@@ -1,11 +1,11 @@
 import json
-from typing import Literal, cast
+from typing import Literal
 
 import pandas as pd
 from langchain_core.messages import HumanMessage
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
-from alpacalyzer.data.models import PortfolioDecision, PortfolioManagerOutput
+from alpacalyzer.data.models import PortfolioDecision
 from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.gpt.response_models import TradingStrategyResponse
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
@@ -18,8 +18,8 @@ def trading_strategist_agent(state: AgentState):
 
     # Get the analyst signals
     analyst_signals = state["data"]["analyst_signals"]
+    data = analyst_signals["portfolio_management_agent"]
 
-    portfolio_manager_output = cast(PortfolioManagerOutput, analyst_signals["portfolio_management_agent"])
     technical_analyzer = TechnicalAnalyzer()
     # Initialize analysis for each ticker
     trading_strategies: dict[str, TradingStrategyResponse] = {}
@@ -27,8 +27,13 @@ def trading_strategist_agent(state: AgentState):
     progress.update_status("trading_strategist_agent", None, "Analyzing portoflio manager output")
 
     # Get position limits, current prices, and signals for every ticker
-    for decision in portfolio_manager_output.decisions:
-        progress.update_status("trading_strategist_agent", decision.ticker, "Processing ticker signals")
+    for ticker, details in data.items():
+        progress.update_status("trading_strategist_agent", ticker, "Processing ticker signals")
+        decision = PortfolioDecision.model_validate(details)
+
+        if decision.action == "hold":
+            progress.update_status("trading_strategist_agent", ticker, "Hold signal, skipping")
+            continue
 
         signals = technical_analyzer.analyze_stock(decision.ticker)
         if signals is None:

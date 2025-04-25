@@ -54,11 +54,9 @@ def serialize_trading_signals(signals: TradingSignals, recommendations: list[str
         "atr": signals["atr"],
         "rvol": signals["rvol"],
         "momentum": signals["momentum"],
-        # TODO: trim to open, close, volume, high, low and format dates
         "3_months_daily_candles_csv": dataframe_to_compact_csv(
             signals["raw_data_daily"], max_rows=90
         ),  # Daily candles 3 months
-        # TODO: trim to open, close, volume, high, low and format dates
         "10_hours_5min_candles_csv": dataframe_to_compact_csv(
             signals["raw_data_intraday"], max_rows=120
         ),  # 5-min candles 10 hours
