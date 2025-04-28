@@ -82,8 +82,8 @@ def main():  # pragma: no cover
             trader = Trader()
 
             # Execute immediately
-            # safe_execute(trader.scan_for_insight_opportunities)
-            # schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
+            safe_execute(trader.scan_for_insight_opportunities)
+            schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
 
             # # Execute immediately
             safe_execute(trader.scan_for_technical_opportunities)

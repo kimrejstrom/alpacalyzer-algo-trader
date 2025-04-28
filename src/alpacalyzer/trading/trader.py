@@ -3,7 +3,7 @@ import uuid
 from typing import cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
-from alpaca.trading.models import Asset, Order
+from alpaca.trading.models import Asset, Order, Position
 from alpaca.trading.requests import LimitOrderRequest
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
@@ -15,7 +15,7 @@ from alpacalyzer.gpt.response_models import EntryType, TopTickers, TradingStrate
 from alpacalyzer.hedge_fund import call_hedge_fund_agents
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
-from alpacalyzer.trading.alpaca_client import get_market_status, log_order, trading_client
+from alpacalyzer.trading.alpaca_client import get_market_status, get_positions, log_order, trading_client
 from alpacalyzer.trading.position_manager import PositionManager
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import logger
@@ -31,16 +31,14 @@ class Trader:
         self.social_scanner = SocialScanner()
         self.latest_strategies: list[TradingStrategy] = []
         self.opportunities: list[TopTickers] = []
+        self.market_status = get_market_status()
 
     def scan_for_insight_opportunities(self):
-        """Main trading loop."""
-        market_status = get_market_status()
-
-        if market_status == "closed":
-            logger.info(f"=== Reddit Scanner Paused - Market Status: {market_status} ===")
+        if self.market_status == "closed":
+            logger.info(f"=== Reddit Scanner Paused - Market Status: {self.market_status} ===")
             return None
 
-        logger.info(f"\n=== Reddit Scanner Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Reddit Scanner Starting - Market Status: {self.market_status} ===")
 
         try:
             reddit_insights = get_reddit_insights()
@@ -60,13 +58,12 @@ class Trader:
 
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
-        market_status = get_market_status()
 
-        if market_status == "closed":
-            logger.info(f"=== Momentum Scanner Paused - Market Status: {market_status} ===")
+        if self.market_status == "closed":
+            logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
             return
 
-        logger.info(f"\n=== Momentum Scanner Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Momentum Scanner Starting - Market Status: {self.market_status} ===")
 
         try:
             # Get ranked stocks
@@ -151,13 +148,12 @@ class Trader:
 
     def run_hedge_fund(self):
         """Hedge fund."""
-        market_status = get_market_status()
 
-        if market_status == "closed":
-            logger.info(f"=== Hedge Fund Paused - Market Status: {market_status} ===")
+        if self.market_status == "closed":
+            logger.info(f"=== Hedge Fund Paused - Market Status: {self.market_status} ===")
             return
 
-        logger.info(f"\n=== Hedge Fund Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Hedge Fund Starting - Market Status: {self.market_status} ===")
 
         self.opportunities.append(TopTickers(ticker="AAPL", confidence=70, recommendation="bullish"))
 
@@ -194,13 +190,11 @@ class Trader:
             logger.info("No active strategies to monitor.")
             return
 
-        market_status = get_market_status()
-
-        if market_status == "closed":
-            logger.info(f"=== Trading Monitor Loop Paused - Market Status: {market_status} ===")
+        if self.market_status == "closed":
+            logger.info(f"=== Trading Monitor Loop Paused - Market Status: {self.market_status} ===")
             return
 
-        logger.info(f"\n=== Trading Monitor Loop Starting - Market Status: {market_status} ===")
+        logger.info(f"\n=== Trading Monitor Loop Starting - Market Status: {self.market_status} ===")
         logger.info(f"Active Strategies: {len(self.latest_strategies)}")
 
         executed_tickers: list[str] = []  # Track tickers whose strategies have been executed
@@ -271,7 +265,30 @@ class Trader:
             self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]
 
         except Exception as e:
-            logger.error(f"Error in monitor_and_trade: {str(e)}", exc_info=True)
+            logger.error(f"Error in monitor_and_trade entries: {str(e)}", exc_info=True)
+
+        try:
+            positions = get_positions()
+            for position in positions:
+                if position.symbol in executed_tickers:
+                    continue
+                signals = self.technical_analyzer.analyze_stock(position.symbol)
+                if signals is None:
+                    continue
+                logger.info(
+                    f"\nChecking position for {position.symbol} (Current price: {position.current_price}):\n"
+                    f"Type: {position.side}, Entry: {position.avg_entry_price}, "
+                    f"Unrealized P/L: {position.unrealized_pl}, Market value: {position.market_value}, "
+                )
+                # Check if exit conditions are met
+                if check_exit_conditions(position, signals):
+                    # Close position
+                    logger.info(f"Closing position for {position.symbol}")
+                    order_resp = trading_client.close_position(position.symbol)
+                    order = cast(Order, order_resp)
+                    log_order(order)
+        except Exception as e:
+            logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 
 
 def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -> bool:
@@ -339,3 +356,44 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
     except Exception as e:
         logger.error(f"Error checking conditions: {str(e)}", exc_info=True)
         return False
+
+
+def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
+    """Determine if a position should be closed based on technical analysis."""
+
+    ticker_signals = signals["signals"]
+    momentum = signals["momentum"]
+    score = signals["score"]
+
+    # Close if any of these conditions are met:
+    exit_signals = []
+
+    # 1. Significant loss
+    unrealized_plpc = float(position.unrealized_plpc or 0.0)
+    if float(unrealized_plpc) < -0.05:  # -5% stop loss
+        exit_signals.append(f"Stop loss hit: {unrealized_plpc:.1%} P&L")
+
+    # 2. Quick Momentum Shifts - Only exit if significant drop
+    if momentum < -5 and unrealized_plpc > 0:  # Need profit to use quick exit
+        if unrealized_plpc > 0.05:  # Need 5% profit to use quick exit
+            exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{unrealized_plpc:.1%}% up")
+
+    # 3. Technical Weakness
+    if score < 0.6:  # Weak technical score
+        weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.SELL)
+        if weak_tech_signals is not None:
+            exit_signals.append(weak_tech_signals)
+
+    # Check if any exit signals triggered
+    if exit_signals:
+        reason_str = ", ".join(exit_signals)
+        # Store exit reason to block immediate re-entry
+        logger.info(f"\nSELL {position.symbol} due to: {reason_str}")
+        logger.debug(f"Position details: {position}")
+        if unrealized_plpc < 0:
+            logger.info(f"LOSS: {unrealized_plpc:.1%} P&L loss on trade")
+        else:
+            logger.info(f"WIN: {unrealized_plpc:.1%} P&L gain on trade")
+        return True
+
+    return False

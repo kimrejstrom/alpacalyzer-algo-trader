@@ -244,6 +244,16 @@ def get_account_info():
     }
 
 
+def get_positions() -> list[Position]:
+    """Get all positions."""
+    try:
+        positions = trading_client.get_all_positions()
+        return cast(list[Position], positions)
+    except Exception as e:
+        logger.error(f"Error fetching positions: {str(e)}", exc_info=True)
+        return []
+
+
 def parse_strategy_from_client_order_id(client_order_id: str) -> str:
     """Assuming client_order_id format is '{strategy}_{symbol}_{side}_{uuid}'."""
     parts = client_order_id.split("_")
