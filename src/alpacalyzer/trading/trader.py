@@ -16,7 +16,6 @@ from alpacalyzer.hedge_fund import call_hedge_fund_agents
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_market_status, get_positions, log_order, trading_client
-from alpacalyzer.trading.position_manager import PositionManager
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import logger
 
@@ -24,7 +23,6 @@ from alpacalyzer.utils.logger import logger
 class Trader:
     def __init__(self):
         """Initialize the Trader instance."""
-        self.position_manager = PositionManager(max_position_size=0.10, max_total_exposure=0.5, strategy="swing")
         self.technical_analyzer = TechnicalAnalyzer()
         self.finviz_scanner = FinvizScanner()
         self.yfinance_client = YFinanceClient()
@@ -250,7 +248,7 @@ class Trader:
                         order_class="bracket",
                         stop_loss={"stop_price": strategy.stop_loss},
                         take_profit={"limit_price": strategy.target_price},
-                        client_order_id=f"swing_{strategy.ticker}_{side}_{uuid.uuid4()}",
+                        client_order_id=f"hedge_{strategy.ticker}_{side}_{uuid.uuid4()}",
                     )
                     # Submit order with bracket structure
                     logger.debug(f"Submitting order: {bracket_order}")

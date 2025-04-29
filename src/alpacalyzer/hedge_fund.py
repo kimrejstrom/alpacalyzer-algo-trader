@@ -11,6 +11,7 @@ from alpacalyzer.graph.state import AgentState
 from alpacalyzer.trading.portfolio_manager import portfolio_management_agent
 from alpacalyzer.trading.risk_manager import risk_management_agent
 from alpacalyzer.trading.trading_strategist import trading_strategist_agent
+from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.progress import progress
 
 # Load environment variables from .env file
@@ -24,13 +25,13 @@ def parse_hedge_fund_response(response):
     try:
         return json.loads(response)
     except json.JSONDecodeError as e:
-        print(f"JSON decoding error: {e}\nResponse: {repr(response)}")
+        logger.debug(f"JSON decoding error: {e}\nResponse: {repr(response)}")
         return None
     except TypeError as e:
-        print(f"Invalid response type (expected string, got {type(response).__name__}): {e}")
+        logger.debug(f"Invalid response type (expected string, got {type(response).__name__}): {e}")
         return None
     except Exception as e:
-        print(f"Unexpected error while parsing response: {e}\nResponse: {repr(response)}")
+        logger.debug(f"Unexpected error while parsing response: {e}\nResponse: {repr(response)}")
         return None
 
 

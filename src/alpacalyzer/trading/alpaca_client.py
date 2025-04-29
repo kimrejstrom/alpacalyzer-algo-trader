@@ -1,6 +1,6 @@
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import cast
 
 import pandas as pd
 from alpaca.data.enums import Adjustment
@@ -15,11 +15,6 @@ from alpaca.trading.requests import GetCalendarRequest
 from alpaca.trading.stream import TradingStream
 from dotenv import load_dotenv
 
-from alpacalyzer.db.db import (
-    get_position_by_symbol_and_strategy,
-    remove_position,
-    upsert_position,
-)
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import logger
 
@@ -263,44 +258,9 @@ def parse_strategy_from_client_order_id(client_order_id: str) -> str:
         return "day"
     if "swing" in client_order_id:
         return "swing"
-    return "swing"  # Bracket order legs do not have strategy in client_order_id
-
-
-def update_position(symbol: str, strategy: str, existing_position: Any | None):
-    """
-    Update a single position.
-
-    Args:
-        symbol: Stock symbol
-    """
-    try:
-        try:
-            # Get fresh position from Alpaca
-            alpaca_resp = trading_client.get_open_position(symbol)
-            alpaca_position = cast(Position, alpaca_resp)
-        except Exception as e:
-            remove_position(symbol)
-            logger.warning(f"Position not found for {symbol}. Removing from db: {str(e)}", exc_info=True)
-
-        else:
-            price = float(alpaca_position.current_price) if alpaca_position.current_price else 0
-            high_water_mark = (
-                float(price) if existing_position is None else max(existing_position["high_water_mark"], float(price))
-            )
-
-            upsert_position(
-                strategy=strategy,
-                symbol=symbol,
-                qty=float(alpaca_position.qty),
-                entry_price=float(alpaca_position.avg_entry_price),
-                current_price=price,
-                high_water_mark=high_water_mark,
-                pl_pct=float(alpaca_position.unrealized_plpc) if alpaca_position.unrealized_plpc else 0.0,
-                side=OrderSide.BUY if float(alpaca_position.qty) > 0 else OrderSide.SELL,
-            )
-
-    except Exception as e:
-        logger.error(f"Error updating position {symbol}: {str(e)}", exc_info=True)
+    if "hedge" in client_order_id:
+        return "hedge"
+    return "bracket"
 
 
 async def trade_updates_handler(update: TradeUpdate):
@@ -318,15 +278,7 @@ async def trade_updates_handler(update: TradeUpdate):
         if symbol is None:
             logger.warning(f"Trade update missing symbol: {update}")
             return
-
-        existing_position = get_position_by_symbol_and_strategy(symbol, strategy)
-
-        update_position(
-            symbol=symbol,
-            strategy=strategy,
-            existing_position=existing_position,
-        )
-        logger.info(f"Updated position for ticker: {symbol} - Strategy: {strategy} ({side})")
+        logger.info(f"Order filled for ticker: {symbol} - Strategy: {strategy} ({side})")
 
     elif event == "canceled":
         logger.warning(f"Order canceled for ticker: {symbol} - Strategy: {strategy} ({side})")

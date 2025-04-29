@@ -4,10 +4,7 @@ import time
 
 import schedule
 
-from alpacalyzer.db.db import init_db
 from alpacalyzer.trading.alpaca_client import consume_trade_updates
-from alpacalyzer.trading.day_trader import DayTrader
-from alpacalyzer.trading.swing_trader import SwingTrader
 from alpacalyzer.trading.trader import Trader
 from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.scheduler import start_scheduler
@@ -31,12 +28,9 @@ def main():  # pragma: no cover
     """
 
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
-    parser.add_argument("--swing", action="store_true", help="Enable swing trading mode")
-    parser.add_argument("--day", action="store_true", help="Enable day trading mode")
     parser.add_argument("--hedge", action="store_true", help="Enable hedge fund mode")
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
     args = parser.parse_args()
-    init_db()
 
     try:
         if args.stream:
@@ -44,27 +38,6 @@ def main():  # pragma: no cover
             # Start streaming in a separate thread so it runs concurrently
             stream_thread = threading.Thread(target=consume_trade_updates, daemon=True)
             stream_thread.start()
-
-        if args.swing:
-            logger.info("Swing Trading Mode Enabled")
-            swing_trader = SwingTrader()
-
-            # Execute immediately
-            safe_execute(swing_trader.analyze_and_swing_trade)
-            schedule.every(4).hours.do(lambda: safe_execute(swing_trader.analyze_and_swing_trade))
-
-            # Run immediately & schedule every 1 minutes
-            safe_execute(swing_trader.monitor_and_trade)
-            schedule.every(60).seconds.do(lambda: safe_execute(swing_trader.monitor_and_trade))
-
-        if args.day:
-            logger.info("Day Trading Mode Enabled")
-            day_trader = DayTrader()
-
-            # Execute immediately
-            safe_execute(day_trader.analyze_and_day_trade)
-
-            schedule.every(2).minutes.do(lambda: safe_execute(day_trader.analyze_and_day_trade))
 
         if args.hedge:
             # New trading flow

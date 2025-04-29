@@ -27,7 +27,7 @@ class YFinanceClient:
         self.max_retries = max_retries
         self.retry_wait = retry_wait
 
-    def _fetch_data(self, ticker_symbol: str, period: str = "1d"):
+    def _yf_ticker(self, ticker_symbol: str, period: str = "1d"):
         """
         Fetch historical data for a given ticker, with rate-limit handling.
 
@@ -68,7 +68,7 @@ class YFinanceClient:
         Returns:
             pd.DataFrame: The historical VIX data.
         """
-        vix_data = self._fetch_data("^VIX", period=period)
+        vix_data = self._yf_ticker("^VIX", period=period)
         if vix_data is None or vix_data.empty:
             logger.warning("VIX data is empty.")
             return 25.0
