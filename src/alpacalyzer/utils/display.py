@@ -4,6 +4,7 @@ from colorama import Fore, Style
 from tabulate import tabulate
 
 from alpacalyzer.agents.agents import ANALYST_ORDER
+from alpacalyzer.utils.logger import logger
 
 
 def sort_analyst_signals(signals):
@@ -24,13 +25,13 @@ def print_trading_output(result: dict[str, Any]) -> None:
     """
     decisions = result.get("decisions")
     if not decisions:
-        print(f"{Fore.RED}No trading decisions available{Style.RESET_ALL}")
+        logger.info(f"{Fore.RED}No trading decisions available{Style.RESET_ALL}")
         return
 
     # Print decisions for each ticker
     for ticker, decision in decisions.items():
-        print(f"\n{Fore.WHITE}{Style.BRIGHT}Analysis for {Fore.CYAN}{ticker}{Style.RESET_ALL}")
-        print(f"{Fore.WHITE}{Style.BRIGHT}{'=' * 50}{Style.RESET_ALL}")
+        logger.info(f"\n{Fore.WHITE}{Style.BRIGHT}Analysis for {Fore.CYAN}{ticker}{Style.RESET_ALL}")
+        logger.info(f"{Fore.WHITE}{Style.BRIGHT}{'=' * 50}{Style.RESET_ALL}")
 
         # Prepare analyst signals table for this ticker
         table_data = []
@@ -59,8 +60,10 @@ def print_trading_output(result: dict[str, Any]) -> None:
         # Sort the signals according to the predefined order
         table_data = sort_analyst_signals(table_data)
 
-        print(f"\n{Fore.WHITE}{Style.BRIGHT}ANALYST SIGNALS:{Style.RESET_ALL} [{Fore.CYAN}{ticker}{Style.RESET_ALL}]")
-        print(
+        logger.info(
+            f"\n{Fore.WHITE}{Style.BRIGHT}ANALYST SIGNALS:{Style.RESET_ALL} [{Fore.CYAN}{ticker}{Style.RESET_ALL}]"
+        )
+        logger.info(
             tabulate(
                 table_data,
                 headers=[f"{Fore.WHITE}Analyst", "Signal", "Confidence"],
@@ -82,16 +85,18 @@ def print_trading_output(result: dict[str, Any]) -> None:
             ],
         ]
 
-        print(f"\n{Fore.WHITE}{Style.BRIGHT}TRADING DECISION:{Style.RESET_ALL} [{Fore.CYAN}{ticker}{Style.RESET_ALL}]")
-        print(tabulate(decision_data, tablefmt="grid", colalign=("left", "right")))
+        logger.info(
+            f"\n{Fore.WHITE}{Style.BRIGHT}TRADING DECISION:{Style.RESET_ALL} [{Fore.CYAN}{ticker}{Style.RESET_ALL}]"
+        )
+        logger.info(tabulate(decision_data, tablefmt="grid", colalign=("left", "right")))
 
         # Print Reasoning
-        print(
+        logger.info(
             f"\n{Fore.WHITE}{Style.BRIGHT}Reasoning:{Style.RESET_ALL} {Fore.CYAN}{decision.get('reasoning')}{Style.RESET_ALL}"
         )
 
     # Print Portfolio Summary
-    print(f"\n{Fore.WHITE}{Style.BRIGHT}PORTFOLIO SUMMARY:{Style.RESET_ALL}")
+    logger.info(f"\n{Fore.WHITE}{Style.BRIGHT}PORTFOLIO SUMMARY:{Style.RESET_ALL}")
     portfolio_data = []
     for ticker, decision in decisions.items():
         action = decision.get("action", "").upper()
@@ -111,7 +116,7 @@ def print_trading_output(result: dict[str, Any]) -> None:
             ]
         )
 
-    print(
+    logger.info(
         tabulate(
             portfolio_data,
             headers=[f"{Fore.WHITE}Ticker", "Action", "Quantity", "Confidence"],

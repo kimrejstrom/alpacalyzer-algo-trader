@@ -1,4 +1,3 @@
-import json
 import uuid
 from typing import cast
 
@@ -17,6 +16,7 @@ from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_market_status, get_positions, log_order, trading_client
 from alpacalyzer.trading.yfinance_client import YFinanceClient
+from alpacalyzer.utils.display import print_trading_output
 from alpacalyzer.utils.logger import logger
 
 
@@ -153,19 +153,18 @@ class Trader:
 
         logger.info(f"\n=== Hedge Fund Starting - Market Status: {self.market_status} ===")
 
-        self.opportunities.append(TopTickers(ticker="AAPL", confidence=70, recommendation="bullish"))
-
         try:
             if not self.opportunities:
                 logger.info("No opportunities available.")
                 return
 
             hedge_fund_response = call_hedge_fund_agents(self.opportunities, show_reasoning=True)
-            logger.info(f"Hedge Fund Response: {json.dumps(hedge_fund_response, indent=2)}")
-            self.opportunities = []
+            print_trading_output(hedge_fund_response)
+
             if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
                 logger.info("No trade decisions from hedge fund.")
                 return
+
             # Create trading strategies from hedge fund response
             for data in hedge_fund_response["decisions"].values():
                 strategies = data.get("strategies", [])
@@ -176,6 +175,8 @@ class Trader:
                         continue
                     self.latest_strategies.append(strategy)
                     logger.info(f"New strategy created: {strategy}\n")
+
+            self.opportunities = []
 
         except Exception as e:
             logger.error(f"Error in run_hedge_fund: {str(e)}", exc_info=True)
