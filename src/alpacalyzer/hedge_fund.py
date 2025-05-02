@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 
 from alpacalyzer.agents.agents import get_analyst_nodes
-from alpacalyzer.gpt.response_models import TopTickers
+from alpacalyzer.data.models import TopTicker
 from alpacalyzer.graph.state import AgentState
 from alpacalyzer.trading.portfolio_manager import portfolio_management_agent
 from alpacalyzer.trading.risk_manager import risk_management_agent
@@ -37,7 +37,7 @@ def parse_hedge_fund_response(response):
 
 ##### Run the Hedge Fund #####
 def call_hedge_fund_agents(
-    tickers: list[TopTickers],
+    tickers: list[TopTicker],
     show_reasoning: bool = False,
 ):
     # Start progress tracking

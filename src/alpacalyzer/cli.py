@@ -14,17 +14,17 @@ def main():  # pragma: no cover
     """
     The main function executes on commands.
 
-    `python -m alpacalyzer` and `$ alpacalyzer `.
-    `--swing` flag enables swing trading mode.
-    `--day` flag enables day trading mode.
+    `uv run alpacalyzer`
+    `--hedge` flag enables hedge fund trading mode.
+    `--stream` flag enables Alpaca websocket streaming.
 
-    This is your program's entry point.
-
-    Run trader and monitor positions:
-    1. Place initial orders
-    2. Monitor every 5 minutes
-    3. Exit positions on signals
-    4. Place new orders as needed
+    Run hedge fund trader and monitor positions:
+    1. Find opportunities every 2 minutes and 4 hours
+    2. Save opportunity tickers in memory
+    3. Run hedge fund every 5 minutes if new positions are available
+    4. Create trading strategies for each ticker
+    5. Monitor trading strategies every 2 minutes
+    6. Enter and exit positions on signals
     """
 
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
@@ -40,31 +40,20 @@ def main():  # pragma: no cover
             stream_thread.start()
 
         if args.hedge:
-            # New trading flow
-            # Run opportunity scanners every 2 minutes and 4 hours
-            # Saves opportunity tickers in memory
-            # Run hedge fund every 5 minutes if new positions are available
-            # Creates trading strategies for each ticker
-            # Monitor trading strategies every 2 minutes
-            # Execute trading strategies
-
-            # New exit flow
-            # Monitor positions every 2 minutes
-            # Exit positions on signals
             logger.info("Hedge Fund Mode Enabled")
             trader = Trader()
 
-            # Execute immediately
+            # Run insight scanner every 4 hours
             safe_execute(trader.scan_for_insight_opportunities)
             schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
 
-            # # Execute immediately
+            # Run momentum scanner every 4 minutes
             safe_execute(trader.scan_for_technical_opportunities)
             schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
 
             # Run hedge fund every 5 minutes
             safe_execute(trader.run_hedge_fund)
-            schedule.every(2).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
+            schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
 
             # Monitor Trading strategies every 2 minutes
             safe_execute(trader.monitor_and_trade)

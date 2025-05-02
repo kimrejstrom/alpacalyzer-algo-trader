@@ -5,9 +5,8 @@ import pandas as pd
 from langchain_core.messages import HumanMessage
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
-from alpacalyzer.data.models import PortfolioDecision
+from alpacalyzer.data.models import PortfolioDecision, TradingStrategyResponse
 from alpacalyzer.gpt.call_gpt import call_gpt_structured
-from alpacalyzer.gpt.response_models import TradingStrategyResponse
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.utils.progress import progress
 

@@ -6,17 +6,16 @@ from alpaca.trading.models import Asset, Order, Position
 from alpaca.trading.requests import LimitOrderRequest
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
-from alpacalyzer.gpt.call_gpt import (
-    get_reddit_insights,
-    get_top_candidates,
-)
-from alpacalyzer.gpt.response_models import EntryType, TopTickers, TradingStrategy
+from alpacalyzer.data.models import EntryType, TopTicker, TradingStrategy
 from alpacalyzer.hedge_fund import call_hedge_fund_agents
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
 from alpacalyzer.trading.alpaca_client import get_market_status, get_positions, log_order, trading_client
+from alpacalyzer.trading.opportunity_finder import (
+    get_reddit_insights,
+    get_top_candidates,
+)
 from alpacalyzer.trading.yfinance_client import YFinanceClient
-from alpacalyzer.utils.display import print_trading_output
 from alpacalyzer.utils.logger import logger
 
 
@@ -28,7 +27,7 @@ class Trader:
         self.yfinance_client = YFinanceClient()
         self.social_scanner = SocialScanner()
         self.latest_strategies: list[TradingStrategy] = []
-        self.opportunities: list[TopTickers] = []
+        self.opportunities: list[TopTicker] = []
         self.market_status = get_market_status()
 
     def scan_for_insight_opportunities(self):
@@ -44,7 +43,7 @@ class Trader:
             reddit_tickers = [x.ticker for x in reddit_picks]
             top_tickers = list(set(reddit_tickers))
             input_ta_df = self.finviz_scanner.fetch_stock_data(tuple(top_tickers))
-            top_candidates = get_top_candidates(input_ta_df)
+            top_candidates = get_top_candidates(reddit_picks, input_ta_df)
             opportunities = top_candidates.top_tickers if top_candidates else []
 
             for opportunity in opportunities:
@@ -132,7 +131,7 @@ class Trader:
                 else:
                     signal = "neutral"
 
-                opportunity = TopTickers(
+                opportunity = TopTicker(
                     ticker=stock["ticker"],
                     confidence=80,
                     recommendation=signal,
@@ -142,7 +141,7 @@ class Trader:
                     self.opportunities.append(opportunity)
 
         except Exception as e:
-            logger.error(f"Error in scan_for_tehcnical_opportunities: {str(e)}", exc_info=True)
+            logger.error(f"Error in scan_for_technical_opportunities: {str(e)}", exc_info=True)
 
     def run_hedge_fund(self):
         """Hedge fund."""
@@ -159,7 +158,6 @@ class Trader:
                 return
 
             hedge_fund_response = call_hedge_fund_agents(self.opportunities, show_reasoning=True)
-            print_trading_output(hedge_fund_response)
 
             if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
                 logger.info("No trade decisions from hedge fund.")
