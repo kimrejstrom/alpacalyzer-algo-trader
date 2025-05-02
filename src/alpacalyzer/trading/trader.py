@@ -152,6 +152,14 @@ class Trader:
 
         logger.info(f"\n=== Hedge Fund Starting - Market Status: {self.market_status} ===")
 
+        self.opportunities.append(
+            TopTicker(
+                ticker="TSLA",
+                confidence=80,
+                recommendation="short",
+            )
+        )
+
         try:
             if not self.opportunities:
                 logger.info("No opportunities available.")

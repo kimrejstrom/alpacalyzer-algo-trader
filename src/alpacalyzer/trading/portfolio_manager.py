@@ -54,7 +54,6 @@ def portfolio_management_agent(state: AgentState):
 
     # Generate the trading decision
     result = generate_trading_decision(
-        tickers=tickers,
         signals_by_ticker=signals_by_ticker,
         current_prices=current_prices,
         max_shares=max_shares,
@@ -95,7 +94,6 @@ def portfolio_management_agent(state: AgentState):
 
 
 def generate_trading_decision(
-    tickers: list[str],
     signals_by_ticker: dict[str, dict[Any, Any]],
     current_prices: dict[str, float],
     max_shares: dict[str, int],

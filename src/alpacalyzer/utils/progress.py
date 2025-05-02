@@ -42,6 +42,7 @@ class AgentProgress:
 
     def _refresh_display(self):
         """Refresh the progress display."""
+        self.table.add_row("")
         self.table.columns.clear()
         self.table.add_column(width=100)
 
@@ -81,6 +82,8 @@ class AgentProgress:
             status_text.append(status, style=style)
 
             self.table.add_row(status_text)
+
+        self.table.add_row("")
 
 
 # Create a global instance

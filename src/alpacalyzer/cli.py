@@ -43,13 +43,13 @@ def main():  # pragma: no cover
             logger.info("Hedge Fund Mode Enabled")
             trader = Trader()
 
-            # Run insight scanner every 4 hours
-            safe_execute(trader.scan_for_insight_opportunities)
-            schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
+            # # Run insight scanner every 4 hours
+            # safe_execute(trader.scan_for_insight_opportunities)
+            # schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
 
-            # Run momentum scanner every 4 minutes
-            safe_execute(trader.scan_for_technical_opportunities)
-            schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
+            # # Run momentum scanner every 4 minutes
+            # safe_execute(trader.scan_for_technical_opportunities)
+            # schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
 
             # Run hedge fund every 5 minutes
             safe_execute(trader.run_hedge_fund)

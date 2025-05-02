@@ -218,3 +218,14 @@ class TradingStrategy(BaseModel):
 
 class TradingStrategyResponse(BaseModel):
     strategies: list[TradingStrategy]
+
+
+class SentimentAnalysis(BaseModel):
+    sentiment: Literal["Bullish", "Bearish", "Neutral"]
+    score: float
+    highlights: list[str]
+    rationale: str
+
+
+class SentimentAnalysisResponse(BaseModel):
+    sentiment_analysis: list[SentimentAnalysis]

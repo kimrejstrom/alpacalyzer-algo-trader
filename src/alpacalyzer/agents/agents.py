@@ -2,6 +2,7 @@
 
 from typing import cast
 
+from alpacalyzer.agents.sentiment_agent import sentiment_agent
 from alpacalyzer.agents.technicals_agent import technical_analyst_agent
 
 # Define analyst configuration - single source of truth
@@ -10,6 +11,11 @@ ANALYST_CONFIG = {
         "display_name": "Technical Analyst",
         "agent_func": technical_analyst_agent,
         "order": 0,
+    },
+    "sentiment_agent": {
+        "display_name": "Sentiment Agent",
+        "agent_func": sentiment_agent,
+        "order": 1,
     },
 }
 
