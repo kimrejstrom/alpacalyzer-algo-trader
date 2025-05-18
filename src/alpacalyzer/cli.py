@@ -1,13 +1,12 @@
 import argparse
+import os
 import threading
 import time
 
 import schedule
 
-from alpacalyzer.db.db import init_db
 from alpacalyzer.trading.alpaca_client import consume_trade_updates
-from alpacalyzer.trading.day_trader import DayTrader
-from alpacalyzer.trading.swing_trader import SwingTrader
+from alpacalyzer.trading.trader import Trader
 from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.scheduler import start_scheduler
 
@@ -16,53 +15,63 @@ def main():  # pragma: no cover
     """
     The main function executes on commands.
 
-    `python -m alpacalyzer` and `$ alpacalyzer `.
-    `--swing` flag enables swing trading mode.
-    `--day` flag enables day trading mode.
+    `uv run alpacalyzer`
+    `--hedge` flag enables hedge fund trading mode.
+    `--stream` flag enables Alpaca websocket streaming.
 
-    This is your program's entry point.
-
-    Run trader and monitor positions:
-    1. Place initial orders
-    2. Monitor every 5 minutes
-    3. Exit positions on signals
-    4. Place new orders as needed
+    Run hedge fund trader and monitor positions:
+    1. Find opportunities every 2 minutes and 4 hours
+    2. Save opportunity tickers in memory
+    3. Run hedge fund every 5 minutes if new positions are available
+    4. Create trading strategies for each ticker
+    5. Monitor trading strategies every 2 minutes
+    6. Enter and exit positions on signals
     """
 
+    os.environ["TQDM_DISABLE"] = "1"
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
-    parser.add_argument("--swing", action="store_true", help="Enable swing trading mode")
-    parser.add_argument("--day", action="store_true", help="Enable day trading mode")
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
+    parser.add_argument("--analyze", action="store_true", help="Run in dry run mode (disables trading)")
+    parser.add_argument("--tickers", type=str, help="Comma-separated list of tickers to analyze (e.g., AAPL,MSFT,GOOG)")
     args = parser.parse_args()
-    init_db()
 
     try:
+        if args.analyze:
+            logger.info("ANALYZE MODE: Trading actions are disabled")
+
+        # Parse tickers if provided
+        direct_tickers = []
+        if args.tickers:
+            direct_tickers = [ticker.strip().upper() for ticker in args.tickers.split(",")]
+            logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
+
+        trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers)
+
+        if not direct_tickers:
+            # Run insight scanner every 4 hours
+            safe_execute(trader.scan_for_insight_opportunities)
+            schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
+
+            # Run momentum scanner every 4 minutes
+            safe_execute(trader.scan_for_technical_opportunities)
+            schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
+
+        # Run hedge fund every 5 minutes
+        safe_execute(trader.run_hedge_fund)
+        schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
+
+        # Monitor Trading strategies every 2 minutes (skip if analyze enabled)
+        if not args.analyze:
+            safe_execute(trader.monitor_and_trade)
+            schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
+        else:
+            logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
+
         if args.stream:
             logger.info("Websocket Streaming Enabled")
             # Start streaming in a separate thread so it runs concurrently
             stream_thread = threading.Thread(target=consume_trade_updates, daemon=True)
             stream_thread.start()
-
-        if args.swing:
-            logger.info("Swing Trading Mode Enabled")
-            swing_trader = SwingTrader()
-
-            # Execute immediately
-            safe_execute(swing_trader.analyze_and_swing_trade)
-            schedule.every(4).hours.do(lambda: safe_execute(swing_trader.analyze_and_swing_trade))
-
-            # Run immediately & schedule every 1 minutes
-            safe_execute(swing_trader.monitor_and_trade)
-            schedule.every(60).seconds.do(lambda: safe_execute(swing_trader.monitor_and_trade))
-
-        if args.day:
-            logger.info("Day Trading Mode Enabled")
-            day_trader = DayTrader()
-
-            # Execute immediately
-            safe_execute(day_trader.analyze_and_day_trade)
-
-            schedule.every(2).minutes.do(lambda: safe_execute(day_trader.analyze_and_day_trade))
 
         # Start the scheduler thread
         start_scheduler()

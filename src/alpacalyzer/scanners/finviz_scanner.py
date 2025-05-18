@@ -64,6 +64,24 @@ class FinvizScanner:
             logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
             return pd.DataFrame()
 
+    def get_ownership_stocks(self, tickers: tuple[str, ...]) -> pd.DataFrame:
+        """
+        Fetches stocks from the custom Finviz screener.
+
+        Returns a DataFrame with relevant data.
+        """
+        try:
+            # Initialize the screener
+            stock_list = Screener(
+                tickers=list(tickers),
+                table="Ownership",
+            )
+            return pd.DataFrame(stock_list.data)
+
+        except Exception as e:
+            logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
+            return pd.DataFrame()
+
     @timed_lru_cache(seconds=60, maxsize=128)
     def fetch_stock_data(self, tickers: tuple[str, ...]) -> pd.DataFrame:
         """

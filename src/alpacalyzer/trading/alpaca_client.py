@@ -1,8 +1,13 @@
 import os
-from datetime import UTC, timedelta
-from typing import Any, cast
+from datetime import UTC, datetime, timedelta
+from typing import cast
 
+import pandas as pd
+from alpaca.data.enums import Adjustment
 from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.models import Bar, BarSet
+from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest, StockLatestTradeRequest
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide
 from alpaca.trading.models import Calendar, Clock, Order, Position, TradeAccount, TradeUpdate
@@ -10,11 +15,6 @@ from alpaca.trading.requests import GetCalendarRequest
 from alpaca.trading.stream import TradingStream
 from dotenv import load_dotenv
 
-from alpacalyzer.db.db import (
-    get_position_by_symbol_and_strategy,
-    remove_position,
-    upsert_position,
-)
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import logger
 
@@ -128,6 +128,101 @@ def get_market_status() -> str:
     return "closed"  # Default case: market is fully closed
 
 
+@timed_lru_cache(seconds=60, maxsize=128)
+def get_current_price(ticker: str) -> float | None:
+    """
+    Fetches the latest trade price for the given ticker from Alpaca.
+
+    Args:
+        ticker (str): Stock ticker symbol (e.g., 'AAPL')
+
+    Returns:
+        Optional[float]: Latest trade price or None if not found
+    """
+    try:
+        response = history_client.get_stock_latest_trade(StockLatestTradeRequest(symbol_or_symbols=ticker))
+        return float(response[ticker].price)
+    except Exception as e:
+        logger.debug(f"Error fetching price for {ticker}: {str(e)}", exc_info=True)
+        return None
+
+
+@timed_lru_cache(seconds=60, maxsize=128)
+def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
+    """Get historical data from Alpaca."""
+    try:
+        now_utc = datetime.now(UTC)  # Get the current UTC time
+        end = now_utc - timedelta(seconds=930)  # 15.5 minutes ago
+
+        # Determine the `start` time based on the `request_type`
+        if request_type == "minute":
+            start = end - timedelta(minutes=1440)  # Last 24 hours
+            request = StockBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=TimeFrame(5, TimeFrameUnit.Minute),
+                start=start,
+                end=end,
+                adjustment=Adjustment.ALL,
+            )
+        else:
+            start = end - timedelta(days=100)  # Last 100 days
+            request = StockBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=TimeFrame.Day,
+                start=start,
+                end=end,
+                adjustment=Adjustment.ALL,
+            )
+        try:
+            bars_response = history_client.get_stock_bars(request)
+            candles = cast(BarSet, bars_response).data.get(symbol)
+            if not candles or candles is None:
+                return None
+
+            # Check market status
+            if get_market_status() == "open":
+                # Fetch the latest bar for fresh data (only available during market hours)
+                latest_bar_response = history_client.get_stock_latest_bar(
+                    StockLatestBarRequest(symbol_or_symbols=symbol)
+                )
+                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
+
+                # Append the latest bar if available, otherwise duplicate the last candle
+                candles.append(latest_bar if latest_bar else candles[-1])
+            else:
+                # Market is closed, duplicate the last candle
+                candles.append(candles[-1])
+
+            return bars_to_df(candles)
+
+        except Exception as e:
+            logger.error(f"Error fetching stock bars for {symbol}: {str(e)}", exc_info=True)
+            return None
+
+    except Exception as e:
+        logger.error(f"Error fetching historical data for {symbol}: {str(e)}", exc_info=True)
+        return None
+
+
+def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
+    """Convert the list of Alpaca Bars to a DataFrame."""
+    # Convert list of Bar objects to dictionaries
+    df = pd.DataFrame([bar.model_dump() for bar in bars])
+
+    # Ensure timestamp is converted to datetime and set as index
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df.set_index("timestamp", inplace=True)
+
+    # Convert numeric columns to appropriate types
+    numeric_cols = ["open", "high", "low", "close", "volume", "trade_count", "vwap"]
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
+
+    # Sort by timestamp (ascending order)
+    df.sort_index(inplace=True)
+
+    return df
+
+
 def get_account_info():
     """Get account information."""
     account = trading_client.get_account()
@@ -140,7 +235,18 @@ def get_account_info():
         "daytrading_buying_power": float(account_instance.daytrading_buying_power)
         if account_instance.daytrading_buying_power
         else 0,
+        "maintenance_margin": float(account_instance.maintenance_margin) if account_instance.maintenance_margin else 0,
     }
+
+
+def get_positions() -> list[Position]:
+    """Get all positions."""
+    try:
+        positions = trading_client.get_all_positions()
+        return cast(list[Position], positions)
+    except Exception as e:
+        logger.error(f"Error fetching positions: {str(e)}", exc_info=True)
+        return []
 
 
 def parse_strategy_from_client_order_id(client_order_id: str) -> str:
@@ -152,44 +258,9 @@ def parse_strategy_from_client_order_id(client_order_id: str) -> str:
         return "day"
     if "swing" in client_order_id:
         return "swing"
-    return "swing"  # Bracket order legs do not have strategy in client_order_id
-
-
-def update_position(symbol: str, strategy: str, existing_position: Any | None):
-    """
-    Update a single position.
-
-    Args:
-        symbol: Stock symbol
-    """
-    try:
-        try:
-            # Get fresh position from Alpaca
-            alpaca_resp = trading_client.get_open_position(symbol)
-            alpaca_position = cast(Position, alpaca_resp)
-        except Exception as e:
-            remove_position(symbol)
-            logger.warning(f"Position not found for {symbol}. Removing from db: {str(e)}", exc_info=True)
-
-        else:
-            price = float(alpaca_position.current_price) if alpaca_position.current_price else 0
-            high_water_mark = (
-                float(price) if existing_position is None else max(existing_position["high_water_mark"], float(price))
-            )
-
-            upsert_position(
-                strategy=strategy,
-                symbol=symbol,
-                qty=float(alpaca_position.qty),
-                entry_price=float(alpaca_position.avg_entry_price),
-                current_price=price,
-                high_water_mark=high_water_mark,
-                pl_pct=float(alpaca_position.unrealized_plpc) if alpaca_position.unrealized_plpc else 0.0,
-                side=OrderSide.BUY if float(alpaca_position.qty) > 0 else OrderSide.SELL,
-            )
-
-    except Exception as e:
-        logger.error(f"Error updating position {symbol}: {str(e)}", exc_info=True)
+    if "hedge" in client_order_id:
+        return "hedge"
+    return "bracket"
 
 
 async def trade_updates_handler(update: TradeUpdate):
@@ -207,15 +278,7 @@ async def trade_updates_handler(update: TradeUpdate):
         if symbol is None:
             logger.warning(f"Trade update missing symbol: {update}")
             return
-
-        existing_position = get_position_by_symbol_and_strategy(symbol, strategy)
-
-        update_position(
-            symbol=symbol,
-            strategy=strategy,
-            existing_position=existing_position,
-        )
-        logger.info(f"Updated position for ticker: {symbol} - Strategy: {strategy} ({side})")
+        logger.info(f"Order filled for ticker: {symbol} - Strategy: {strategy} ({side})")
 
     elif event == "canceled":
         logger.warning(f"Order canceled for ticker: {symbol} - Strategy: {strategy} ({side})")
