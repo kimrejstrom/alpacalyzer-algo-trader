@@ -6,6 +6,7 @@
 
 - [Alpacalyzer](#alpacalyzer)
   - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [What's in the box ?](#whats-in-the-box-)
@@ -13,9 +14,15 @@
     - [pre-commit](#pre-commit)
     - [ruff](#ruff)
     - [mypy](#mypy)
-    - [bandit](#bandit)
-    - [docformatter](#docformatter)
   - [Testing](#testing)
+
+---
+
+## Overview
+
+Alpacalyzer is an algorithmic, AI powered hedge fund suite, with analytic as well as trading capabilities.
+
+![CleanShot 2025-05-19 at 00 12 08](https://github.com/user-attachments/assets/d33e5f19-5db5-4eeb-ad83-fdfa576e0678)
 
 ---
 
@@ -101,21 +108,6 @@ Rules are defined in the [`pyproject.toml`](pyproject.toml).
 
 For more configuration options and details, see the [configuration docs](https://mypy.readthedocs.io/).
 
-### bandit
-
-[bandit](https://bandit.readthedocs.io/) is a tool designed to find common security issues in Python code.
-
-Rules are defined in the [`pyproject.toml`](pyproject.toml).
-
-For more configuration options and details, see the [configuration docs](https://bandit.readthedocs.io/).
-
-### docformatter
-
-[docformatter](https://github.com/PyCQA/docformatter) is a tool designed to format docstrings to
-follow [PEP 257](https://peps.python.org/pep-0257/).
-
-Options are defined in the [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
-
 ---
 
 ## Testing
@@ -167,11 +159,3 @@ TOTAL                               7      2    71%
 </details>
 
 ---
-
-TODO:
-
-- [ ] Add more tests
-- [ ] Add more documentation
-- [ ] Add more agents
-- [ ] Utilize yfinance news
-- [ ] use hedge-fund progress and agent structure along with formatted output
