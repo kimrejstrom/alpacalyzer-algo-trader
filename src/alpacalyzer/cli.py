@@ -30,36 +30,48 @@ def main():  # pragma: no cover
 
     os.environ["TQDM_DISABLE"] = "1"
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
-    parser.add_argument("--hedge", action="store_true", help="Enable hedge fund mode")
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
+    parser.add_argument("--analyze", action="store_true", help="Run in dry run mode (disables trading)")
+    parser.add_argument("--tickers", type=str, help="Comma-separated list of tickers to analyze (e.g., AAPL,MSFT,GOOG)")
     args = parser.parse_args()
 
     try:
+        if args.analyze:
+            logger.info("ANALYZE MODE: Trading actions are disabled")
+
+        # Parse tickers if provided
+        direct_tickers = []
+        if args.tickers:
+            direct_tickers = [ticker.strip().upper() for ticker in args.tickers.split(",")]
+            logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
+
+        trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers)
+
+        if not direct_tickers:
+            # Run insight scanner every 4 hours
+            safe_execute(trader.scan_for_insight_opportunities)
+            schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
+
+            # Run momentum scanner every 4 minutes
+            safe_execute(trader.scan_for_technical_opportunities)
+            schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
+
+        # Run hedge fund every 5 minutes
+        safe_execute(trader.run_hedge_fund)
+        schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
+
+        # Monitor Trading strategies every 2 minutes (skip if analyze enabled)
+        if not args.analyze:
+            safe_execute(trader.monitor_and_trade)
+            schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
+        else:
+            logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
+
         if args.stream:
             logger.info("Websocket Streaming Enabled")
             # Start streaming in a separate thread so it runs concurrently
             stream_thread = threading.Thread(target=consume_trade_updates, daemon=True)
             stream_thread.start()
-
-        if args.hedge:
-            logger.info("Hedge Fund Mode Enabled")
-            trader = Trader()
-
-            # # Run insight scanner every 4 hours
-            # safe_execute(trader.scan_for_insight_opportunities)
-            # schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
-
-            # # Run momentum scanner every 4 minutes
-            # safe_execute(trader.scan_for_technical_opportunities)
-            # schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
-
-            # Run hedge fund every 5 minutes
-            safe_execute(trader.run_hedge_fund)
-            schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
-
-            # Monitor Trading strategies every 2 minutes
-            safe_execute(trader.monitor_and_trade)
-            schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
 
         # Start the scheduler thread
         start_scheduler()

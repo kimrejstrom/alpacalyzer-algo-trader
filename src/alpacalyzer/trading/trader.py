@@ -21,7 +21,7 @@ from alpacalyzer.utils.logger import logger
 
 
 class Trader:
-    def __init__(self):
+    def __init__(self, analyze_mode=False, direct_tickers=None):
         """Initialize the Trader instance."""
         self.technical_analyzer = TechnicalAnalyzer()
         self.finviz_scanner = FinvizScanner()
@@ -30,9 +30,11 @@ class Trader:
         self.latest_strategies: list[TradingStrategy] = []
         self.opportunities: list[TopTicker] = []
         self.market_status = get_market_status()
+        self.analyze_mode = analyze_mode
+        self.direct_tickers = direct_tickers or []
 
     def scan_for_insight_opportunities(self):
-        if self.market_status == "closed":
+        if self.market_status == "closed" or not self.analyze_mode:
             logger.info(f"=== Reddit Scanner Paused - Market Status: {self.market_status} ===")
             return None
 
@@ -57,7 +59,7 @@ class Trader:
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
 
-        if self.market_status == "closed":
+        if self.market_status == "closed" or not self.analyze_mode:
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
             return
 
@@ -147,25 +149,25 @@ class Trader:
     def run_hedge_fund(self):
         """Hedge fund."""
 
-        if self.market_status == "closed":
+        if self.market_status == "closed" and not self.analyze_mode:
             logger.info(f"=== Hedge Fund Paused - Market Status: {self.market_status} ===")
             return
 
         logger.info(f"\n=== Hedge Fund Starting - Market Status: {self.market_status} ===")
-        self.opportunities.append(
-            TopTicker(
-                ticker="PLTR",
-                confidence=50,
-                recommendation="neutral",
-            )
-        )
-        self.opportunities.append(
-            TopTicker(
-                ticker="KULR",
-                confidence=50,
-                recommendation="neutral",
-            )
-        )
+
+        # If direct tickers were provided, use those instead of opportunity scanners
+        if self.direct_tickers:
+            logger.info(f"Using directly provided tickers: {', '.join(self.direct_tickers)}")
+            # Clear any existing opportunities and add the direct tickers
+            self.opportunities = []
+            for ticker in self.direct_tickers:
+                self.opportunities.append(
+                    TopTicker(
+                        ticker=ticker,
+                        confidence=50,
+                        recommendation="neutral",
+                    )
+                )
 
         try:
             if not self.opportunities:
@@ -202,7 +204,7 @@ class Trader:
             logger.info("No active strategies to monitor.")
             return
 
-        if self.market_status == "closed":
+        if self.market_status == "closed" or not self.analyze_mode:
             logger.info(f"=== Trading Monitor Loop Paused - Market Status: {self.market_status} ===")
             return
 
