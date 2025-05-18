@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
+from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.progress import progress
 
 
@@ -34,7 +35,15 @@ def quant_agent(state: AgentState):
         progress.update_status("quant_agent", ticker, "Analyzing quantitative signals")
 
         signals = technical_analyzer.analyze_stock(ticker)
+        logger.debug(f"Quant signals for {ticker}: {signals}")
         if signals is None:
+            progress.update_status("quant_agent", ticker, "Failed to generate quantitative analysis")
+            progress.update_status("quant_agent", ticker, "Done")
+            quant_analysis[ticker] = {
+                "signal": "neutral",
+                "confidence": 0,
+                "reasoning": "Quantitative analysis failed or returned no data",
+            }
             continue
 
         quant_output = get_quant_analysis(signals)
@@ -211,6 +220,8 @@ def get_quant_analysis(
             candles_5_min=candles_5_min_str,
         ),
     }
+
+    logger.info(f"Quant Agent: {human_message['content']}")
 
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]

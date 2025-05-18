@@ -15,10 +15,14 @@ client.api_key = api_key
 
 
 def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
-    response = client.beta.chat.completions.parse(
-        model="o3-mini",
-        reasoning_effort="medium",
-        messages=messages,
-        response_format=function_schema,
-    )
-    return cast(T, response.choices[0].message.parsed)
+    try:
+        response = client.beta.chat.completions.parse(
+            model="o3-mini",
+            reasoning_effort="medium",
+            messages=messages,
+            response_format=function_schema,
+        )
+        return cast(T, response.choices[0].message.parsed)
+    except Exception as e:
+        print(f"Error calling GPT: {e}")
+        return None
