@@ -79,6 +79,11 @@ def technical_analyst_agent(state: AgentState):
         technical_analysis[ticker] = {
             "signal": combined_signal["signal"],
             "confidence": round(combined_signal["confidence"] * 100),
+            "reasoning": f"Trend signal: {trend_signals['signal']}\n"
+            f"Mean reversion signal: {mean_reversion_signals['signal']}\n"
+            f"Momentum signal: {momentum_signals['signal']}\n"
+            f"Volatility signal: {volatility_signals['signal']}\n"
+            f"Statistical arbitrage signal: {stat_arb_signals['signal']}\n",
             "strategy_signals": {
                 "trend_following": {
                     "signal": trend_signals["signal"],

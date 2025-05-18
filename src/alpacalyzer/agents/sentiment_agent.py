@@ -68,7 +68,10 @@ def sentiment_agent(state: AgentState):
 
         # Determine insider signals based on transaction shares which is a percentage string
         transaction_shares = ownership_data["Insider Trans"].values[0] if not ownership_data.empty else "0%"
-        transaction_shares_float = float(transaction_shares.strip("%")) / 100
+        try:
+            transaction_shares_float = float(transaction_shares.strip("%")) / 100
+        except ValueError:
+            transaction_shares_float = 0.0
         insider_signal = "bearish" if transaction_shares_float < 0 else "bullish"
 
         logger.debug(f"Insider signals for {ticker}: {insider_signal} {transaction_shares}")

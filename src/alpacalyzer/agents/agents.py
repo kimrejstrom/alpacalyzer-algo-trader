@@ -2,8 +2,14 @@
 
 from typing import cast
 
+from alpacalyzer.agents.ben_graham_agent import ben_graham_agent
+from alpacalyzer.agents.bill_ackman_agent import bill_ackman_agent
+from alpacalyzer.agents.cathie_wood_agent import cathie_wood_agent
+from alpacalyzer.agents.charlie_munger import charlie_munger_agent
+from alpacalyzer.agents.fundamentals_agent import fundamentals_agent
 from alpacalyzer.agents.sentiment_agent import sentiment_agent
 from alpacalyzer.agents.technicals_agent import technical_analyst_agent
+from alpacalyzer.agents.warren_buffet_agent import warren_buffett_agent
 
 # Define analyst configuration - single source of truth
 ANALYST_CONFIG = {
@@ -12,10 +18,40 @@ ANALYST_CONFIG = {
         "agent_func": technical_analyst_agent,
         "order": 0,
     },
-    "sentiment_agent": {
-        "display_name": "Sentiment Agent",
-        "agent_func": sentiment_agent,
+    "fundamental_analyst": {
+        "display_name": "Fundamental Analyst",
+        "agent_func": fundamentals_agent,
         "order": 1,
+    },
+    "sentiment_agent": {
+        "display_name": "Sentiment Analyst",
+        "agent_func": sentiment_agent,
+        "order": 2,
+    },
+    "ben_graham": {
+        "display_name": "Ben Graham",
+        "agent_func": ben_graham_agent,
+        "order": 3,
+    },
+    "bill_ackman": {
+        "display_name": "Bill Ackman",
+        "agent_func": bill_ackman_agent,
+        "order": 4,
+    },
+    "cathie_wood": {
+        "display_name": "Cathie Wood",
+        "agent_func": cathie_wood_agent,
+        "order": 5,
+    },
+    "charlie_munger": {
+        "display_name": "Charlie Munger",
+        "agent_func": charlie_munger_agent,
+        "order": 6,
+    },
+    "warren_buffett": {
+        "display_name": "Warren Buffett",
+        "agent_func": warren_buffett_agent,
+        "order": 7,
     },
 }
 

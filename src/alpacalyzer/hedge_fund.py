@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 
 from colorama import init
 from dotenv import load_dotenv
@@ -64,6 +65,8 @@ def call_hedge_fund_agents(
                 ],
                 "data": {
                     "tickers": [x.ticker for x in tickers],
+                    "end_date": datetime.now(UTC).isoformat(),
+                    "start_date": (datetime.now(UTC) - timedelta(days=30)).isoformat(),
                     "analyst_signals": {"potential_candidates_agent": potential_candidates},
                     "portfolio": {},
                 },

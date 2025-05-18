@@ -141,7 +141,7 @@ def get_current_price(ticker: str) -> float | None:
     """
     try:
         response = history_client.get_stock_latest_trade(StockLatestTradeRequest(symbol_or_symbols=ticker))
-        return response[ticker].price
+        return float(response[ticker].price)
     except Exception as e:
         logger.debug(f"Error fetching price for {ticker}: {str(e)}", exc_info=True)
         return None

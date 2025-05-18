@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Price(BaseModel):
@@ -73,9 +73,25 @@ class LineItem(BaseModel):
     report_period: str
     period: str
     currency: str
+    free_cash_flow: float | None = None
+    revenue: float | None = None
+    operating_margin: float | None = None
+    debt_to_equity: float | None = None
+    total_assets: float | None = None
+    total_liabilities: float | None = None
+    dividends_and_other_cash_distributions: float | None = None
+    outstanding_shares: float | None = None
+    research_and_development: float | None = None
+    capital_expenditure: float | None = None
+    operating_expense: float | None = None
+    earnings_per_share: float | None = None
+    net_income: float | None = None
+    book_value_per_share: float | None = None
+    current_assets: float | None = None
+    current_liabilities: float | None = None
 
     # Allow additional fields dynamically
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(extra="allow")
 
 
 class LineItemResponse(BaseModel):
@@ -166,8 +182,8 @@ class PortfolioManagerOutput(BaseModel):
 
 class TopTicker(BaseModel):
     ticker: str
-    confidence: float
     recommendation: str
+    confidence: float
 
 
 # Pydantic model for top swing trade tickers
@@ -199,8 +215,7 @@ class EntryCriteria(BaseModel):
     entry_type: EntryType
     value: float
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 # Pydantic model for trading strategy

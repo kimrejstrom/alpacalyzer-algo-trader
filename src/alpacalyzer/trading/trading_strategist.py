@@ -102,7 +102,7 @@ def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", 
     # Convert to CSV
     # csv = df.to_csv(index=False)
     # return cast(str, csv)
-    return df.to_csv(index=False)
+    return str(df.to_csv(index=False))
 
 
 def serialize_trading_signals(signals: TradingSignals) -> str:

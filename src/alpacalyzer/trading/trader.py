@@ -16,6 +16,7 @@ from alpacalyzer.trading.opportunity_finder import (
     get_top_candidates,
 )
 from alpacalyzer.trading.yfinance_client import YFinanceClient
+from alpacalyzer.utils.display import print_strategy_output, print_trading_output
 from alpacalyzer.utils.logger import logger
 
 
@@ -133,7 +134,7 @@ class Trader:
 
                 opportunity = TopTicker(
                     ticker=stock["ticker"],
-                    confidence=80,
+                    confidence=75,
                     recommendation=signal,
                 )
 
@@ -151,12 +152,18 @@ class Trader:
             return
 
         logger.info(f"\n=== Hedge Fund Starting - Market Status: {self.market_status} ===")
-
         self.opportunities.append(
             TopTicker(
-                ticker="TSLA",
-                confidence=80,
-                recommendation="short",
+                ticker="PLTR",
+                confidence=50,
+                recommendation="neutral",
+            )
+        )
+        self.opportunities.append(
+            TopTicker(
+                ticker="KULR",
+                confidence=50,
+                recommendation="neutral",
             )
         )
 
@@ -166,6 +173,7 @@ class Trader:
                 return
 
             hedge_fund_response = call_hedge_fund_agents(self.opportunities, show_reasoning=True)
+            print_trading_output(hedge_fund_response)
 
             if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
                 logger.info("No trade decisions from hedge fund.")
@@ -180,7 +188,6 @@ class Trader:
                         logger.info(f"Strategy already exists for {strategy.ticker} - Skipping")
                         continue
                     self.latest_strategies.append(strategy)
-                    logger.info(f"New strategy created: {strategy}\n")
 
             self.opportunities = []
 
@@ -235,7 +242,7 @@ class Trader:
                         self.latest_strategies.remove(strategy)
                         continue
 
-                    logger.info(f"Executing strategy for {strategy.ticker}:\n{strategy.strategy_notes}")
+                    print_strategy_output(strategy)
 
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type.lower() == "long" else OrderSide.SELL
@@ -281,9 +288,9 @@ class Trader:
                 if signals is None:
                     continue
                 logger.info(
-                    f"\nChecking position for {position.symbol} (Current price: {position.current_price}):\n"
+                    f"\nChecking exit conditions for {position.symbol} (Current price: {position.current_price}):\n"
                     f"Type: {position.side}, Entry: {position.avg_entry_price}, "
-                    f"Unrealized P/L: {position.unrealized_pl}, Market value: {position.market_value}, "
+                    f"Unrealized P/L: {position.unrealized_plpc}, Market value: ${position.market_value}, "
                 )
                 # Check if exit conditions are met
                 if check_exit_conditions(position, signals):

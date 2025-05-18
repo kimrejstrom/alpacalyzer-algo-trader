@@ -21,7 +21,7 @@ class AgentState(TypedDict):
 
 
 def show_agent_reasoning(output, agent_name):
-    logger.info(f"\n{'=' * 10} {agent_name.center(28)} {'=' * 10}")
+    logger.debug(f"\n{'=' * 10} {agent_name.center(28)} {'=' * 10}")
 
     def convert_to_serializable(obj):
         if hasattr(obj, "to_dict"):  # Handle Pandas Series/DataFrame
@@ -39,14 +39,14 @@ def show_agent_reasoning(output, agent_name):
     if isinstance(output, dict | list):
         # Convert the output to JSON-serializable format
         serializable_output = convert_to_serializable(output)
-        logger.info(json.dumps(serializable_output, indent=2))
+        logger.debug(json.dumps(serializable_output, indent=2))
     else:
         try:
-            # Parse the string as JSON and pretty logger.info it
+            # Parse the string as JSON and pretty logger.debug it
             parsed_output = json.loads(output)
-            logger.info(json.dumps(parsed_output, indent=2))
+            logger.debug(json.dumps(parsed_output, indent=2))
         except json.JSONDecodeError:
             # Fallback to original string if not valid JSON
-            logger.info(output)
+            logger.debug(output)
 
-    logger.info("=" * 48)
+    logger.debug("=" * 48)

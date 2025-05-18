@@ -1,4 +1,5 @@
 import argparse
+import os
 import threading
 import time
 
@@ -27,6 +28,7 @@ def main():  # pragma: no cover
     6. Enter and exit positions on signals
     """
 
+    os.environ["TQDM_DISABLE"] = "1"
     parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
     parser.add_argument("--hedge", action="store_true", help="Enable hedge fund mode")
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
