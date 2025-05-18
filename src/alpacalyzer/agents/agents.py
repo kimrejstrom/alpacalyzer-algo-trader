@@ -7,6 +7,7 @@ from alpacalyzer.agents.bill_ackman_agent import bill_ackman_agent
 from alpacalyzer.agents.cathie_wood_agent import cathie_wood_agent
 from alpacalyzer.agents.charlie_munger import charlie_munger_agent
 from alpacalyzer.agents.fundamentals_agent import fundamentals_agent
+from alpacalyzer.agents.quant_agent import quant_agent
 from alpacalyzer.agents.sentiment_agent import sentiment_agent
 from alpacalyzer.agents.technicals_agent import technical_analyst_agent
 from alpacalyzer.agents.warren_buffet_agent import warren_buffett_agent
@@ -52,6 +53,11 @@ ANALYST_CONFIG = {
         "display_name": "Warren Buffett",
         "agent_func": warren_buffett_agent,
         "order": 7,
+    },
+    "quant_agent": {
+        "display_name": "Quant Analyst",
+        "agent_func": quant_agent,
+        "order": 8,
     },
 }
 
