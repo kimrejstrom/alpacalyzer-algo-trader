@@ -195,12 +195,6 @@ def analyze_business_quality(metrics: list[Any], financial_line_items: list[Any]
     else:
         details.append("ROE data not available.")
 
-    # 4. (Optional) Brand Intangible (if intangible_assets are fetched)
-    # intangible_vals = [item.intangible_assets for item in financial_line_items if item.intangible_assets]
-    # if intangible_vals and sum(intangible_vals) > 0:
-    #     details.append("Significant intangible assets may indicate brand value or proprietary tech.")
-    #     score += 1
-
     return {"score": score, "details": "; ".join(details)}
 
 

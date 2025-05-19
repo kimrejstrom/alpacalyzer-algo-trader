@@ -35,7 +35,6 @@ def quant_agent(state: AgentState):
         progress.update_status("quant_agent", ticker, "Analyzing quantitative signals")
 
         signals = technical_analyzer.analyze_stock(ticker)
-        logger.debug(f"Quant signals for {ticker}: {signals}")
         if signals is None:
             progress.update_status("quant_agent", ticker, "Failed to generate quantitative analysis")
             progress.update_status("quant_agent", ticker, "Done")
