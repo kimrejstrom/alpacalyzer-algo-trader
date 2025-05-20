@@ -34,7 +34,7 @@ class Trader:
         self.direct_tickers = direct_tickers or []
 
     def scan_for_insight_opportunities(self):
-        if self.market_status == "closed" or not self.analyze_mode:
+        if self.market_status == "closed" or self.analyze_mode:
             logger.info(f"=== Reddit Scanner Paused - Market Status: {self.market_status} ===")
             return None
 
@@ -59,7 +59,7 @@ class Trader:
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
 
-        if self.market_status == "closed" or not self.analyze_mode:
+        if self.market_status == "closed" or self.analyze_mode:
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
             return
 

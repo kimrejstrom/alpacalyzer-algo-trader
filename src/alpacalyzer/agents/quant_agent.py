@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
-from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.progress import progress
 
 
@@ -219,8 +218,6 @@ def get_quant_analysis(
             candles_5_min=candles_5_min_str,
         ),
     }
-
-    logger.info(f"Quant Agent: {human_message['content']}")
 
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]
