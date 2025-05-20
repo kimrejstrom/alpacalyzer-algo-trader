@@ -140,7 +140,7 @@ def print_trading_output(result: dict[str, Any]) -> None:
                 [
                     f"{Fore.CYAN}{agent_name}{Style.RESET_ALL}",
                     f"{signal_color}{signal_type}{Style.RESET_ALL}",
-                    f"{Fore.WHITE}{confidence}%{Style.RESET_ALL}",
+                    f"{Fore.WHITE}{confidence:.1f}%{Style.RESET_ALL}",
                     f"{Fore.WHITE}{reasoning_str}{Style.RESET_ALL}",
                 ]
             )

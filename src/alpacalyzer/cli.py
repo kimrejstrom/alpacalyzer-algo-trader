@@ -33,6 +33,9 @@ def main():  # pragma: no cover
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
     parser.add_argument("--analyze", action="store_true", help="Run in dry run mode (disables trading)")
     parser.add_argument("--tickers", type=str, help="Comma-separated list of tickers to analyze (e.g., AAPL,MSFT,GOOG)")
+    parser.add_argument(
+        "--agents", type=str, default="ALL", help="Comma-separated list of agents to use (e.g., ALL,TRADE,INVEST)"
+    )
     args = parser.parse_args()
 
     try:
@@ -45,7 +48,7 @@ def main():  # pragma: no cover
             direct_tickers = [ticker.strip().upper() for ticker in args.tickers.split(",")]
             logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
 
-        trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers)
+        trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers, agents=args.agents)
 
         if not direct_tickers:
             # Run insight scanner every 4 hours

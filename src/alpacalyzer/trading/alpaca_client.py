@@ -38,42 +38,42 @@ __all__ = ["trading_client", "history_client"]
 def log_order(order: Order) -> None:
     """Logs key details of an Alpaca order in a readable format."""
     log_message = f"""
-    ======================================
-    Order Summary - {order.symbol}
-    ======================================
-    Order ID: {order.id}
-    Client Order ID: {order.client_order_id}
-    Order Type: {order.order_type or "N/A"}
-    Order Class: {order.order_class.value}
-    Side: {order.side}
-    Quantity: {order.qty}
-    Limit Price: {order.limit_price or "N/A"}
-    Stop Price: {order.stop_price or "N/A"}
-    Time in Force: {order.time_in_force.value}
-    Status: {order.status.value}
-    Created At: {order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-    Updated At: {order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-    Filled Quantity: {order.filled_qty}
-    Filled Avg Price: {order.filled_avg_price or "N/A"}
-    Expiration: {order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"}
-    Extended Hours: {"Yes" if order.extended_hours else "No"}
+======================================
+Order Summary - {order.symbol}
+======================================
+Order ID: {order.id}
+Client Order ID: {order.client_order_id}
+Order Type: {order.order_type or "N/A"}
+Order Class: {order.order_class.value}
+Side: {order.side}
+Quantity: {order.qty}
+Limit Price: {order.limit_price or "N/A"}
+Stop Price: {order.stop_price or "N/A"}
+Time in Force: {order.time_in_force.value}
+Status: {order.status.value}
+Created At: {order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
+Updated At: {order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
+Filled Quantity: {order.filled_qty}
+Filled Avg Price: {order.filled_avg_price or "N/A"}
+Expiration: {order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"}
+Extended Hours: {"Yes" if order.extended_hours else "No"}
 
-    Bracket Order Details:
-    --------------------------------------
-    """
+Bracket Order Details:
+--------------------------------------
+"""
 
     # Log bracket orders if present
     if order.legs:
         for leg in order.legs:
             log_message += f"""
-            Leg Order: {leg.side}
-            Order Type: {leg.order_type}
-            Quantity: {leg.qty}
-            Limit Price: {leg.limit_price or "N/A"}
-            Stop Price: {leg.stop_price or "N/A"}
-            Status: {leg.status.value}
-            Client Order ID: {leg.client_order_id}
-            Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
+Leg Order: {leg.side}
+Order Type: {leg.order_type}
+Quantity: {leg.qty}
+Limit Price: {leg.limit_price or "N/A"}
+Stop Price: {leg.stop_price or "N/A"}
+Status: {leg.status.value}
+Client Order ID: {leg.client_order_id}
+Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
             """
     else:
         log_message += "No bracket legs found.\n"

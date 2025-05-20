@@ -17,16 +17,25 @@ def get_reddit_insights() -> TopTickersResponse | None:
 
         ## **Expected Output**
         - List **3-5 great tickers** that meet the above conditions.
-        - Provide a **short recommendation** for each selection, including a Short/Long bias.
+        - Provide a **short reasoning** for each selection, including a Short/Long bias.
         - Also include the main reason you chose this stock based on the reddit posts you receive.
         - Give a confidence score on a scale from 0-100 for each ticker.
         """,
     }
 
-    human_template = (
-        "Analyze current and relevant insights from reddit.\n\n"
-        "Here are the relevant reddit posts for consideration:\n{ideas}\n\n"
-    )
+    human_template = """Analyze current and relevant insights from reddit.
+
+        Here are the relevant reddit posts for consideration:
+
+        {ideas}
+
+        "Return the trading signal in this JSON format:"
+            {{
+              "signal": "bullish/bearish/neutral",
+              "confidence": float (0-100),
+              "reasoning": "string"
+            }}
+        """
 
     trading_edge_ideas = fetch_reddit_posts("TradingEdge")
     winning_watch_list_ideas = fetch_user_posts("WinningWatchlist")
@@ -52,7 +61,8 @@ def get_reddit_insights() -> TopTickersResponse | None:
 def format_top_tickers(tickers: list[TopTicker]) -> str:
     """Format list of TopTicker objects into a readable string for API consumption."""
     formatted = [
-        f"Symbol: {ticker.ticker}\nRecommendation: {ticker.recommendation}\nConfidence: {ticker.confidence}\n"
+        f"Symbol: {ticker.ticker}\nSignal: {ticker.signal}\n"
+        f"Confidence: {ticker.confidence}\nReasoning: {ticker.reasoning}\n"
         for ticker in tickers
     ]
     return "\n".join(formatted)
@@ -96,6 +106,21 @@ def get_top_candidates(top_tickers: list[TopTicker], finviz_df: DataFrame) -> To
         - Give a confidence score on a scale from 0-100 for each ticker.
         """,
     }
+
+    human_template = """Analyze the following stocks for swing trading opportunities.
+
+        Top candidates:
+        {top_candidates}
+
+        "Stock data: {stock_data}"
+
+        "Return the trading signal in this JSON format:"
+            {{
+              "signal": "bullish/bearish/neutral",
+              "confidence": float (0-100),
+              "reasoning": "string"
+            }}
+        """
 
     human_template = (
         "Analyze the following stocks for swing trading opportunities.\n\n"

@@ -1,5 +1,5 @@
 import uuid
-from typing import cast
+from typing import Literal, cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.models import Asset, Order, Position
@@ -21,7 +21,7 @@ from alpacalyzer.utils.logger import logger
 
 
 class Trader:
-    def __init__(self, analyze_mode=False, direct_tickers=None):
+    def __init__(self, analyze_mode=False, direct_tickers=None, agents="ALL"):
         """Initialize the Trader instance."""
         self.technical_analyzer = TechnicalAnalyzer()
         self.finviz_scanner = FinvizScanner()
@@ -32,9 +32,10 @@ class Trader:
         self.market_status = get_market_status()
         self.analyze_mode = analyze_mode
         self.direct_tickers = direct_tickers or []
+        self.agents: Literal["ALL", "TRADE", "INVEST"] = agents
 
     def scan_for_insight_opportunities(self):
-        if self.market_status == "closed" or self.analyze_mode:
+        if self.market_status == "closed":
             logger.info(f"=== Reddit Scanner Paused - Market Status: {self.market_status} ===")
             return None
 
@@ -59,7 +60,7 @@ class Trader:
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
 
-        if self.market_status == "closed" or self.analyze_mode:
+        if self.market_status == "closed":
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
             return
 
@@ -121,9 +122,9 @@ class Trader:
                     entry_blockers.append(f"{weak_tech_signals}")
 
                 if entry_blockers:
-                    logger.info(f"Entry blocked for {stock['ticker']}:")
+                    logger.debug(f"Entry blocked for {stock['ticker']}:")
                     for blocker in entry_blockers:
-                        logger.info(f"- {blocker}")
+                        logger.debug(f"- {blocker}")
                     continue
 
                 # Convert back to signal
@@ -137,7 +138,8 @@ class Trader:
                 opportunity = TopTicker(
                     ticker=stock["ticker"],
                     confidence=75,
-                    recommendation=signal,
+                    signal=signal,
+                    reasoning=f"Technical Score: {trading_signals['score']:.2f} - {trading_signals['signals']}",
                 )
 
                 if opportunity.ticker not in [o.ticker for o in self.opportunities]:
@@ -149,7 +151,7 @@ class Trader:
     def run_hedge_fund(self):
         """Hedge fund."""
 
-        if self.market_status == "closed" and not self.analyze_mode:
+        if self.market_status == "closed":
             logger.info(f"=== Hedge Fund Paused - Market Status: {self.market_status} ===")
             return
 
@@ -164,8 +166,9 @@ class Trader:
                 self.opportunities.append(
                     TopTicker(
                         ticker=ticker,
-                        confidence=50,
-                        recommendation="neutral",
+                        confidence=50.0,
+                        signal="neutral",
+                        reasoning="Ticker is of interest to the user.",
                     )
                 )
 
@@ -174,7 +177,7 @@ class Trader:
                 logger.info("No opportunities available.")
                 return
 
-            hedge_fund_response = call_hedge_fund_agents(self.opportunities, show_reasoning=True)
+            hedge_fund_response = call_hedge_fund_agents(self.opportunities, self.agents, show_reasoning=True)
             print_trading_output(hedge_fund_response)
 
             if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
@@ -204,7 +207,7 @@ class Trader:
             logger.info("No active strategies to monitor.")
             return
 
-        if self.market_status == "closed" or not self.analyze_mode:
+        if self.market_status == "closed":
             logger.info(f"=== Trading Monitor Loop Paused - Market Status: {self.market_status} ===")
             return
 
@@ -215,7 +218,7 @@ class Trader:
 
         try:
             for strategy in self.latest_strategies[:]:
-                logger.info(f"executed_tickers: {executed_tickers}")
+                logger.debug(f"executed_tickers: {executed_tickers}")
                 if strategy.ticker in executed_tickers:
                     continue  # Skip strategies for tickers that already executed
 
@@ -320,48 +323,48 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
             if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT and not criteria.value * (
                 1 - 0.005
             ) <= price <= criteria.value * (1 + 0.005):
-                logger.info(f"Price near support: {price} +/- 0.5% from {criteria.value}")
+                logger.debug(f"Price near support: {price} +/- 0.5% from {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE and not criteria.value * (
                 1 - 0.005
             ) <= price <= criteria.value * (1 + 0.005):
-                logger.info(f"Price near resistance: {price} +/- 0.5% from {criteria.value}")
+                logger.debug(f"Price near resistance: {price} +/- 0.5% from {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BREAKOUT_ABOVE and price <= criteria.value:
-                logger.info(f"Breakout above: {price} <= {criteria.value}")
+                logger.debug(f"Breakout above: {price} <= {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.RSI_OVERSOLD and rsi > criteria.value:
-                logger.info(f"RSI oversold: {rsi} > {criteria.value}")
+                logger.debug(f"RSI oversold: {rsi} > {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.RSI_OVERBOUGHT and rsi < criteria.value:
-                logger.info(f"RSI overbought: {rsi} < {criteria.value}")
+                logger.debug(f"RSI overbought: {rsi} < {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_20 and price < sma20:
-                logger.info(f"Price above SMA20: {price} < {sma20}")
+                logger.debug(f"Price above SMA20: {price} < {sma20}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_20 and price > sma20:
-                logger.info(f"Price below SMA20: {price} > {sma20}")
+                logger.debug(f"Price below SMA20: {price} > {sma20}")
                 conditions_met = False
             if criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_50 and price < sma50:
-                logger.info(f"Price above SMA50: {price} < {sma50}")
+                logger.debug(f"Price above SMA50: {price} < {sma50}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_50 and price > sma50:
-                logger.info(f"Price below SMA50: {price} > {sma50}")
+                logger.debug(f"Price below SMA50: {price} > {sma50}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BULLISH_ENGULFING and latest_intraday["Bullish_Engulfing"] != 100:
-                logger.info("Bullish Engulfing not detected")
+                logger.debug("Bullish Engulfing not detected")
                 conditions_met = False
             if criteria.entry_type == EntryType.BEARISH_ENGULFING and latest_intraday["Bearish_Engulfing"] != -100:
-                logger.info("Bearish Engulfing not detected")
+                logger.debug("Bearish Engulfing not detected")
                 conditions_met = False
             if criteria.entry_type == EntryType.SHOOTING_STAR and latest_intraday["Shooting_Star"] != 100:
-                logger.info("Shooting Star not detected")
+                logger.debug("Shooting Star not detected")
                 conditions_met = False
             if criteria.entry_type == EntryType.HAMMER and latest_intraday["Hammer"] != 100:
-                logger.info("Hammer not detected")
+                logger.debug("Hammer not detected")
                 conditions_met = False
             if criteria.entry_type == EntryType.DOJI and latest_intraday["Doji"] != 100:
-                logger.info("Doji not detected")
+                logger.debug("Doji not detected")
                 conditions_met = False
 
         logger.info(f"Entry conditions met for {strategy.ticker}: {conditions_met}")

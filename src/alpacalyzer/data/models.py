@@ -147,7 +147,6 @@ class AnalystSignal(BaseModel):
     signal: str | None = None
     confidence: float | None = None
     reasoning: dict[Any, Any] | str | None = None
-    max_position_size: float | None = None  # For risk management signals
 
 
 class TickerAnalysis(BaseModel):
@@ -182,8 +181,9 @@ class PortfolioManagerOutput(BaseModel):
 
 class TopTicker(BaseModel):
     ticker: str
-    recommendation: str
+    signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
+    reasoning: str
 
 
 # Pydantic model for top swing trade tickers

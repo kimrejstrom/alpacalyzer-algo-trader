@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from colorama import init
 from dotenv import load_dotenv
@@ -37,23 +38,48 @@ def parse_hedge_fund_response(response):
 
 
 ##### Run the Hedge Fund #####
+
+
 def call_hedge_fund_agents(
     tickers: list[TopTicker],
+    agents: Literal["ALL", "TRADE", "INVEST"] = "ALL",
     show_reasoning: bool = False,
 ):
     # Start progress tracking
     progress.start()
 
     try:
+        # Select analysts based on the provided agents parameter
+        if agents not in ["ALL", "TRADE", "INVEST"]:
+            raise ValueError(f"Invalid agents parameter: {agents}. Must be one of 'ALL', 'TRADE', or 'INVEST'.")
+        if agents == "ALL":
+            selected_analysts = None
+        if agents == "TRADE":
+            selected_analysts = [
+                "web_agent",
+                "technical_analyst",
+                "sentiment_agent",
+                "quant_agent",
+            ]
+        if agents == "INVEST":
+            selected_analysts = [
+                "fundamental_analyst",
+                "ben_graham",
+                "bill_ackman",
+                "cathie_wood",
+                "charlie_munger",
+                "warren_buffett",
+            ]
         # Create a new workflow
-        workflow = create_workflow(selected_analysts=None)
+        workflow = create_workflow(selected_analysts=selected_analysts)
         agent = workflow.compile()
 
         potential_candidates = {}
         for ticker in tickers:
             potential_candidates[ticker.ticker] = {
-                "signal": ticker.recommendation,
+                "signal": ticker.signal,
                 "confidence": ticker.confidence,
+                "reasoning": ticker.reasoning,
             }
 
         final_state = agent.invoke(

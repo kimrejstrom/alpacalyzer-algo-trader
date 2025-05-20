@@ -30,13 +30,30 @@ def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
         # Get client only when needed
         client = get_openai_client()
 
-        response = client.beta.chat.completions.parse(
+        response = client.responses.parse(
             model="o4-mini",
-            reasoning_effort="medium",
-            messages=messages,
-            response_format=function_schema,
+            reasoning={"effort": "medium"},
+            input=messages,
+            text_format=function_schema,
         )
-        return cast(T, response.choices[0].message.parsed)
+        return cast(T, response.output_parsed)
+    except Exception as e:
+        print(f"Error calling GPT: {e}")
+        return None
+
+
+def call_gpt_web(messages, function_schema: type[T]) -> T | None:
+    try:
+        # Get client only when needed
+        client = get_openai_client()
+
+        response = client.responses.parse(
+            model="gpt-4.1",
+            tools=[{"type": "web_search_preview"}],
+            input=messages,
+            text_format=function_schema,
+        )
+        return cast(T, response.output_parsed)
     except Exception as e:
         print(f"Error calling GPT: {e}")
         return None
