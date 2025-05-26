@@ -122,12 +122,6 @@ def get_top_candidates(top_tickers: list[TopTicker], finviz_df: DataFrame) -> To
             }}
         """
 
-    human_template = (
-        "Analyze the following stocks for swing trading opportunities.\n\n"
-        "Top candidates:\n{top_candidates}\n\n"
-        "Stock data: {stock_data}"
-    )
-
     formatted_finviz_data = finviz_df.to_json(orient="records")
     formatted_top_tickers = format_top_tickers(top_tickers)
 

@@ -46,6 +46,7 @@ def call_hedge_fund_agents(
     show_reasoning: bool = False,
 ):
     # Start progress tracking
+    selected_analysts = None
     progress.start()
 
     try:

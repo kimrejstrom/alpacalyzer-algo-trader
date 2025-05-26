@@ -17,6 +17,7 @@ def risk_management_agent(state: AgentState):
 
     # Initialize risk analysis for each ticker
     risk_analysis = {}
+    alpaca_positions = []
 
     try:
         # Get fresh positions from Alpaca
@@ -46,14 +47,24 @@ def risk_management_agent(state: AgentState):
                 },
             )
 
-        current_price = (
-            float(position.current_price) if position and position.current_price else get_current_price(ticker)
-        )
+        # Get the current price and ensure it's a float
+        if position and position.current_price:
+            current_price = float(position.current_price)
+        else:
+            price_value = get_current_price(ticker)
+            current_price = float(price_value) if price_value is not None else 0.0
 
         progress.update_status("risk_management_agent", ticker, "Calculating position limits")
 
         # Calculate current position value for this ticker
-        current_position_value = float(position.cost_basis) if position else 0
+        if position:
+            # Calculate position value correctly for both long and short positions
+            if position.side == "long":
+                current_position_value = float(position.qty) * current_price
+            else:  # short position
+                current_position_value = -1 * float(position.qty) * current_price
+        else:
+            current_position_value = 0
 
         # Calculate total portfolio value using stored prices
         total_portfolio_value = account["equity"]
@@ -61,11 +72,25 @@ def risk_management_agent(state: AgentState):
         # Base limit is 5% of portfolio for any single position
         position_limit = total_portfolio_value * 0.05
 
-        # For existing positions, subtract current position value from limit
-        remaining_position_limit = position_limit - current_position_value
+        # For existing positions, calculate remaining limit correctly
+        remaining_position_limit = position_limit - abs(current_position_value)
 
-        # Ensure we don't exceed available cash
-        max_position_size = min(remaining_position_limit, account["buying_power"])
+        # Account for margin requirements for short positions
+        short_margin_requirement = 0.5  # 50% is typical for initial margin
+
+        # Calculate buying power adjustments for shorts
+        adjusted_buying_power = float(account["buying_power"])
+        if remaining_position_limit > 0:  # Only if we have remaining limit
+            if "trade_type" in data.get(ticker, {}) and data[ticker]["trade_type"] == "short":
+                # Adjust buying power for short positions
+                adjusted_buying_power /= short_margin_requirement
+
+        # Ensure we don't exceed available cash or position limits
+        max_position_size = min(remaining_position_limit, adjusted_buying_power)
+
+        # Prevent negative position sizes
+        if max_position_size < 0:
+            max_position_size = 0
 
         risk_analysis[ticker] = {
             "remaining_position_limit": float(max_position_size),

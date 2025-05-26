@@ -1,9 +1,10 @@
+import time
 import uuid
 from typing import Literal, cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.models import Asset, Order, Position
-from alpaca.trading.requests import LimitOrderRequest
+from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.data.models import EntryType, TopTicker, TradingStrategy
@@ -301,6 +302,12 @@ class Trader:
                 if check_exit_conditions(position, signals):
                     # Close position
                     logger.info(f"Closing position for {position.symbol}")
+                    open_orders_resp = trading_client.get_orders(GetOrdersRequest(status="open"))
+                    open_orders = cast(list[Order], open_orders_resp)
+                    for order in open_orders:
+                        if order.symbol == position.symbol:
+                            trading_client.cancel_order_by_id(order.id)
+                    time.sleep(1.0)
                     order_resp = trading_client.close_position(position.symbol)
                     order = cast(Order, order_resp)
                     log_order(order)

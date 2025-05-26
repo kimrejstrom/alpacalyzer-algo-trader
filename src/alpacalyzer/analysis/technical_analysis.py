@@ -451,12 +451,12 @@ class TechnicalAnalyzer:
                 return 0.8  # Allow strong setups
             return 0.9  # Stricter threshold
 
-        if 30 <= vix_close <= 35:
+        if vix_close >= 30:
             if rel_vol >= 2 and atr_pct < 0.10:  # Allow higher ATR in high VIX
                 return 0.7
             return 0.75
 
-        if 20 <= vix_close <= 30:
+        if vix_close >= 30:
             if rel_vol >= 1.5 and atr_pct < 0.12:  # More flexibility in calm markets
                 return 0.6
             return 0.65
