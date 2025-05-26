@@ -456,7 +456,7 @@ class TechnicalAnalyzer:
                 return 0.7
             return 0.75
 
-        if vix_close >= 30:
+        if vix_close >= 20:
             if rel_vol >= 1.5 and atr_pct < 0.12:  # More flexibility in calm markets
                 return 0.6
             return 0.65
