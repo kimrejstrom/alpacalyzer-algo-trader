@@ -14,6 +14,8 @@ from alpaca.trading.models import Calendar, Clock, Order, Position, TradeAccount
 from alpaca.trading.requests import GetCalendarRequest
 from alpaca.trading.stream import TradingStream
 from dotenv import load_dotenv
+from colorama import Fore, Style
+from tabulate import tabulate
 
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import logger
@@ -36,52 +38,64 @@ __all__ = ["trading_client", "history_client"]
 
 
 def log_order(order: Order) -> None:
-    """Logs key details of an Alpaca order in a readable format."""
-    log_message = f"""
-======================================
-Order Summary - {order.symbol}
-======================================
-Order ID: {order.id}
-Client Order ID: {order.client_order_id}
-Order Type: {order.order_type or "N/A"}
-Order Class: {order.order_class.value}
-Side: {order.side}
-Quantity: {order.qty}
-Limit Price: {order.limit_price or "N/A"}
-Stop Price: {order.stop_price or "N/A"}
-Time in Force: {order.time_in_force.value}
-Status: {order.status.value}
-Created At: {order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-Updated At: {order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-Filled Quantity: {order.filled_qty}
-Filled Avg Price: {order.filled_avg_price or "N/A"}
-Expiration: {order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"}
-Extended Hours: {"Yes" if order.extended_hours else "No"}
+    """Logs key details of an Alpaca order in a readable, tabulated format."""
 
-Bracket Order Details:
---------------------------------------
-"""
+    bright_symbol = f"{Style.BRIGHT}{order.symbol}{Style.RESET_ALL}"
+    logger.info(f"{Fore.MAGENTA}===== Order Summary - {bright_symbol} =====")
 
-    # Log bracket orders if present
+    side_color = Fore.GREEN if order.side == OrderSide.BUY else Fore.RED if order.side == OrderSide.SELL else Fore.WHITE
+    status_color_map = {
+        "filled": Fore.GREEN,
+        "partially_filled": Fore.YELLOW,
+        "canceled": Fore.YELLOW,
+        "expired": Fore.YELLOW,
+        "rejected": Fore.RED,
+        "new": Fore.BLUE,
+        "pending_new": Fore.BLUE,
+    }
+    status_val = order.status.value if order.status else "N/A"
+    status_color = status_color_map.get(status_val, Fore.WHITE)
+
+    order_details = [
+        [f"{Fore.YELLOW}Order ID{Style.RESET_ALL}", str(order.id)],
+        [f"{Fore.YELLOW}Client Order ID{Style.RESET_ALL}", str(order.client_order_id)],
+        [f"{Fore.YELLOW}Order Type{Style.RESET_ALL}", str(order.order_type or "N/A")],
+        [f"{Fore.YELLOW}Order Class{Style.RESET_ALL}", str(order.order_class.value)],
+        [f"{Fore.YELLOW}Side{Style.RESET_ALL}", f"{side_color}{order.side}{Style.RESET_ALL}"],
+        [f"{Fore.YELLOW}Quantity{Style.RESET_ALL}", str(order.qty)],
+        [f"{Fore.YELLOW}Limit Price{Style.RESET_ALL}", str(order.limit_price or "N/A")],
+        [f"{Fore.YELLOW}Stop Price{Style.RESET_ALL}", str(order.stop_price or "N/A")],
+        [f"{Fore.YELLOW}Time in Force{Style.RESET_ALL}", str(order.time_in_force.value)],
+        [f"{Fore.YELLOW}Status{Style.RESET_ALL}", f"{status_color}{status_val}{Style.RESET_ALL}"],
+        [f"{Fore.YELLOW}Created At{Style.RESET_ALL}", order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")],
+        [f"{Fore.YELLOW}Updated At{Style.RESET_ALL}", order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")],
+        [f"{Fore.YELLOW}Filled Quantity{Style.RESET_ALL}", str(order.filled_qty)],
+        [f"{Fore.YELLOW}Filled Avg Price{Style.RESET_ALL}", str(order.filled_avg_price or "N/A")],
+        [f"{Fore.YELLOW}Expiration{Style.RESET_ALL}", order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"],
+        [f"{Fore.YELLOW}Extended Hours{Style.RESET_ALL}", "Yes" if order.extended_hours else "No"],
+    ]
+    logger.info(tabulate(order_details, tablefmt="psql", colalign=("right", "left")))
+
     if order.legs:
-        for leg in order.legs:
-            log_message += f"""
-Leg Order: {leg.side}
-Order Type: {leg.order_type}
-Quantity: {leg.qty}
-Limit Price: {leg.limit_price or "N/A"}
-Stop Price: {leg.stop_price or "N/A"}
-Status: {leg.status.value}
-Client Order ID: {leg.client_order_id}
-Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-            """
+        logger.info(f"{Fore.BLUE}--- Bracket Order Legs ---{Style.RESET_ALL}")
+        for i, leg in enumerate(order.legs):
+            leg_side_color = Fore.GREEN if leg.side == OrderSide.BUY else Fore.RED if leg.side == OrderSide.SELL else Fore.WHITE
+            leg_status_val = leg.status.value if leg.status else "N/A"
+            leg_status_color = status_color_map.get(leg_status_val, Fore.WHITE)
+            leg_details = [
+                [f"{Fore.YELLOW}Leg {i+1} Side{Style.RESET_ALL}", f"{leg_side_color}{leg.side}{Style.RESET_ALL}"],
+                [f"{Fore.YELLOW}Order Type{Style.RESET_ALL}", str(leg.order_type or "N/A")],
+                [f"{Fore.YELLOW}Quantity{Style.RESET_ALL}", str(leg.qty)],
+                [f"{Fore.YELLOW}Limit Price{Style.RESET_ALL}", str(leg.limit_price or "N/A")],
+                [f"{Fore.YELLOW}Stop Price{Style.RESET_ALL}", str(leg.stop_price or "N/A")],
+                [f"{Fore.YELLOW}Status{Style.RESET_ALL}", f"{leg_status_color}{leg_status_val}{Style.RESET_ALL}"],
+                [f"{Fore.YELLOW}Client Order ID{Style.RESET_ALL}", str(leg.client_order_id)],
+                [f"{Fore.YELLOW}Created At{Style.RESET_ALL}", leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")],
+            ]
+            logger.info(tabulate(leg_details, tablefmt="psql", colalign=("right", "left")))
     else:
-        log_message += "No bracket legs found.\n"
-
-    log_message += "\n======================================="
-
-    logger.info(log_message)  # Log the formatted message
-
+        logger.info(f"{Fore.YELLOW}No bracket legs found.{Style.RESET_ALL}")
+    logger.info(f"{Fore.MAGENTA}=============================={Style.RESET_ALL}")
 
 @timed_lru_cache(seconds=60, maxsize=128)
 def get_market_status() -> str:
@@ -104,7 +118,7 @@ def get_market_status() -> str:
     trading_days = trading_client.get_calendar(GetCalendarRequest(start=current_time.date(), end=current_time.date()))
     trading_days_instance = cast(list[Calendar], trading_days)
     if not trading_days:
-        logger.info(f"{current_time.date()} is not a trading day. Next market open: {market_open_time}")
+        logger.info(f"{Fore.YELLOW}{current_time.date()}{Style.RESET_ALL} is not a trading day. Next market open: {Fore.GREEN}{market_open_time}{Style.RESET_ALL}")
         return "closed"  # No market data available, assume closed
 
     today_market_close = trading_days_instance[0].close.replace(tzinfo=UTC)
@@ -272,13 +286,28 @@ async def trade_updates_handler(update: TradeUpdate):
     side = update.order.side if update.order.side else OrderSide.BUY
     strategy = parse_strategy_from_client_order_id(client_order_id)
 
-    logger.info(f"\nTrade Update: {event} for ticker: {symbol} - Strategy: {strategy} ({side})")
+    event_color_map = {
+        "fill": Fore.GREEN, "partial_fill": Fore.YELLOW,
+        "canceled": Fore.YELLOW, "rejected": Fore.RED,
+        "new": Fore.BLUE, "pending_new": Fore.BLUE,
+        "expired": Fore.LIGHTBLACK_EX, "done_for_day": Fore.LIGHTBLACK_EX,
+        "replaced": Fore.CYAN, "pending_cancel": Fore.LIGHTYELLOW_EX,
+        "pending_replace": Fore.LIGHTYELLOW_EX, "accepted": Fore.CYAN,
+        "stopped": Fore.RED, "suspended": Fore.RED, "calculated": Fore.BLUE,
+    }
+    colored_event = f"{event_color_map.get(event, Fore.WHITE)}{event}{Style.RESET_ALL}"
+    colored_symbol = f"{Fore.CYAN}{symbol}{Style.RESET_ALL}"
+    colored_strategy = f"{Fore.MAGENTA}{strategy}{Style.RESET_ALL}"
+    side_color = Fore.GREEN if side == OrderSide.BUY else Fore.RED if side == OrderSide.SELL else Fore.WHITE
+    colored_side = f"{side_color}{side}{Style.RESET_ALL}"
+
+    logger.info(f"\n{Fore.BLUE}Trade Update:{Style.RESET_ALL} Event: {colored_event} for Ticker: {colored_symbol} - Strategy: {colored_strategy} ({colored_side})")
 
     if event in {"fill", "partial_fill"}:
         if symbol is None:
-            logger.warning(f"Trade update missing symbol: {update}")
+            logger.warning(f"Trade update missing symbol: {update}") # Consider colorizing warning too
             return
-        logger.info(f"Order filled for ticker: {symbol} - Strategy: {strategy} ({side})")
+        logger.info(f"{Fore.GREEN}Order filled{Style.RESET_ALL} for Ticker: {colored_symbol} - Strategy: {colored_strategy} ({colored_side})")
 
     elif event == "canceled":
         logger.warning(f"Order canceled for ticker: {symbol} - Strategy: {strategy} ({side})")
@@ -290,7 +319,7 @@ async def trade_updates_handler(update: TradeUpdate):
 def consume_trade_updates():
     """Start listening to trade updates from Alpaca."""
     trading_stream.subscribe_trade_updates(trade_updates_handler)
-    logger.info("Listening for trade updates...")
+    logger.info(f"{Fore.GREEN}Listening for trade updates...{Style.RESET_ALL}")
     trading_stream.run()
 
 

@@ -19,6 +19,7 @@ from alpacalyzer.trading.opportunity_finder import (
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.display import print_strategy_output, print_trading_output
 from alpacalyzer.utils.logger import logger
+from colorama import Fore, Style
 
 
 class Trader:
@@ -36,11 +37,12 @@ class Trader:
         self.agents: Literal["ALL", "TRADE", "INVEST"] = agents
 
     def scan_for_insight_opportunities(self):
+        market_status_colored = f"{Fore.YELLOW}{self.market_status}{Style.RESET_ALL}" if self.market_status == "closed" else f"{Fore.GREEN}{self.market_status}{Style.RESET_ALL}"
         if self.market_status == "closed":
-            logger.info(f"=== Reddit Scanner Paused - Market Status: {self.market_status} ===")
+            logger.info(f"{Fore.YELLOW}=== Reddit Scanner {Fore.RED}Paused{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
             return None
 
-        logger.info(f"\n=== Reddit Scanner Starting - Market Status: {self.market_status} ===")
+        logger.info(f"\n{Fore.BLUE}=== Reddit Scanner {Fore.GREEN}Starting{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
 
         try:
             reddit_insights = get_reddit_insights()
@@ -60,12 +62,13 @@ class Trader:
 
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
+        market_status_colored = f"{Fore.YELLOW}{self.market_status}{Style.RESET_ALL}" if self.market_status == "closed" else f"{Fore.GREEN}{self.market_status}{Style.RESET_ALL}"
 
         if self.market_status == "closed":
-            logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
+            logger.info(f"{Fore.YELLOW}=== Momentum Scanner {Fore.RED}Paused{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
             return
 
-        logger.info(f"\n=== Momentum Scanner Starting - Market Status: {self.market_status} ===")
+        logger.info(f"\n{Fore.BLUE}=== Momentum Scanner {Fore.GREEN}Starting{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
 
         try:
             # Get ranked stocks
@@ -83,7 +86,7 @@ class Trader:
                 trading_signals = cast(TradingSignals, stock["trading_signals"])
 
                 if not isinstance(trading_signals, dict):
-                    logger.info(f"Skipping {stock['ticker']} - No trading signals")
+                    logger.info(f"Skipping {Fore.CYAN}{stock['ticker']}{Style.RESET_ALL} - No trading signals")
                     continue
 
                 # Check technicals
@@ -151,16 +154,18 @@ class Trader:
 
     def run_hedge_fund(self):
         """Hedge fund."""
+        market_status_colored = f"{Fore.YELLOW}{self.market_status}{Style.RESET_ALL}" if self.market_status == "closed" else f"{Fore.GREEN}{self.market_status}{Style.RESET_ALL}"
 
         if self.market_status == "closed":
-            logger.info(f"=== Hedge Fund Paused - Market Status: {self.market_status} ===")
+            logger.info(f"{Fore.YELLOW}=== Hedge Fund {Fore.RED}Paused{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
             return
 
-        logger.info(f"\n=== Hedge Fund Starting - Market Status: {self.market_status} ===")
+        logger.info(f"\n{Fore.BLUE}=== Hedge Fund {Fore.GREEN}Starting{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
 
         # If direct tickers were provided, use those instead of opportunity scanners
         if self.direct_tickers:
-            logger.info(f"Using directly provided tickers: {', '.join(self.direct_tickers)}")
+            colored_direct_tickers = [f"{Fore.CYAN}{ticker}{Style.RESET_ALL}" for ticker in self.direct_tickers]
+            logger.info(f"Using directly provided tickers: {', '.join(colored_direct_tickers)}")
             # Clear any existing opportunities and add the direct tickers
             self.opportunities = []
             for ticker in self.direct_tickers:
@@ -175,14 +180,14 @@ class Trader:
 
         try:
             if not self.opportunities:
-                logger.info("No opportunities available.")
+                logger.info(f"{Fore.YELLOW}No opportunities available.{Style.RESET_ALL}")
                 return
 
             hedge_fund_response = call_hedge_fund_agents(self.opportunities, self.agents, show_reasoning=True)
-            print_trading_output(hedge_fund_response)
+            print_trading_output(hedge_fund_response) # Assuming this function handles its own coloring or is out of scope
 
             if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
-                logger.info("No trade decisions from hedge fund.")
+                logger.info(f"{Fore.YELLOW}No trade decisions from hedge fund.{Style.RESET_ALL}")
                 return
 
             # Create trading strategies from hedge fund response
@@ -191,7 +196,7 @@ class Trader:
                 for strategy in strategies:
                     strategy = TradingStrategy.model_validate(strategy)
                     if strategy.ticker in [s.ticker for s in self.latest_strategies]:
-                        logger.info(f"Strategy already exists for {strategy.ticker} - Skipping")
+                        logger.info(f"Strategy already exists for {Fore.CYAN}{strategy.ticker}{Style.RESET_ALL} - {Fore.YELLOW}Skipping{Style.RESET_ALL}")
                         continue
                     self.latest_strategies.append(strategy)
 
@@ -203,17 +208,18 @@ class Trader:
     # Function to check real-time price and execute orders
     def monitor_and_trade(self):
         """Monitor positions and trade every X minutes."""
+        market_status_colored = f"{Fore.YELLOW}{self.market_status}{Style.RESET_ALL}" if self.market_status == "closed" else f"{Fore.GREEN}{self.market_status}{Style.RESET_ALL}"
 
         if not self.latest_strategies:
-            logger.info("No active strategies to monitor.")
+            logger.info(f"{Fore.YELLOW}No active strategies to monitor.{Style.RESET_ALL}")
             return
 
         if self.market_status == "closed":
-            logger.info(f"=== Trading Monitor Loop Paused - Market Status: {self.market_status} ===")
+            logger.info(f"{Fore.YELLOW}=== Trading Monitor Loop {Fore.RED}Paused{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
             return
 
-        logger.info(f"\n=== Trading Monitor Loop Starting - Market Status: {self.market_status} ===")
-        logger.info(f"Active Strategies: {len(self.latest_strategies)}")
+        logger.info(f"\n{Fore.BLUE}=== Trading Monitor Loop {Fore.GREEN}Starting{Style.RESET_ALL} - Market Status: {market_status_colored} ===")
+        logger.info(f"Active Strategies: {Fore.GREEN}{len(self.latest_strategies)}{Style.RESET_ALL}")
 
         executed_tickers: list[str] = []  # Track tickers whose strategies have been executed
 
@@ -227,10 +233,17 @@ class Trader:
                 if signals is None:
                     continue
 
+                colored_ticker = f"{Fore.CYAN}{strategy.ticker}{Style.RESET_ALL}"
+                colored_price = f"{Fore.GREEN}{signals['price']}{Style.RESET_ALL}"
+                colored_trade_type = f"{Fore.MAGENTA}{strategy.trade_type}{Style.RESET_ALL}"
+                colored_entry_point = f"{Fore.GREEN}{strategy.entry_point}{Style.RESET_ALL}"
+                colored_target_price = f"{Fore.GREEN}{strategy.target_price}{Style.RESET_ALL}"
+                colored_stop_loss = f"{Fore.RED}{strategy.stop_loss}{Style.RESET_ALL}"
+
                 logger.info(
-                    f"\nChecking strategy for {strategy.ticker} (Current price: {signals['price']}):\n"
-                    f"Type: {strategy.trade_type}, Entry: {strategy.entry_point}, "
-                    f"Target: {strategy.target_price}, Stop Loss: {strategy.stop_loss}"
+                    f"\nChecking strategy for {colored_ticker} (Current price: {colored_price}):\n"
+                    f"Type: {colored_trade_type}, Entry: {colored_entry_point}, "
+                    f"Target: {colored_target_price}, Stop Loss: {colored_stop_loss}"
                 )
 
                 # Check if entry conditions are met
@@ -239,16 +252,16 @@ class Trader:
                     asset = cast(Asset, asset_response)
 
                     if not asset.tradable:
-                        logger.info(f"Asset is not tradable {strategy.ticker} - Removing strategy")
+                        logger.info(f"Asset {Fore.RED}is not tradable{Style.RESET_ALL} {colored_ticker} - {Fore.YELLOW}Removing strategy{Style.RESET_ALL}")
                         self.latest_strategies.remove(strategy)
                         continue
 
                     if strategy.trade_type == "short" and not asset.shortable:
-                        logger.info(f"Asset can not be shorted {strategy.ticker} - Removing strategy")
+                        logger.info(f"Asset {Fore.RED}can not be shorted{Style.RESET_ALL} {colored_ticker} - {Fore.YELLOW}Removing strategy{Style.RESET_ALL}")
                         self.latest_strategies.remove(strategy)
                         continue
 
-                    print_strategy_output(strategy)
+                    print_strategy_output(strategy) # Assuming this function handles its own coloring or is out of scope
 
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type.lower() == "long" else OrderSide.SELL
@@ -293,15 +306,26 @@ class Trader:
                 signals = self.technical_analyzer.analyze_stock(position.symbol)
                 if signals is None:
                     continue
+
+                pos_symbol_colored = f"{Fore.CYAN}{position.symbol}{Style.RESET_ALL}"
+                pos_price_colored = f"{Fore.GREEN}{position.current_price}{Style.RESET_ALL}"
+                pos_side_colored = f"{Fore.MAGENTA}{position.side}{Style.RESET_ALL}"
+                pos_entry_colored = f"{Fore.GREEN}{position.avg_entry_price}{Style.RESET_ALL}"
+
+                plpc_val = float(position.unrealized_plpc or 0.0)
+                plpc_color = Fore.GREEN if plpc_val >= 0 else Fore.RED
+                pos_plpc_colored = f"{plpc_color}{plpc_val:.2%}{Style.RESET_ALL}"
+                pos_mv_colored = f"{Fore.GREEN}${float(position.market_value or 0.0):.2f}{Style.RESET_ALL}"
+
                 logger.info(
-                    f"\nChecking exit conditions for {position.symbol} (Current price: {position.current_price}):\n"
-                    f"Type: {position.side}, Entry: {position.avg_entry_price}, "
-                    f"Unrealized P/L: {position.unrealized_plpc}, Market value: ${position.market_value}, "
+                    f"\nChecking exit conditions for {pos_symbol_colored} (Current price: {pos_price_colored}):\n"
+                    f"Type: {pos_side_colored}, Entry: {pos_entry_colored}, "
+                    f"Unrealized P/L: {pos_plpc_colored}, Market value: {pos_mv_colored}, "
                 )
                 # Check if exit conditions are met
                 if check_exit_conditions(position, signals):
                     # Close position
-                    logger.info(f"Closing position for {position.symbol}")
+                    logger.info(f"{Fore.YELLOW}Closing position for {pos_symbol_colored}{Style.RESET_ALL}")
                     open_orders_resp = trading_client.get_orders(GetOrdersRequest(status="open"))
                     open_orders = cast(list[Order], open_orders_resp)
                     for order in open_orders:
@@ -374,7 +398,9 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
                 logger.debug("Doji not detected")
                 conditions_met = False
 
-        logger.info(f"Entry conditions met for {strategy.ticker}: {conditions_met}")
+        colored_ticker = f"{Fore.CYAN}{strategy.ticker}{Style.RESET_ALL}"
+        colored_conditions_met = f"{Fore.GREEN}{conditions_met}{Style.RESET_ALL}" if conditions_met else f"{Fore.RED}{conditions_met}{Style.RESET_ALL}"
+        logger.info(f"Entry conditions met for {colored_ticker}: {colored_conditions_met}")
         return conditions_met
 
     except Exception as e:
@@ -410,14 +436,17 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
 
     # Check if any exit signals triggered
     if exit_signals:
-        reason_str = ", ".join(exit_signals)
+        reason_str = ", ".join(exit_signals) # Reasons themselves might need coloring if they contain specific keywords
+        colored_symbol = f"{Fore.CYAN}{position.symbol}{Style.RESET_ALL}"
         # Store exit reason to block immediate re-entry
-        logger.info(f"\nSELL {position.symbol} due to: {reason_str}")
-        logger.debug(f"Position details: {position}")
+        logger.info(f"\n{Fore.RED}SELL {colored_symbol}{Style.RESET_ALL} due to: {reason_str}")
+        logger.debug(f"Position details: {position}") # debug logs are not in scope for this task
         if unrealized_plpc < 0:
-            logger.info(f"LOSS: {unrealized_plpc:.1%} P&L loss on trade")
+            colored_plpc = f"{Fore.RED}{unrealized_plpc:.1%}{Style.RESET_ALL}"
+            logger.info(f"{Fore.RED}LOSS: {colored_plpc} P&L loss on trade{Style.RESET_ALL}")
         else:
-            logger.info(f"WIN: {unrealized_plpc:.1%} P&L gain on trade")
+            colored_plpc = f"{Fore.GREEN}{unrealized_plpc:.1%}{Style.RESET_ALL}"
+            logger.info(f"{Fore.GREEN}WIN: {colored_plpc} P&L gain on trade{Style.RESET_ALL}")
         return True
 
     return False

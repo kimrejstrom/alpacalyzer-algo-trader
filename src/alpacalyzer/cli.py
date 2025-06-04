@@ -4,6 +4,7 @@ import threading
 import time
 
 import schedule
+from colorama import Fore, Style
 
 from alpacalyzer.trading.alpaca_client import consume_trade_updates
 from alpacalyzer.trading.trader import Trader
@@ -40,13 +41,14 @@ def main():  # pragma: no cover
 
     try:
         if args.analyze:
-            logger.info("ANALYZE MODE: Trading actions are disabled")
+            logger.info(f"{Fore.YELLOW}ANALYZE MODE{Style.RESET_ALL}: Trading actions are disabled")
 
         # Parse tickers if provided
         direct_tickers = []
         if args.tickers:
             direct_tickers = [ticker.strip().upper() for ticker in args.tickers.split(",")]
-            logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
+            colored_tickers = [f"{Fore.CYAN}{ticker}{Style.RESET_ALL}" for ticker in direct_tickers]
+            logger.info(f"Analyzing provided tickers: {', '.join(colored_tickers)}")
 
         trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers, agents=args.agents)
 
@@ -68,10 +70,10 @@ def main():  # pragma: no cover
             safe_execute(trader.monitor_and_trade)
             schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
         else:
-            logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
+            logger.info(f"{Fore.YELLOW}Trading disabled in analyze mode - skipping monitor_and_trade{Style.RESET_ALL}")
 
         if args.stream:
-            logger.info("Websocket Streaming Enabled")
+            logger.info(f"{Fore.GREEN}Websocket Streaming Enabled{Style.RESET_ALL}")
             # Start streaming in a separate thread so it runs concurrently
             stream_thread = threading.Thread(target=consume_trade_updates, daemon=True)
             stream_thread.start()
@@ -84,11 +86,11 @@ def main():  # pragma: no cover
             time.sleep(10)
 
     except KeyboardInterrupt:
-        logger.info("\nTrading bot stopped by user.")
+        logger.info(f"\n{Fore.YELLOW}Trading bot stopped by user.{Style.RESET_ALL}")
     except Exception as e:
         logger.error(f"\nUnexpected error in main: {str(e)}", exc_info=True)
     finally:
-        logger.info("Shutting down trading bot safely...")
+        logger.info(f"{Fore.YELLOW}Shutting down trading bot safely...{Style.RESET_ALL}")
 
 
 def safe_execute(trading_function):
@@ -101,7 +103,7 @@ def safe_execute(trading_function):
         trading_function()
     except Exception as e:
         logger.error(f"Error in trading function: {str(e)}", exc_info=True)
-        logger.info("Retrying in 30 seconds...")
+        logger.info(f"{Fore.YELLOW}Retrying in 30 seconds...{Style.RESET_ALL}")
         time.sleep(30)
 
 

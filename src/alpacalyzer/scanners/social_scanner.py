@@ -5,6 +5,8 @@ from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.stocktwits_scanner import StocktwitsScanner
 from alpacalyzer.scanners.wsb_scanner import WSBScanner
 from alpacalyzer.utils.logger import logger
+from colorama import Fore, Style
+from tabulate import tabulate # Added tabulate in case it's needed elsewhere or for future ref, though not used in info logs here
 
 
 class SocialScanner:
@@ -26,7 +28,7 @@ class SocialScanner:
                     f"Score: {row['final_score']:.2f} Rank: {row['final_rank']:.2f}: Final"
                 )
         else:
-            logger.info("No stocks found")
+            logger.info(f"{Fore.YELLOW}No stocks found{Style.RESET_ALL}")
 
     def get_trending_stocks(self, limit: int = 20) -> pd.DataFrame:
         """
@@ -42,9 +44,9 @@ class SocialScanner:
             wsb_df = self.wsb_scanner.get_trending_stocks(limit)
             if not wsb_df.empty:
                 tickers_set.update(wsb_df["ticker"].tolist())
-                logger.info(f"Fetched {len(wsb_df)} tickers from ApeWisdom.")
+                logger.info(f"Fetched {Fore.GREEN}{len(wsb_df)}{Style.RESET_ALL} tickers from {Fore.CYAN}ApeWisdom{Style.RESET_ALL}.")
             else:
-                logger.info("No trending stocks found from ApeWisdom.")
+                logger.info(f"{Fore.YELLOW}No trending stocks found from {Fore.CYAN}ApeWisdom{Style.RESET_ALL}.")
         except Exception as e:
             logger.error(f"Error fetching data from ApeWisdom: {str(e)}", exc_info=True)
 
@@ -53,9 +55,9 @@ class SocialScanner:
             stocktwits_df = self.stocktwits_scanner.get_trending_stocks()
             if not stocktwits_df.empty:
                 tickers_set.update(stocktwits_df["ticker"].tolist())
-                logger.info(f"Fetched {len(stocktwits_df)} tickers from Stocktwits.")
+                logger.info(f"Fetched {Fore.GREEN}{len(stocktwits_df)}{Style.RESET_ALL} tickers from {Fore.CYAN}Stocktwits{Style.RESET_ALL}.")
             else:
-                logger.info("No trending stocks found from Stocktwits.")
+                logger.info(f"{Fore.YELLOW}No trending stocks found from {Fore.CYAN}Stocktwits{Style.RESET_ALL}.")
         except Exception as e:
             logger.error(f"Error fetching data from Stocktwits: {str(e)}", exc_info=True)
 
@@ -66,19 +68,19 @@ class SocialScanner:
                 if "Ticker" in finviz_df.columns:
                     finviz_df = finviz_df.rename(columns={"Ticker": "ticker"})
                 tickers_set.update(finviz_df["ticker"].tolist())
-                logger.info(f"Fetched {len(finviz_df)} tickers from Finviz.")
+                logger.info(f"Fetched {Fore.GREEN}{len(finviz_df)}{Style.RESET_ALL} tickers from {Fore.CYAN}Finviz{Style.RESET_ALL}.")
             else:
-                logger.info("No trending stocks found from Finviz.")
+                logger.info(f"{Fore.YELLOW}No trending stocks found from {Fore.CYAN}Finviz{Style.RESET_ALL}.")
         except Exception as e:
             logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
 
         # Combine all unique tickers into a list and filter VOO SPY and QQQ
         tickers_list = list(filter(lambda x: x not in ["VOO", "SPY", "QQQ"], tickers_set))
 
-        logger.info(f"\nTotal unique tickers combined: {len(tickers_list)}")
+        logger.info(f"\nTotal unique tickers combined: {Fore.GREEN}{len(tickers_list)}{Style.RESET_ALL}")
 
         if not tickers_list:
-            logger.info("No tickers found from the sources.")
+            logger.info(f"{Fore.YELLOW}No tickers found from the sources.{Style.RESET_ALL}")
             return pd.DataFrame()
 
         # Fetch ranks for the combined tickers
@@ -125,7 +127,7 @@ class SocialScanner:
         combined_df = combined_df.dropna(subset=["st_rank", "finviz_rank", "st_score", "finviz_score"])
 
         if combined_df.empty:
-            logger.info("No stocks to combine from the sources.")
+            logger.info(f"{Fore.YELLOW}No stocks to combine from the sources.{Style.RESET_ALL}")
             return pd.DataFrame()
 
         # Calculate sentiment rank
@@ -141,7 +143,7 @@ class SocialScanner:
         )
 
         # Run technical analysis silently
-        logger.info("\nRunning technical analysis...")
+        logger.info(f"\n{Fore.BLUE}Running technical analysis...{Style.RESET_ALL}")
         ta_results = []
         for _, row in combined_df.iterrows():
             ta_data = self.technical_analyzer.analyze_stock(row["ticker"])
@@ -171,7 +173,7 @@ class SocialScanner:
         logger.warning("Technical analysis data is empty or invalid.")
 
         if combined_df.empty:
-            logger.info("No stocks found or no technical data available")
+            logger.info(f"{Fore.YELLOW}No stocks found or no technical data available{Style.RESET_ALL}")
         return pd.DataFrame()
 
 

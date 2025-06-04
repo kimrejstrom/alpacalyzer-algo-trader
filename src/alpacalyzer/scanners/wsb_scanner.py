@@ -1,5 +1,7 @@
 import pandas as pd
 import requests
+from colorama import Fore, Style
+from tabulate import tabulate
 
 from alpacalyzer.utils.logger import logger
 
@@ -56,13 +58,25 @@ def main():
     df = scanner.get_trending_stocks()
 
     if not df.empty:
-        logger.info("\nTop Trending Stocks:")
+        logger.info(f"\n{Fore.MAGENTA}Top Trending Stocks from ApeWisdom:{Style.RESET_ALL}")
+
+        headers = [
+            f"{Fore.YELLOW}Ticker{Style.RESET_ALL}",
+            f"{Fore.YELLOW}Mentions{Style.RESET_ALL}",
+            f"{Fore.YELLOW}Rank{Style.RESET_ALL}"
+        ]
+
+        table_data = []
         for _, row in df.iterrows():
-            logger.info(f"\n{row['ticker']}:")
-            logger.info(f"Mentions: {row['mentions']}")
-            logger.info(f"Rank: {row['rank']}")
+            table_data.append([
+                f"{Fore.CYAN}{row['ticker']}{Style.RESET_ALL}",
+                f"{Fore.GREEN}{row['mentions']}{Style.RESET_ALL}",
+                f"{Fore.BLUE}{row['rank']}{Style.RESET_ALL}"
+            ])
+
+        logger.info(tabulate(table_data, headers=headers, tablefmt="psql"))
     else:
-        logger.info("No trending stocks found")
+        logger.info(f"{Fore.YELLOW}No trending stocks found from ApeWisdom.{Style.RESET_ALL}")
 
 
 if __name__ == "__main__":

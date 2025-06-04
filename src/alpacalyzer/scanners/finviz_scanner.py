@@ -1,5 +1,7 @@
 import pandas as pd
 from finviz.screener import Screener
+from colorama import Fore, Style
+from tabulate import tabulate
 
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import logger
@@ -182,7 +184,19 @@ class FinvizScanner:
 def main():
     scanner = FinvizScanner()
     stocks = scanner.get_trending_stocks()
-    logger.info(stocks)
+    if not stocks.empty:
+        # Colorize headers
+        colored_headers = [f"{Fore.YELLOW}{header}{Style.RESET_ALL}" for header in stocks.columns]
+        # Create a new DataFrame with colored headers for tabulate, as tabulate itself doesn't directly color headers easily
+        # Alternatively, pass colored header list directly to tabulate if supported by the version/format
+
+        # Simpler approach: just log the tabulated output. Coloring individual cells or complex header coloring
+        # can be tricky as logger.info expects a string.
+        # We can color the entire table string if desired, or just present it cleanly.
+        table_str = tabulate(stocks, headers="keys", tablefmt="psql", showindex=False)
+        logger.info(f"\n{Fore.GREEN}Trending Stocks from Finviz:{Style.RESET_ALL}\n{table_str}")
+    else:
+        logger.info(f"{Fore.YELLOW}No trending stocks found from Finviz.{Style.RESET_ALL}")
 
 
 if __name__ == "__main__":
