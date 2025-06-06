@@ -84,6 +84,23 @@ Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
 
 
 @timed_lru_cache(seconds=60, maxsize=128)
+def get_market_close_time() -> datetime | None:
+    """
+    Fetches the market next closing time.
+
+    Returns:
+        datetime | None: The market next close time (UTC), or None if an error occurs.
+    """
+    try:
+        clock = trading_client.get_clock()
+        clock_instance = cast(Clock, clock)
+        return clock_instance.next_close.replace(tzinfo=UTC)
+    except Exception as e:
+        logger.error(f"Error fetching market clock for close time: {str(e)}", exc_info=True)
+        return None
+
+
+@timed_lru_cache(seconds=60, maxsize=128)
 def get_market_status() -> str:
     """
     Determine the current market session: open, pre-market, after-hours, or closed.

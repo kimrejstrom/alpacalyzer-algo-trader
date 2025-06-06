@@ -314,6 +314,73 @@ class Trader:
         except Exception as e:
             logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 
+    def liquidate_all_positions_and_cancel_orders(self):
+        """Liquidates all open positions and cancels all open orders."""
+        self.logger.info("Initiating end-of-day liquidation...")
+
+        if self.analyze_mode:
+            self.logger.info("Analyze mode: Simulating liquidation and order cancellation.")
+
+        # Liquidate Positions
+        self.logger.info("--- Starting Position Liquidation ---")
+        try:
+            positions = get_positions()  # Uses the imported get_positions
+            if not positions:
+                self.logger.info("No open positions to liquidate.")
+            else:
+                for position in positions:
+                    position = cast(Position, position)
+                    self.logger.info(
+                        f"Attempting to close position in {position.symbol} ({position.qty} shares)..."
+                    )
+                    if self.analyze_mode:
+                        self.logger.info(f"SIMULATE: Close position in {position.symbol}.")
+                    else:
+                        try:
+                            order_resp = trading_client.close_position(position.symbol)
+                            order = cast(Order, order_resp)
+                            self.logger.info(
+                                f"Successfully submitted market order to close position in {position.symbol}. Order ID: {order.id}"
+                            )
+                            # log_order(order) # Optional: for more detailed logging
+                        except Exception as e:
+                            self.logger.error(
+                                f"Failed to close position in {position.symbol}: {str(e)}", exc_info=True
+                            )
+        except Exception as e:
+            self.logger.error(f"Error fetching positions for liquidation: {str(e)}", exc_info=True)
+        self.logger.info("--- Position Liquidation Complete ---")
+
+        # Cancel Open Orders
+        self.logger.info("--- Starting Order Cancellation ---")
+        try:
+            # Fetch all open orders
+            open_orders_resp = trading_client.get_orders(GetOrdersRequest(status="open"))
+            open_orders = cast(list[Order], open_orders_resp)
+
+            if not open_orders:
+                self.logger.info("No open orders to cancel.")
+            else:
+                for order in open_orders:
+                    self.logger.info(
+                        f"Attempting to cancel order ID {order.id} for {order.symbol} ({order.qty} shares)..."
+                    )
+                    if self.analyze_mode:
+                        self.logger.info(f"SIMULATE: Cancel order ID {order.id}.")
+                    else:
+                        try:
+                            trading_client.cancel_order_by_id(order.id)
+                            self.logger.info(f"Successfully canceled order ID {order.id}.")
+                        except Exception as e:
+                            self.logger.error(
+                                f"Failed to cancel order ID {order.id}: {str(e)}", exc_info=True
+                            )
+        except Exception as e:
+            self.logger.error(f"Error fetching open orders for cancellation: {str(e)}", exc_info=True)
+        self.logger.info("--- Order Cancellation Complete ---")
+
+        self.logger.info("End-of-day liquidation process complete.")
+
 
 def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -> bool:
     try:

@@ -4,8 +4,12 @@ import threading
 import time
 
 import schedule
+from typing import cast
+from datetime import timedelta, datetime, UTC
 
-from alpacalyzer.trading.alpaca_client import consume_trade_updates
+from alpacalyzer.trading.alpaca_client import consume_trade_updates, trading_client
+from alpaca.trading.models import Calendar
+from alpaca.trading.requests import GetCalendarRequest
 from alpacalyzer.trading.trader import Trader
 from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.scheduler import start_scheduler
@@ -69,6 +73,45 @@ def main():  # pragma: no cover
             schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
         else:
             logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
+
+        # Schedule end-of-day liquidation
+        logger.info("Attempting to schedule end-of-day liquidation task...")
+        market_close_time_for_today_utc = None
+        is_trading_day = False
+        try:
+            today_date = datetime.now(UTC).date()
+            trading_days_resp = trading_client.get_calendar(GetCalendarRequest(start=today_date, end=today_date))
+            trading_days = cast(list[Calendar], trading_days_resp)
+            if trading_days:
+                is_trading_day = True
+                market_close_time_for_today_utc = trading_days[0].close.replace(tzinfo=UTC)
+                logger.info(f"Today ({today_date}) is a trading day. Market close: {market_close_time_for_today_utc.strftime('%H:%M:%S %Z')}.")
+            else:
+                logger.info(f"Today ({today_date}) is not a trading day.")
+        except Exception as e:
+            logger.error(f"Failed to fetch trading calendar for today's close time: {e}", exc_info=True)
+
+        if market_close_time_for_today_utc and is_trading_day:
+            liquidation_trigger_time = market_close_time_for_today_utc - timedelta(minutes=5)
+            formatted_trigger_time = liquidation_trigger_time.strftime("%H:%M")
+            now_utc = datetime.now(UTC)
+
+            if liquidation_trigger_time > now_utc:
+                schedule.every().day.at(formatted_trigger_time, "UTC").do(
+                    safe_execute, trader.liquidate_all_positions_and_cancel_orders
+                )
+                logger.info(
+                    f"Scheduled end-of-day liquidation at {formatted_trigger_time} UTC (5 minutes before market close)."
+                )
+            else:
+                logger.info(
+                    f"Liquidation trigger time {formatted_trigger_time} UTC for today has already passed. "
+                    "Liquidation will not be scheduled for today."
+                )
+        elif not is_trading_day:
+            logger.info("Liquidation task not scheduled because today is not a trading day.")
+        else:
+            logger.error("Could not retrieve market close time for today. Liquidation task not scheduled.")
 
         if args.stream:
             logger.info("Websocket Streaming Enabled")
