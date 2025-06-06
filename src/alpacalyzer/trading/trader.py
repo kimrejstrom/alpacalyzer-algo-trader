@@ -276,6 +276,9 @@ class Trader:
                     order = cast(Order, order_resp)
                     log_order(order)
 
+                    # Analytics log for new order
+                    logger.analyze(f"ACTION: {bracket_order.side} {strategy.ticker} Qty: {strategy.quantity} @ {limit_price}. Strategy: {strategy.trade_type}, Entry: {strategy.entry_point}, Target: {strategy.target_price}, Stop: {strategy.stop_loss}")
+
                     # Mark strategy as executed
                     executed_tickers.append(strategy.ticker)
 
@@ -311,6 +314,10 @@ class Trader:
                     order_resp = trading_client.close_position(position.symbol)
                     order = cast(Order, order_resp)
                     log_order(order)
+
+                    # Analytics log for position closure
+                    close_action_desc = "CLOSE LONG" if position.side == "long" else "CLOSE SHORT" # Or simply use position.side.upper() as per prompt.
+                    logger.analyze(f"ACTION: {close_action_desc} {position.symbol} Qty: {position.qty}. Position closed based on exit conditions.")
         except Exception as e:
             logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 

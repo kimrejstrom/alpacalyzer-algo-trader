@@ -49,3 +49,30 @@ console_handler.addFilter(NoTracebackConsoleFilter())
 # Add handlers to the logger
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
+
+# --- Analytics Logger Setup ---
+analytics_logger = logging.getLogger('analytics_logger')
+analytics_logger.setLevel(logging.DEBUG)  # Or your desired level for analytics
+
+# Configure TimedRotatingFileHandler for analytics_logger
+analytics_file_handler = TimedRotatingFileHandler(
+    "analytics_log.txt", when="midnight", interval=1, backupCount=7
+)
+analytics_file_handler.setLevel(logging.DEBUG) # Or your desired level
+
+# Set formatter for the analytics file handler
+analytics_formatter = logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)")
+analytics_file_handler.setFormatter(analytics_formatter)
+
+# Add handler to the analytics_logger
+analytics_logger.addHandler(analytics_file_handler)
+
+# Prevent propagation between loggers
+logger.propagate = False
+analytics_logger.propagate = False
+
+# Define the analyze function for the main logger
+def analyze(message, *args, **kwargs):
+    analytics_logger.info(message, *args, **kwargs)
+
+logger.analyze = analyze
