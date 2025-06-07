@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
 
@@ -229,6 +230,7 @@ class TradingStrategy(BaseModel):
     strategy_notes: str
     trade_type: str  # "long" or "short"
     entry_criteria: list[EntryCriteria]
+    cooldown_until: datetime | None = None
 
 
 class TradingStrategyResponse(BaseModel):

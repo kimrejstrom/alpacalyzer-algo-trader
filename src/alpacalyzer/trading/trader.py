@@ -1,5 +1,6 @@
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Literal, cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -22,8 +23,9 @@ from alpacalyzer.utils.logger import logger
 
 
 class Trader:
-    def __init__(self, analyze_mode=False, direct_tickers=None, agents="ALL"):
+    def __init__(self, analyze_mode=False, direct_tickers=None, agents="ALL", cooldown_hours: float = 1.0):
         """Initialize the Trader instance."""
+        self.cooldown_period = timedelta(hours=cooldown_hours)
         self.technical_analyzer = TechnicalAnalyzer()
         self.finviz_scanner = FinvizScanner()
         self.yfinance_client = YFinanceClient()
@@ -234,7 +236,7 @@ class Trader:
                 )
 
                 # Check if entry conditions are met
-                if check_entry_conditions(strategy, signals):
+                if check_entry_conditions(strategy, signals, strategy.cooldown_until):
                     asset_response = trading_client.get_asset(strategy.ticker)
                     asset = cast(Asset, asset_response)
 
@@ -311,12 +313,21 @@ class Trader:
                     order_resp = trading_client.close_position(position.symbol)
                     order = cast(Order, order_resp)
                     log_order(order)
+                    # Set cooldown period for the ticker
+                    for strat in self.latest_strategies:
+                        if strat.ticker == position.symbol:
+                            strat.cooldown_until = datetime.now() + self.cooldown_period
+                            logger.info(f"Cooldown period set for {strat.ticker} until {strat.cooldown_until}")
+                            break
         except Exception as e:
             logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 
 
-def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -> bool:
+def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals, cooldown_until: datetime | None = None) -> bool:
     try:
+        if cooldown_until and datetime.now() < cooldown_until:
+            logger.info(f"Ticker {strategy.ticker} is in cooldown until {cooldown_until}. Entry blocked.")
+            return False
         latest_daily = signals["raw_data_daily"].iloc[-2]
         latest_intraday = signals["raw_data_intraday"].iloc[-2]
         price = signals["price"]
