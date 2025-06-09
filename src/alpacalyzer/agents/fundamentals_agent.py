@@ -4,6 +4,7 @@ from langchain_core.messages import HumanMessage
 
 from alpacalyzer.data.api import get_financial_metrics
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
+from alpacalyzer.utils.logger import logger
 from alpacalyzer.utils.progress import progress
 
 
@@ -34,6 +35,7 @@ def fundamentals_agent(state: AgentState):
 
         # Pull the most recent financial metrics
         metrics = financial_metrics[0]
+        logger.debug(f"Metrics for {ticker}: {metrics}")
 
         # Initialize signals list for different fundamental aspects
         signals = []

@@ -78,7 +78,7 @@ def technical_analyst_agent(state: AgentState):
         # Generate detailed analysis report for this ticker
         technical_analysis[ticker] = {
             "signal": combined_signal["signal"],
-            "confidence": round(combined_signal["confidence"] * 100),
+            "confidence": round(float(combined_signal["confidence"] or 0.5) * 100),
             "reasoning": f"Trend signal: {trend_signals['signal']}\n"
             f"Mean reversion signal: {mean_reversion_signals['signal']}\n"
             f"Momentum signal: {momentum_signals['signal']}\n"
@@ -87,7 +87,7 @@ def technical_analyst_agent(state: AgentState):
             "strategy_signals": {
                 "trend_following": {
                     "signal": trend_signals["signal"],
-                    "confidence": round(trend_signals["confidence"] * 100),
+                    "confidence": round(float(trend_signals["confidence"] or 0.5) * 100),
                     "metrics": normalize_pandas(trend_signals["metrics"]),
                 },
                 "mean_reversion": {

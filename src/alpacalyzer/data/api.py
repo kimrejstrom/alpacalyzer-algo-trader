@@ -525,6 +525,8 @@ def get_company_news(ticker: str, end_date: str, start_date: str | None = None, 
         for news in news_data:
             # Get the timestamp and convert to date
             timestamp = news.get("providerPublishTime", 0)
+            logger.debug(f"Raw providerPublishTime value: {timestamp} (type: {type(timestamp)})")
+
             news_date = datetime.fromtimestamp(timestamp)
             date_str = news_date.strftime("%Y-%m-%d")
 

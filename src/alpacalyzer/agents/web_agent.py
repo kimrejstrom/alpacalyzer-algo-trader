@@ -93,6 +93,7 @@ def get_web_analysis(
         - Show where the setup might fail, so the user understands downside risks.
         3. **Stay Consistent**
         - Use the same structure for each ticker, making it easy for users to compare.
+        4. **DO NOT INCLUDE LINKS IN RESPONSE**
         """,
     }
 
