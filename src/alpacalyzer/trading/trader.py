@@ -276,11 +276,13 @@ class Trader:
                     order = cast(Order, order_resp)
                     log_order(order)
 
-                    # Analytics log for new order
-                    logger.analyze(f"ACTION: {bracket_order.side} {strategy.ticker} Qty: {strategy.quantity} @ {limit_price}. Strategy: {strategy.trade_type}, Entry: {strategy.entry_point}, Target: {strategy.target_price}, Stop: {strategy.stop_loss}")
-
                     # Mark strategy as executed
                     executed_tickers.append(strategy.ticker)
+                    logger.analyze(
+                        f"Ticker: {strategy.ticker}, Trade Type: {strategy.trade_type}, Quantity: {strategy.quantity}, "
+                        f"Entry Point: {strategy.entry_point}, Target Price: {strategy.target_price}, "
+                        f"Risk/Reward Ratio: {strategy.risk_reward_ratio}, Notes: {strategy.strategy_notes}"
+                    )
 
             # Remove all strategies for executed tickers
             self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]
@@ -314,10 +316,6 @@ class Trader:
                     order_resp = trading_client.close_position(position.symbol)
                     order = cast(Order, order_resp)
                     log_order(order)
-
-                    # Analytics log for position closure
-                    close_action_desc = "CLOSE LONG" if position.side == "long" else "CLOSE SHORT" # Or simply use position.side.upper() as per prompt.
-                    logger.analyze(f"ACTION: {close_action_desc} {position.symbol} Qty: {position.qty}. Position closed based on exit conditions.")
         except Exception as e:
             logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 
@@ -425,6 +423,10 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
             logger.info(f"LOSS: {unrealized_plpc:.1%} P&L loss on trade")
         else:
             logger.info(f"WIN: {unrealized_plpc:.1%} P&L gain on trade")
+        logger.analyze(
+            f"Ticker: {position.symbol}, Exit Reason: {reason_str}, "
+            f"Unrealized P/L: {unrealized_plpc:.1%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"
+        )
         return True
 
     return False
