@@ -178,7 +178,15 @@ class Trader:
                 logger.info("No opportunities available.")
                 return
 
-            hedge_fund_response = call_hedge_fund_agents(self.opportunities, self.agents, show_reasoning=True)
+            positions = get_positions()
+            filtered_opportunities = [
+                opp for opp in self.opportunities if opp.ticker not in [p.symbol for p in positions]
+            ]
+            if not filtered_opportunities:
+                logger.info("No new opportunities available to trade.")
+                return
+
+            hedge_fund_response = call_hedge_fund_agents(filtered_opportunities, self.agents, show_reasoning=True)
             print_trading_output(hedge_fund_response)
 
             if not hedge_fund_response["decisions"] or hedge_fund_response["decisions"] is None:
@@ -388,6 +396,7 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
     ticker_signals = signals["signals"]
     momentum = signals["momentum"]
     score = signals["score"]
+    is_long = position.side == "long"  # Check if this is a long position
 
     # Close if any of these conditions are met:
     exit_signals = []
@@ -398,15 +407,32 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
         exit_signals.append(f"Stop loss hit: {unrealized_plpc:.1%} P&L")
 
     # 2. Quick Momentum Shifts - Only exit if significant drop
-    if momentum < -5 and unrealized_plpc > 0:  # Need profit to use quick exit
-        if unrealized_plpc > 0.05:  # Need 5% profit to use quick exit
-            exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{unrealized_plpc:.1%}% up")
+    if is_long:
+        if momentum < -5 and unrealized_plpc > 0:  # Need profit to use quick exit
+            if unrealized_plpc > 0.05:  # Need 5% profit to use quick exit
+                exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{unrealized_plpc:.1%}% up")
+    else:
+        # For shorts: exit if momentum is strongly positive
+        if momentum > 5 and unrealized_plpc > 0:  # Need profit to use quick exit
+            if unrealized_plpc > 0.05:  # Need 5% profit to use quick exit
+                exit_signals.append(
+                    f"Momentum reversal: {momentum:.1f}% rise against short position +{unrealized_plpc:.1%}% up"
+                )
 
     # 3. Technical Weakness
-    if score < 0.6:  # Weak technical score
-        weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.SELL)
-        if weak_tech_signals is not None:
-            exit_signals.append(weak_tech_signals)
+    if is_long:
+        if score < 0.6:  # Weak technical score
+            weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.BUY)
+            if weak_tech_signals is not None:
+                exit_signals.append(weak_tech_signals)
+    else:
+        # For shorts: weak technicals means bullish signals (bad for shorts)
+        if score > 0.7:  # Strong bullish score is bad for shorts
+            weak_tech_signals = TechnicalAnalyzer().weak_technicals(
+                ticker_signals, OrderSide.SELL
+            )  # Check for bullish signals
+            if weak_tech_signals is not None:
+                exit_signals.append(weak_tech_signals)
 
     # Check if any exit signals triggered
     if exit_signals:

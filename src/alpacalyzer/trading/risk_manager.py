@@ -78,12 +78,25 @@ def risk_management_agent(state: AgentState):
         # Account for margin requirements for short positions
         short_margin_requirement = 0.5  # 50% is typical for initial margin
 
-        # Calculate buying power adjustments for shorts
-        adjusted_buying_power = float(account["buying_power"])
+        # Get both regular and day trading buying power
+        regular_buying_power = float(account["buying_power"])
+        day_trading_buying_power = float(account.get("daytrading_buying_power", regular_buying_power))
+
+        # Use day trading buying power for short positions with a safety factor
+        safety_factor = 0.9  # Use 90% of available buying power to account for price movements
+
         if remaining_position_limit > 0:  # Only if we have remaining limit
             if "trade_type" in data.get(ticker, {}) and data[ticker]["trade_type"] == "short":
-                # Adjust buying power for short positions
-                adjusted_buying_power /= short_margin_requirement
+                # For short positions:
+                # 1. Use day trading buying power instead of regular buying power
+                # 2. Apply margin requirement as a restricting factor (multiply, not divide)
+                # 3. Apply safety factor
+                adjusted_buying_power = day_trading_buying_power * short_margin_requirement * safety_factor
+            else:
+                # For long positions, use regular buying power with safety factor
+                adjusted_buying_power = regular_buying_power * safety_factor
+        else:
+            adjusted_buying_power = 0  # No buying power if position limit exceeded
 
         # Ensure we don't exceed available cash or position limits
         max_position_size = min(remaining_position_limit, adjusted_buying_power)
@@ -101,6 +114,9 @@ def risk_management_agent(state: AgentState):
                 "position_limit": float(position_limit),
                 "remaining_limit": float(remaining_position_limit),
                 "available_cash": float(account["buying_power"]),
+                "day_trading_buying_power": float(account.get("daytrading_buying_power", 0)),
+                "adjusted_buying_power": float(adjusted_buying_power),
+                "trade_type": data.get(ticker, {}).get("trade_type", "long"),
             },
         }
 

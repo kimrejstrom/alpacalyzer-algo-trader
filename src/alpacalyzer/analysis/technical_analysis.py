@@ -439,7 +439,7 @@ class TechnicalAnalyzer:
         weak_tech_signals = [signal for signal in signals if any(key in signal for key in weak_signal_checks)]
 
         if weak_tech_signals:
-            return f"Weak technicals: {', '.join(weak_tech_signals)}"
+            return f"Unfavorable technicals: {', '.join(weak_tech_signals)}"
         return None
 
     def calculate_ta_threshold(self, vix_close, rel_vol, atr_pct):
