@@ -95,4 +95,8 @@ def setup_logger():
 
 
 # Initialize the logger
-logger = setup_logger()
+_current_logger = setup_logger()
+
+
+def get_logger():
+    return _current_logger

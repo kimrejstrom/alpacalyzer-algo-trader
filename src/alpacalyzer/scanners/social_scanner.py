@@ -4,7 +4,9 @@ from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.stocktwits_scanner import StocktwitsScanner
 from alpacalyzer.scanners.wsb_scanner import WSBScanner
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class SocialScanner:

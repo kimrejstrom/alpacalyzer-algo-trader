@@ -3,7 +3,9 @@ from pandas import DataFrame
 from alpacalyzer.data.models import TopTicker, TopTickersResponse
 from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.scanners.reddit_scanner import fetch_reddit_posts, fetch_user_posts
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 def get_reddit_insights() -> TopTickersResponse | None:

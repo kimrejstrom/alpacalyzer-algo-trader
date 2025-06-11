@@ -16,7 +16,9 @@ from alpaca.trading.stream import TradingStream
 from dotenv import load_dotenv
 
 from alpacalyzer.utils.cache_utils import timed_lru_cache
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 # Load environment variables
 load_dotenv()

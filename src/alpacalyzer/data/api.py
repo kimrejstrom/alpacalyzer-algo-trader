@@ -13,7 +13,9 @@ from alpacalyzer.data.models import (
     LineItem,
     Price,
 )
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 # Global cache instance
 _cache = get_cache()

@@ -7,8 +7,10 @@ import schedule
 
 from alpacalyzer.trading.alpaca_client import consume_trade_updates
 from alpacalyzer.trading.trader import Trader
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.scheduler import start_scheduler
+
+logger = get_logger()
 
 
 def main():  # pragma: no cover

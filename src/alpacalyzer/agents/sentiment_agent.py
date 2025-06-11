@@ -10,8 +10,10 @@ from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.trading.yfinance_client import YFinanceClient
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
+
+logger = get_logger()
 
 
 ##### Technical Analyst #####

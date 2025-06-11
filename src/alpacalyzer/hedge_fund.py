@@ -13,8 +13,11 @@ from alpacalyzer.graph.state import AgentState
 from alpacalyzer.trading.portfolio_manager import portfolio_management_agent
 from alpacalyzer.trading.risk_manager import risk_management_agent
 from alpacalyzer.trading.trading_strategist import trading_strategist_agent
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
+
+# Initialize logger
+logger = get_logger()
 
 # Load environment variables from .env file
 load_dotenv()

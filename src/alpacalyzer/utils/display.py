@@ -6,7 +6,9 @@ from tabulate import tabulate
 
 from alpacalyzer.agents.agents import ANALYST_ORDER
 from alpacalyzer.data.models import TradingStrategy
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 def sort_agent_signals(signals):

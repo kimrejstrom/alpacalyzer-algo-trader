@@ -18,7 +18,9 @@ from alpacalyzer.trading.opportunity_finder import (
 )
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.display import print_strategy_output, print_trading_output
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class Trader:
