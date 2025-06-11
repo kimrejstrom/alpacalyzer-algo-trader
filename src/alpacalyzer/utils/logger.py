@@ -77,7 +77,19 @@ def setup_logger():
     )
     analytics_handler.setLevel(logging.DEBUG)
     analytics_handler.setFormatter(logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)"))
-    logger.setup_analytics_handler(analytics_handler)
+
+    # Explicitly set the analytics logger level
+    logger._analytics_logger.setLevel(logging.DEBUG)
+
+    # Clear any existing handlers from analytics logger
+    for h in logger._analytics_logger.handlers[:]:
+        logger._analytics_logger.removeHandler(h)
+
+    # Add the handler directly
+    logger._analytics_logger.addHandler(analytics_handler)
+
+    # Force flush on first message
+    logger.analyze("ANALYTICS LOGGER INITIALIZED")
 
     return logger
 

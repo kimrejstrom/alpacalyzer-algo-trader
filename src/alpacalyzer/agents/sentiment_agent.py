@@ -29,28 +29,6 @@ def sentiment_agent(state: AgentState):
 
     # Get Ownership data
     ownership_df = FinvizScanner().get_ownership_stocks(tickers=tickers)
-    logger.debug(f"Ownership data:\n{ownership_df}")
-    # ownership_df = pd.DataFrame(
-    #     [
-    #         {
-    #             "No.": 1,
-    #             "Ticker": "TSLA",
-    #             "Market Cap": "923.66B",
-    #             "Outstanding": "3.22B",
-    #             "Float": "2.80B",
-    #             "Insider Own": "12.90%",
-    #             "Insider Trans": "-0.26%",
-    #             "Inst Own": "48.36%",
-    #             "Inst Trans": "4.15%",
-    #             "Short Float": "2.90%",
-    #             "Short Ratio": "0.68",
-    #             "Avg Volume": "118.73M",
-    #             "Price": 287.16,
-    #             "Change": "2.37%",
-    #             "Volume": "108,300,160",
-    #         }
-    #     ]
-    # )
 
     for ticker in tickers:
         progress.update_status("sentiment_agent", ticker, "Analyzing sentiment of news data")
