@@ -18,7 +18,9 @@ from alpacalyzer.trading.opportunity_finder import (
 )
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.display import print_strategy_output, print_trading_output
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class Trader:
@@ -286,6 +288,11 @@ class Trader:
 
                     # Mark strategy as executed
                     executed_tickers.append(strategy.ticker)
+                    logger.analyze(
+                        f"Ticker: {strategy.ticker}, Trade Type: {strategy.trade_type}, Quantity: {strategy.quantity}, "
+                        f"Entry Point: {strategy.entry_point}, Target Price: {strategy.target_price}, "
+                        f"Risk/Reward Ratio: {strategy.risk_reward_ratio}, Notes: {strategy.strategy_notes}"
+                    )
 
             # Remove all strategies for executed tickers
             self.latest_strategies = [s for s in self.latest_strategies if s.ticker not in executed_tickers]
@@ -444,6 +451,10 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
             logger.info(f"LOSS: {unrealized_plpc:.1%} P&L loss on trade")
         else:
             logger.info(f"WIN: {unrealized_plpc:.1%} P&L gain on trade")
+        logger.analyze(
+            f"Ticker: {position.symbol}, Exit Reason: {reason_str}, "
+            f"Unrealized P/L: {unrealized_plpc:.1%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"
+        )
         return True
 
     return False

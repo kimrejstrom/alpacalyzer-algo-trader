@@ -33,7 +33,9 @@ Use case: record every step of your bot to both console and a daily‐rotated lo
 Example usage:
 
 ```python
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 logger.info("Starting trading cycle")
 logger.debug(f"Found opportunities: {tickers}")

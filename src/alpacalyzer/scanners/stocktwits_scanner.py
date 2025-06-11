@@ -3,7 +3,9 @@ import pandas as pd
 import requests
 
 from alpacalyzer.utils.cache_utils import timed_lru_cache
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class StocktwitsScanner:

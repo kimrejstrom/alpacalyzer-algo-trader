@@ -1,51 +1,102 @@
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
+from typing import cast
 
-from dotenv import load_dotenv
+# Configuration
+LOGS_DIR = os.path.join(os.getcwd(), "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
 
-load_dotenv()
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Set the log level to INFO by default
-
-# Validate and map log level
-valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-if log_level not in valid_levels:
-    raise ValueError(f"Invalid log level: {log_level}. Must be one of {valid_levels}")
+# Set log level from environment or default to INFO
+log_level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO"))
 
 
-# Custom filter to **suppress stack traces in the console handler**
 class NoTracebackConsoleFilter(logging.Filter):
     def filter(self, record):
-        # Remove exception info (traceback) from the console log
         record.exc_info = None
         record.exc_text = None
         return True
 
 
-# Create a logger
-logger = logging.getLogger(__name__)
-logger.setLevel(getattr(logging, log_level))  # Set minimum logging level
+class CustomLogger(logging.Logger):
+    """Custom logger with analytics capabilities"""
+
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+
+        # Create analytics logger as regular Logger to prevent recursion
+        orig_logger_class = logging.getLoggerClass()
+        logging.setLoggerClass(logging.Logger)
+        self._analytics_logger = logging.getLogger(f"{name}.analytics")
+        logging.setLoggerClass(orig_logger_class)
+
+        self._analytics_logger.propagate = False
+
+    def analyze(self, msg, *args, **kwargs):
+        """Log to analytics log only"""
+        self._analytics_logger.debug(msg, *args, **kwargs)
+
+    def setup_analytics_handler(self, handler):
+        """Add a handler specifically for analytics logger"""
+        self._analytics_logger.addHandler(handler)
 
 
-# Create handlers
-file_handler = TimedRotatingFileHandler(
-    "trading_logs.log", when="midnight", interval=1, backupCount=7
-)  # Rotate daily, keep 7 backups
-console_handler = logging.StreamHandler()  # Logs to console (stdout)
+# Set up the logger factory
+logging.setLoggerClass(CustomLogger)
 
-# Set levels for each handler
-file_handler.setLevel(getattr(logging, "DEBUG"))  # Log all messages to file
-console_handler.setLevel(getattr(logging, "INFO"))  # Log INFO and above to console
 
-# Create a formatter and set it for both handlers
-file_formatter = logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)")
-console_formatter = logging.Formatter("%(message)s")
-file_handler.setFormatter(file_formatter)
-console_handler.setFormatter(console_formatter)
+# Create a function to initialize the logger - this makes it easier to test
+def setup_logger():
+    # Main logger
+    logger = cast(CustomLogger, logging.getLogger("app"))
+    logger.setLevel(log_level)
+    logger.propagate = False
 
-# Apply the filter to the console handler
-console_handler.addFilter(NoTracebackConsoleFilter())
+    # Remove existing handlers if any
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
 
-# Add handlers to the logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+    # File handler
+    file_handler = TimedRotatingFileHandler(
+        os.path.join(LOGS_DIR, "trading_logs.log"), when="midnight", interval=1, backupCount=7
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)"))
+    logger.addHandler(file_handler)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
+    console_handler.addFilter(NoTracebackConsoleFilter())
+    logger.addHandler(console_handler)
+
+    # Analytics handler
+    analytics_handler = TimedRotatingFileHandler(
+        os.path.join(LOGS_DIR, "analytics_log.log"), when="midnight", interval=1, backupCount=7
+    )
+    analytics_handler.setLevel(logging.DEBUG)
+    analytics_handler.setFormatter(logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)"))
+
+    # Explicitly set the analytics logger level
+    logger._analytics_logger.setLevel(logging.DEBUG)
+
+    # Clear any existing handlers from analytics logger
+    for h in logger._analytics_logger.handlers[:]:
+        logger._analytics_logger.removeHandler(h)
+
+    # Add the handler directly
+    logger._analytics_logger.addHandler(analytics_handler)
+
+    # Force flush on first message
+    logger.analyze("ANALYTICS LOGGER INITIALIZED")
+
+    return logger
+
+
+# Initialize the logger
+_current_logger = setup_logger()
+
+
+def get_logger():
+    return _current_logger

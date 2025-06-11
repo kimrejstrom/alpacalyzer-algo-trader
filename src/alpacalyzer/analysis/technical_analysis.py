@@ -11,7 +11,9 @@ from alpaca.trading.enums import OrderSide
 
 from alpacalyzer.trading.alpaca_client import get_market_status, history_client
 from alpacalyzer.utils.cache_utils import timed_lru_cache
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class TradingSignals(TypedDict):

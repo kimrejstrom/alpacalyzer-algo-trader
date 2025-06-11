@@ -6,7 +6,9 @@ from typing import Annotated, Any
 from langchain_core.messages import BaseMessage
 from typing_extensions import TypedDict
 
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 def merge_dicts(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:

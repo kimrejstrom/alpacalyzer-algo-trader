@@ -1,7 +1,9 @@
 import pandas as pd
 import requests
 
-from alpacalyzer.utils.logger import logger
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class WSBScanner:
