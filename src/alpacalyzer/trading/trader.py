@@ -311,7 +311,8 @@ class Trader:
                 logger.info(
                     f"\nChecking exit conditions for {position.symbol} (Current price: {position.current_price}):\n"
                     f"Type: {position.side}, Entry: {position.avg_entry_price}, "
-                    f"Unrealized P/L: {position.unrealized_plpc}, Market value: ${position.market_value}, "
+                    f"Unrealized P/L:  {float(position.unrealized_plpc or 0.0):.2%}, "
+                    f"Market value: ${position.market_value}"
                 )
                 # Check if exit conditions are met
                 if check_exit_conditions(position, signals):
@@ -448,12 +449,12 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
         logger.info(f"\nSELL {position.symbol} due to: {reason_str}")
         logger.debug(f"Position details: {position}")
         if unrealized_plpc < 0:
-            logger.info(f"LOSS: {unrealized_plpc:.1%} P&L loss on trade")
+            logger.info(f"LOSS: {unrealized_plpc:.2%} P&L loss on trade")
         else:
-            logger.info(f"WIN: {unrealized_plpc:.1%} P&L gain on trade")
+            logger.info(f"WIN: {unrealized_plpc:.2%} P&L gain on trade")
         logger.analyze(
             f"Ticker: {position.symbol}, Exit Reason: {reason_str}, "
-            f"Unrealized P/L: {unrealized_plpc:.1%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"
+            f"P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"
         )
         return True
 

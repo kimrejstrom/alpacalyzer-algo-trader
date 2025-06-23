@@ -1,6 +1,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 from typing import cast
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from alpaca.data.enums import Adjustment
@@ -34,7 +35,12 @@ trading_stream = TradingStream(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
 
 
 # Expose trading_client for import
-__all__ = ["trading_client", "history_client"]
+__all__ = [
+    "trading_client",
+    "history_client",
+    "get_market_close_time",
+    "liquidate_all_positions",
+]
 
 
 def log_order(order: Order) -> None:
@@ -249,6 +255,45 @@ def get_positions() -> list[Position]:
     except Exception as e:
         logger.error(f"Error fetching positions: {str(e)}", exc_info=True)
         return []
+
+
+def get_market_close_time() -> datetime | None:
+    """
+    Fetches the market close time for the current day.
+
+    Returns:
+        Optional[datetime]: The market close time as a timezone-aware datetime object,
+                            or None if the current day is not a trading day.
+    """
+    today = datetime.now(UTC).date()
+    calendar_request = GetCalendarRequest(start=today, end=today)
+
+    try:
+        calendars_response = trading_client.get_calendar(calendar_request)
+        calendars = cast(list[Calendar], calendars_response)
+        if calendars:
+            market_close_time_naive = calendars[0].close
+            # Alpaca returns market times in America/New_York timezone
+            market_close_time_et = market_close_time_naive.replace(tzinfo=ZoneInfo("America/New_York"))
+            # Convert to UTC
+            market_close_time_utc = market_close_time_et.astimezone(UTC)
+            logger.info(f"Market close time for {today} (UTC): {market_close_time_utc}")
+            return market_close_time_utc
+        logger.info(f"{today} is not a trading day.")
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching market calendar: {e}", exc_info=True)
+        return None
+
+
+def liquidate_all_positions() -> None:
+    """Liquidates all open positions and cancels any open orders."""
+    logger.info("Starting liquidation of all positions...")
+    try:
+        trading_client.close_all_positions(cancel_orders=True)
+        logger.info("Successfully liquidated all positions and canceled open orders.")
+    except Exception as e:
+        logger.error(f"An error occurred during liquidation: {e}", exc_info=True)
 
 
 def parse_strategy_from_client_order_id(client_order_id: str) -> str:

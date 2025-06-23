@@ -158,10 +158,12 @@ progress = AgentProgress()
 Here’s a minimal snippet showing all four modules in action:
 
 ```python
-from alpacalyzer.utils.logger    import logger
+from alpacalyzer.utils.logger    import get_logger
 from alpacalyzer.utils.progress  import progress
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.display   import print_trading_output
+
+logger = get_logger()
 
 logger.info("Bot starting")
 progress.start()

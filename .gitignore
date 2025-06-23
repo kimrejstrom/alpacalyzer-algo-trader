@@ -282,6 +282,9 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm+all,visualstudiocode
 
+# AI
+.kilocode/
+
 # Project specific
 position_times.txt
 *.log*

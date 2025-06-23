@@ -2,15 +2,30 @@ import argparse
 import os
 import threading
 import time
+from datetime import timedelta
 
 import schedule
 
-from alpacalyzer.trading.alpaca_client import consume_trade_updates
+from alpacalyzer.trading.alpaca_client import consume_trade_updates, get_market_close_time, liquidate_all_positions
 from alpacalyzer.trading.trader import Trader
 from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.scheduler import start_scheduler
 
 logger = get_logger()
+
+
+def schedule_daily_liquidation():
+    """Schedules a daily liquidation of all positions 5 minutes before market close."""
+    close_time = get_market_close_time()
+    if close_time:
+        # Convert market close time to local timezone
+        liquidation_time_utc = close_time - timedelta(minutes=5)
+        liquidation_time_local = liquidation_time_utc.astimezone()  # Convert to local timezone
+        liquidation_time_str = liquidation_time_local.strftime("%H:%M")
+        schedule.every().day.at(liquidation_time_str).do(liquidate_all_positions)
+        logger.info(f"Scheduled daily liquidation at {liquidation_time_str} local time")
+    else:
+        logger.info("Not a trading day, no liquidation scheduled.")
 
 
 def main():  # pragma: no cover
@@ -51,6 +66,9 @@ def main():  # pragma: no cover
             logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
 
         trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers, agents=args.agents)
+
+        # Schedule daily liquidation
+        safe_execute(schedule_daily_liquidation)
 
         if not direct_tickers:
             # Run insight scanner every 4 hours

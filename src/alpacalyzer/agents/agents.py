@@ -11,7 +11,6 @@ from alpacalyzer.agents.quant_agent import quant_agent
 from alpacalyzer.agents.sentiment_agent import sentiment_agent
 from alpacalyzer.agents.technicals_agent import technical_analyst_agent
 from alpacalyzer.agents.warren_buffet_agent import warren_buffett_agent
-from alpacalyzer.agents.web_agent import web_agent
 
 # Define analyst configuration - single source of truth
 ANALYST_CONFIG = {
@@ -60,11 +59,11 @@ ANALYST_CONFIG = {
         "agent_func": quant_agent,
         "order": 8,
     },
-    "web_agent": {
-        "display_name": "Web Agent",
-        "agent_func": web_agent,
-        "order": 9,
-    },
+    # "web_agent": {
+    #     "display_name": "Web Agent",
+    #     "agent_func": web_agent,
+    #     "order": 9,
+    # },
 }
 
 # Derive ANALYST_ORDER from ANALYST_CONFIG for backwards compatibility
