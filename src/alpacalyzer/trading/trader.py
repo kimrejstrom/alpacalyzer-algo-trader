@@ -25,7 +25,7 @@ logger = get_logger()
 
 
 class Trader:
-    def __init__(self, analyze_mode=False, direct_tickers=None, agents="ALL"):
+    def __init__(self, analyze_mode=False, direct_tickers=None, agents="ALL", ignore_market_status=False):
         """Initialize the Trader instance."""
         self.technical_analyzer = TechnicalAnalyzer()
         self.finviz_scanner = FinvizScanner()
@@ -39,9 +39,16 @@ class Trader:
         self.agents: Literal["ALL", "TRADE", "INVEST"] = agents
         self.recently_exited_tickers: dict[str, datetime] = {}
         self.cooldown_period = timedelta(hours=3)
+        self.ignore_market_status = ignore_market_status
+
+        if self.ignore_market_status:
+            self.is_market_open = True
+            logger.info("Market status checks are ignored.")
+        else:
+            self.is_market_open = self.market_status == "open"
 
     def scan_for_insight_opportunities(self):
-        if self.market_status == "closed":
+        if not self.is_market_open:
             logger.info(f"=== Reddit Scanner Paused - Market Status: {self.market_status} ===")
             return None
 
@@ -66,7 +73,7 @@ class Trader:
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
 
-        if self.market_status == "closed":
+        if not self.is_market_open:
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
             return
 
@@ -157,7 +164,7 @@ class Trader:
     def run_hedge_fund(self):
         """Hedge fund."""
 
-        if self.market_status == "closed":
+        if not self.is_market_open:
             logger.info(f"=== Hedge Fund Paused - Market Status: {self.market_status} ===")
             return
 
@@ -234,7 +241,7 @@ class Trader:
             logger.info("No active strategies to monitor.")
             return
 
-        if self.market_status == "closed":
+        if not self.is_market_open:
             logger.info(f"=== Trading Monitor Loop Paused - Market Status: {self.market_status} ===")
             return
 

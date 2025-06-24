@@ -100,13 +100,12 @@ def generate_trading_decision(
     portfolio: dict[str, float],
 ) -> PortfolioManagerOutput | None:
     """Attempts to get a decision from the LLM with retry logic"""
-    # Create the prompt template
-    # Define the static system message with trading instructions
     system_message = {
         "role": "system",
         "content": (
             "You are a portfolio manager making final trading decisions based on multiple tickers.\n\n"
             "Trading Rules:\n"
+            "- Only enter trades if there is high confidence in the signal and majority agreement among analysts\n"
             "- For long positions:\n"
             "  * Only buy if you have available cash\n"
             "  * Only sell if you currently hold long shares of that ticker\n"

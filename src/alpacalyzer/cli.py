@@ -46,12 +46,15 @@ def main():  # pragma: no cover
     """
 
     os.environ["TQDM_DISABLE"] = "1"
-    parser = argparse.ArgumentParser(description="Run the trading bot with optional swing trading mode.")
+    parser = argparse.ArgumentParser(description="Run the trading bot with options.")
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
     parser.add_argument("--analyze", action="store_true", help="Run in dry run mode (disables trading)")
     parser.add_argument("--tickers", type=str, help="Comma-separated list of tickers to analyze (e.g., AAPL,MSFT,GOOG)")
     parser.add_argument(
         "--agents", type=str, default="ALL", help="Comma-separated list of agents to use (e.g., ALL,TRADE,INVEST)"
+    )
+    parser.add_argument(
+        "--ignore-market-status", action="store_true", help="Ignore market status and trade at any time"
     )
     args = parser.parse_args()
 
@@ -65,7 +68,12 @@ def main():  # pragma: no cover
             direct_tickers = [ticker.strip().upper() for ticker in args.tickers.split(",")]
             logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
 
-        trader = Trader(analyze_mode=args.analyze, direct_tickers=direct_tickers, agents=args.agents)
+        trader = Trader(
+            analyze_mode=args.analyze,
+            direct_tickers=direct_tickers,
+            agents=args.agents,
+            ignore_market_status=args.ignore_market_status,
+        )
 
         # Schedule daily liquidation
         safe_execute(schedule_daily_liquidation)
