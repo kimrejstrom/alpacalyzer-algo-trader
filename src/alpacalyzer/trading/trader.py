@@ -1,5 +1,6 @@
 import time
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -36,6 +37,8 @@ class Trader:
         self.analyze_mode = analyze_mode
         self.direct_tickers = direct_tickers or []
         self.agents: Literal["ALL", "TRADE", "INVEST"] = agents
+        self.recently_exited_tickers: dict[str, datetime] = {}
+        self.cooldown_period = timedelta(hours=3)
 
     def scan_for_insight_opportunities(self):
         if self.market_status == "closed":
@@ -180,12 +183,25 @@ class Trader:
                 logger.info("No opportunities available.")
                 return
 
+            # Remove tickers from cooldown if the period has passed
+            now = datetime.now(UTC)
+            for ticker, exit_time in list(self.recently_exited_tickers.items()):
+                if now > exit_time + self.cooldown_period:
+                    logger.info(f"Ticker {ticker} cooldown finished.")
+                    del self.recently_exited_tickers[ticker]
+
             positions = get_positions()
+            active_tickers = [p.symbol for p in positions]
+            cooldown_tickers = list(self.recently_exited_tickers.keys())
+
             filtered_opportunities = [
-                opp for opp in self.opportunities if opp.ticker not in [p.symbol for p in positions]
+                opp
+                for opp in self.opportunities
+                if opp.ticker not in active_tickers and opp.ticker not in cooldown_tickers
             ]
+
             if not filtered_opportunities:
-                logger.info("No new opportunities available to trade.")
+                logger.info("No new opportunities available to trade (all tickers are active or in cooldown).")
                 return
 
             hedge_fund_response = call_hedge_fund_agents(filtered_opportunities, self.agents, show_reasoning=True)
@@ -327,6 +343,7 @@ class Trader:
                     order_resp = trading_client.close_position(position.symbol)
                     order = cast(Order, order_resp)
                     log_order(order)
+                    self.recently_exited_tickers[position.symbol] = datetime.now(UTC)
         except Exception as e:
             logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 
