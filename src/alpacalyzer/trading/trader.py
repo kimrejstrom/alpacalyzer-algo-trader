@@ -3,6 +3,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
+from alpaca.common.exceptions import APIError
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.models import Asset, Order, Position
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest
@@ -72,6 +73,8 @@ class Trader:
 
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
+
+        self.market_status = get_market_status()
 
         if not self.is_market_open:
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
@@ -237,10 +240,6 @@ class Trader:
     def monitor_and_trade(self):
         """Monitor positions and trade every X minutes."""
 
-        if not self.latest_strategies:
-            logger.info("No active strategies to monitor.")
-            return
-
         if not self.is_market_open:
             logger.info(f"=== Trading Monitor Loop Paused - Market Status: {self.market_status} ===")
             return
@@ -341,16 +340,54 @@ class Trader:
                 if check_exit_conditions(position, signals):
                     # Close position
                     logger.info(f"Closing position for {position.symbol}")
-                    open_orders_resp = trading_client.get_orders(GetOrdersRequest(status="open"))
-                    open_orders = cast(list[Order], open_orders_resp)
-                    for order in open_orders:
-                        if order.symbol == position.symbol:
-                            trading_client.cancel_order_by_id(order.id)
-                    time.sleep(1.0)
-                    order_resp = trading_client.close_position(position.symbol)
-                    order = cast(Order, order_resp)
-                    log_order(order)
-                    self.recently_exited_tickers[position.symbol] = datetime.now(UTC)
+
+                    try:
+                        # 1. Cancel all open orders for this symbol to avoid race conditions with bracket orders.
+                        open_orders_resp = trading_client.get_orders(
+                            GetOrdersRequest(status="open", symbol=position.symbol)
+                        )
+                        open_orders = cast(list[Order], open_orders_resp)
+
+                        if open_orders:
+                            logger.info(f"Found {len(open_orders)} open orders for {position.symbol}. Canceling them.")
+                            for o in open_orders:
+                                try:
+                                    trading_client.cancel_order_by_id(o.id)
+                                    logger.info(f"Requested cancellation for order {o.id}")
+                                except APIError as e:
+                                    if e.code == 42210000:  # PENDING_CANCEL
+                                        logger.debug(f"Order {o.id} is already pending cancel.")
+                                    elif e.code == 40410000:  # ORDER_NOT_FOUND
+                                        logger.debug(f"Order {o.id} not found, likely already canceled or filled.")
+                                    else:
+                                        # Re-raise the exception if it's an unexpected error.
+                                        raise e
+                                except Exception as e:
+                                    logger.warning(f"An unexpected error occurred while canceling order {o.id}: {e}")
+
+                            # 2. Poll to confirm cancellation. Wait up to 30 seconds.
+                            for _ in range(15):
+                                time.sleep(2)
+                                orders_after_cancel_resp = trading_client.get_orders(
+                                    GetOrdersRequest(status="open", symbol=position.symbol)
+                                )
+                                if not cast(list[Order], orders_after_cancel_resp):
+                                    logger.debug(f"Confirmed all open orders for {position.symbol} are canceled.")
+                                    break
+                                logger.debug(f"Waiting for order cancellation confirmation for {position.symbol}...")
+                            else:
+                                logger.error(f"Timed out waiting for order cancellation for {position.symbol}.")
+                                continue
+
+                        # 3. Now it's safe to close the position.
+                        logger.info(f"Proceeding to close position for {position.symbol}.")
+                        order_resp = trading_client.close_position(position.symbol)
+                        order = cast(Order, order_resp)
+                        log_order(order)
+                        self.recently_exited_tickers[position.symbol] = datetime.now(UTC)
+
+                    except Exception as e:
+                        logger.error(f"Failed to close position for {position.symbol}: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"Error in monitor_and_trade exits: {str(e)}", exc_info=True)
 
@@ -458,7 +495,7 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
             if weak_tech_signals is not None:
                 exit_signals.append(weak_tech_signals)
     else:
-        # For shorts: weak technicals means bullish signals (bad for shorts)
+        # For shorts: strong technicals means bullish signals (bad for shorts)
         if score > 0.7:  # Strong bullish score is bad for shorts
             weak_tech_signals = TechnicalAnalyzer().weak_technicals(
                 ticker_signals, OrderSide.SELL
@@ -477,7 +514,7 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
         else:
             logger.info(f"WIN: {unrealized_plpc:.2%} P&L gain on trade")
         logger.analyze(
-            f"Ticker: {position.symbol}, Exit Reason: {reason_str}, "
+            f"Ticker: {position.symbol}, Side: {position.side}, Exit Reason: {reason_str}, "
             f"P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"
         )
         return True

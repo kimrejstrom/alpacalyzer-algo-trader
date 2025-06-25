@@ -193,7 +193,7 @@ class TechnicalAnalyzer:
         return self.calculate_daily_indicators(df)
 
     def calculate_technical_analysis_score(
-        self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame, side=None
+        self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame
     ) -> TradingSignals | None:
         """
         Calculate a technical analysis score using daily and intraday indicators.
@@ -233,6 +233,9 @@ class TechnicalAnalyzer:
         if price > sma20_daily and price > sma50_daily:
             if sma20_daily > sma50_daily:
                 signals["raw_score"] += 40  # Strong uptrend
+                signals["signals"].append(
+                    f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})"
+                )
             else:
                 signals["raw_score"] += 10  # Weak uptrend
         else:
@@ -263,16 +266,12 @@ class TechnicalAnalyzer:
         # 2. Daily RSI Analysis
         rsi_daily = latest_daily["RSI"]
         if rsi_daily < 30:  # Oversold
-            if side != OrderSide.SELL:
-                signals["raw_score"] += 30
-            else:
-                signals["raw_score"] -= 15
+            signals["raw_score"] += 30
+            signals["signals"].append(f"TA: Oversold RSI ({rsi_daily:.1f}) < 30")
+
         elif rsi_daily > 70:  # Overbought
-            if side != OrderSide.BUY:
-                signals["raw_score"] -= 30
-                signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
-            else:
-                signals["raw_score"] += 15
+            signals["raw_score"] -= 30
+            signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
 
         # 3. Daily ATR (Volatility Assessment)
         atr = latest_daily["ATR"]
@@ -320,6 +319,7 @@ class TechnicalAnalyzer:
             vwap = latest_intraday["vwap"]
             if price > vwap:
                 signals["raw_score"] += 20  # Price above VWAP = bullish
+                signals["signals"].append(f"TA: Price above VWAP ({price} > {vwap:.2f})")
             else:
                 signals["raw_score"] -= 10  # Price below VWAP = bearish
 
@@ -343,18 +343,19 @@ class TechnicalAnalyzer:
             macd_diff = macd - macd_signal
 
             if abs(macd_diff) < 0.1:
-                signals["score"] -= 10
+                signals["raw_score"] -= 10
             elif macd > macd_signal:
                 if macd_diff > 0.5:
-                    signals["score"] += 30
+                    signals["raw_score"] += 30
+                    signals["signals"].append(f"TA: Strong bullish MACD ({macd_diff:.2f} > 0.5)")
                 else:
-                    signals["score"] += 10
+                    signals["raw_score"] += 10
             else:
                 if macd_diff < -0.2:
-                    signals["score"] -= 30
+                    signals["raw_score"] -= 30
                     signals["signals"].append(f"TA: Strong bearish MACD ({macd_diff:.2f} < -0.2)")
                 else:
-                    signals["score"] -= 10
+                    signals["raw_score"] -= 10
 
             # 4. Bollinger Bands (Intraday)
             bb_lower = latest_intraday["BB_Lower"]
@@ -362,6 +363,7 @@ class TechnicalAnalyzer:
 
             if price < bb_lower:
                 signals["raw_score"] += 30  # Oversold (Buy signal)
+                signals["signals"].append(f"TA: Price below Lower BB ({price} < {bb_lower:.2f})")
             elif price > bb_upper:
                 signals["raw_score"] -= 30  # Overbought (Sell signal)
 
@@ -386,7 +388,7 @@ class TechnicalAnalyzer:
 
         ### --- NORMALIZATION --- ###
         # Calculate min-max normalization
-        min_raw_score, max_raw_score = -130, 130  # Define expected range
+        min_raw_score, max_raw_score = -200, 200  # Define expected range
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
         signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 
@@ -426,15 +428,18 @@ class TechnicalAnalyzer:
                 "Overbought RSI",
                 "High RVOL missing",
             }
-        else:
+        else:  # OrderSide.SELL
             weak_signal_checks = {
-                "Price below both MAs",
-                "Strong bearish MACD",
-                "Shooting Star (Daily)",
-                "Bearish Engulfing (Daily)",
-                "Shooting Star (Intraday)",
-                "Bearish Engulfing (Intraday)",
-                "Overbought RSI",
+                "Price above both MAs",
+                "Oversold RSI",
+                "Bullish Engulfing (Daily)",
+                "Hammer (Daily)",
+                "Price above VWAP",
+                "Bullish Engulfing (Intraday)",
+                "Hammer (Intraday)",
+                "Strong bullish MACD",
+                "Price below Lower BB",
+                "Breakout (Volume spike)",
             }
 
         # Find signals that match any of the weak_signal_checks substrings
