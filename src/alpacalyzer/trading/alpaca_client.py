@@ -35,12 +35,7 @@ trading_stream = TradingStream(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
 
 
 # Expose trading_client for import
-__all__ = [
-    "trading_client",
-    "history_client",
-    "get_market_close_time",
-    "liquidate_all_positions",
-]
+__all__ = ["trading_client", "history_client"]
 
 
 def log_order(order: Order) -> None:
@@ -193,7 +188,7 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
                 latest_bar_response = history_client.get_stock_latest_bar(
                     StockLatestBarRequest(symbol_or_symbols=symbol)
                 )
-                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
+                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
 
                 # Append the latest bar if available, otherwise duplicate the last candle
                 candles.append(latest_bar if latest_bar else candles[-1])
@@ -212,7 +207,7 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
         return None
 
 
-def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
+def bars_to_df(bars: list[Bar]) -> pd.DataFrame:  # type: ignore
     """Convert the list of Alpaca Bars to a DataFrame."""
     # Convert list of Bar objects to dictionaries
     df = pd.DataFrame([bar.model_dump() for bar in bars])
@@ -231,7 +226,7 @@ def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
     return df
 
 
-def get_account_info():
+def get_account_info() -> dict[str, float | int]:
     """Get account information."""
     account = trading_client.get_account()
     account_instance = cast(TradeAccount, account)

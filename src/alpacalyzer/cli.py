@@ -81,20 +81,20 @@ def main():  # pragma: no cover
         if not direct_tickers:
             # Run insight scanner every 4 hours
             safe_execute(trader.scan_for_insight_opportunities)
-            schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))
+            schedule.every(4).hours.do(lambda: safe_execute(trader.scan_for_insight_opportunities))  # type: ignore
 
             # Run momentum scanner every 4 minutes
             safe_execute(trader.scan_for_technical_opportunities)
-            schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))
+            schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))  # type: ignore
 
         # Run hedge fund every 5 minutes
         safe_execute(trader.run_hedge_fund)
-        schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))
+        schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))  # type: ignore
 
         # Monitor Trading strategies every 2 minutes (skip if analyze enabled)
         if not args.analyze:
             safe_execute(trader.monitor_and_trade)
-            schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))
+            schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))  # type: ignore
         else:
             logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
 

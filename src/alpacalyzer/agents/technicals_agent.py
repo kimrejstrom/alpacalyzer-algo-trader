@@ -442,7 +442,7 @@ def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     df["dx"] = 100 * abs(df["+di"] - df["-di"]) / (df["+di"] + df["-di"])
     df["adx"] = df["dx"].ewm(span=period).mean()
 
-    return df[["adx", "+di", "-di"]]
+    return pd.DataFrame(df[["adx", "+di", "-di"]])
 
 
 def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series[float]:

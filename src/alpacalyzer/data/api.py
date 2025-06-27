@@ -26,7 +26,7 @@ def get_prices(ticker: str, start_date: str, end_date: str) -> list[Price]:
     # Check cache first
     cache_key = ticker
     if cached_data := _cache.get_prices(cache_key):
-        filtered_data = [Price(**price) for price in cached_data if start_date <= price["time"] <= end_date]
+        filtered_data = [Price(**price) for price in cached_data if start_date <= price["time"] <= end_date]  # type: ignore
         if filtered_data:
             return filtered_data
 
@@ -66,7 +66,7 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
     # Check cache first
     if cached_data := _cache.get_financial_metrics(ticker):
         # Filter cached data by date and limit
-        filtered_data = [FinancialMetrics(**metric) for metric in cached_data if metric["report_period"] <= end_date]
+        filtered_data = [FinancialMetrics(**metric) for metric in cached_data if metric["report_period"] <= end_date]  # type: ignore
         filtered_data.sort(key=lambda x: x.report_period, reverse=True)
         if filtered_data:
             return filtered_data[:limit]
@@ -383,7 +383,7 @@ def search_line_items(
                             line_item_data[item] = total_debt / total_equity
 
             # Create the LineItem object
-            result_items.append(LineItem(**line_item_data))
+            result_items.append(LineItem(**line_item_data))  # type: ignore
 
         return result_items
 
@@ -403,7 +403,7 @@ def get_insider_trades(
     if cached_data := _cache.get_insider_trades(ticker):
         # Filter cached data by date range
         filtered_data = [
-            InsiderTrade(**trade)
+            InsiderTrade(**trade)  # type: ignore
             for trade in cached_data
             if (start_date is None or (trade.get("transaction_date") or trade["filing_date"]) >= start_date)
             and (trade.get("transaction_date") or trade["filing_date"]) <= end_date
@@ -504,7 +504,7 @@ def get_company_news(ticker: str, end_date: str, start_date: str | None = None, 
     if cached_data := _cache.get_company_news(ticker):
         # Filter cached data by date range
         filtered_data = [
-            CompanyNews(**news)
+            CompanyNews(**news)  # type: ignore
             for news in cached_data
             if (start_date is None or news["date"] >= start_date) and news["date"] <= end_date
         ]

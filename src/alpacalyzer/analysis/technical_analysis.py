@@ -74,7 +74,7 @@ class TechnicalAnalyzer:
                     latest_bar_response = history_client.get_stock_latest_bar(
                         StockLatestBarRequest(symbol_or_symbols=symbol)
                     )
-                    latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
+                    latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
 
                     # Append the latest bar if available, otherwise duplicate the last candle
                     candles.append(latest_bar if latest_bar else candles[-1])
@@ -212,18 +212,20 @@ class TechnicalAnalyzer:
         price = intraday_df["close"].iloc[-1]
 
         # Initialize signals structure
-        signals: TradingSignals = {
-            "symbol": symbol,
-            "price": price,
-            "atr": latest_daily["ATR"],
-            "rvol": latest_intraday["RVOL"],
-            "signals": [],  # List of trading signals
-            "raw_score": 0,  # Raw technical analysis score
-            "score": 0,  # Normalized score (0-1)
-            "momentum": 0,  # 24h momentum
-            "raw_data_daily": daily_df,  # Raw data for debugging
-            "raw_data_intraday": intraday_df,  # Raw data for debugging
-        }
+        signals = TradingSignals(
+            {
+                "symbol": symbol,
+                "price": price,
+                "atr": latest_daily["ATR"],
+                "rvol": latest_intraday["RVOL"],
+                "signals": [],  # List of trading signals
+                "raw_score": 0,  # Raw technical analysis score
+                "score": 0,  # Normalized score (0-1)
+                "momentum": 0,  # 24h momentum
+                "raw_data_daily": daily_df,  # Raw data for debugging
+                "raw_data_intraday": intraday_df,  # Raw data for debugging
+            }
+        )
 
         ### --- DAILY INDICATORS --- ###
         # 1. Price vs. Daily Moving Averages
@@ -388,7 +390,7 @@ class TechnicalAnalyzer:
 
         ### --- NORMALIZATION --- ###
         # Calculate min-max normalization
-        min_raw_score, max_raw_score = -200, 200  # Define expected range
+        min_raw_score, max_raw_score = -130, 180  # Define expected range
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
         signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 

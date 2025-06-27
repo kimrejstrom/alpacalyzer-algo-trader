@@ -1,3 +1,4 @@
+import pandas as pd
 import yfinance as yf
 
 from alpacalyzer.utils.cache_utils import timed_lru_cache
@@ -76,3 +77,31 @@ class YFinanceClient:
         except Exception as e:
             logger.error(f"Error retrieving news for {ticker_symbol}: {e}")
             return []
+
+    @timed_lru_cache(seconds=1800, maxsize=128)
+    def get_intraday_data(self, ticker_symbol: str, period: str = "1d", interval: str = "1m"):
+        """
+        Fetch intraday historical data for a given ticker.
+
+        Args:
+            ticker_symbol (str): The stock ticker symbol (e.g., "AAPL").
+            period (str): The time period to fetch (default is "1d").
+            interval (str): The data interval
+            (e.g., "1m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo").
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing the intraday data, or an empty DataFrame if an error occurs.
+        """
+        ticker = yf.Ticker(ticker_symbol)
+        if ticker is None:
+            logger.warning(f"Failed to retrieve ticker for {ticker_symbol}.")
+            return pd.DataFrame()
+
+        try:
+            data = ticker.history(period=period, interval=interval)
+            if data.empty:
+                logger.warning(f"No intraday data found for {ticker_symbol} for the given period and interval.")
+            return data
+        except Exception as e:
+            logger.error(f"Error retrieving intraday data for {ticker_symbol}: {e}")
+            return pd.DataFrame()

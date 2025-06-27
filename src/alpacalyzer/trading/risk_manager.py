@@ -18,6 +18,7 @@ def risk_management_agent(state: AgentState):
     # Initialize risk analysis for each ticker
     risk_analysis = {}
     alpaca_positions = []
+    account = {}
 
     try:
         # Get fresh positions from Alpaca

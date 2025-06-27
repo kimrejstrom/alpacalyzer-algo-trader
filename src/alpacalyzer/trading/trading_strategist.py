@@ -92,12 +92,13 @@ def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", 
 
     # Adjust timestamp based on granularity
     if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
         if granularity == "day":
             # Keep only the date part
-            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d")
+            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d")
         elif granularity == "minute":
             # Keep full ISO format for minute granularity
-            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
     # Convert to CSV
     # csv = df.to_csv(index=False)

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
 from alpaca.common.exceptions import APIError
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.models import Asset, Order, Position
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest
 
@@ -75,6 +75,7 @@ class Trader:
         """Main trading loop."""
 
         self.market_status = get_market_status()
+        self.is_market_open = self.market_status == "open"
 
         if not self.is_market_open:
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")
@@ -344,7 +345,7 @@ class Trader:
                     try:
                         # 1. Cancel all open orders for this symbol to avoid race conditions with bracket orders.
                         open_orders_resp = trading_client.get_orders(
-                            GetOrdersRequest(status="open", symbol=position.symbol)
+                            GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[position.symbol])
                         )
                         open_orders = cast(list[Order], open_orders_resp)
 
@@ -369,7 +370,7 @@ class Trader:
                             for _ in range(15):
                                 time.sleep(2)
                                 orders_after_cancel_resp = trading_client.get_orders(
-                                    GetOrdersRequest(status="open", symbol=position.symbol)
+                                    GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[position.symbol])
                                 )
                                 if not cast(list[Order], orders_after_cancel_resp):
                                     logger.debug(f"Confirmed all open orders for {position.symbol} are canceled.")
@@ -460,59 +461,65 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
 
 
 def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
-    """Determine if a position should be closed based on technical analysis."""
+    """
+    Determine if a position should be closed based on technical analysis.
 
+    This function serves as a safeguard against extreme adverse conditions,
+    allowing the primary bracket order to manage the trade under normal circumstances.
+    """
     ticker_signals = signals["signals"]
     momentum = signals["momentum"]
     score = signals["score"]
-    is_long = position.side == "long"  # Check if this is a long position
+    is_long = position.side == "long"
+    unrealized_plpc = float(position.unrealized_plpc or 0.0)
+    is_profitable = unrealized_plpc > 0
 
-    # Close if any of these conditions are met:
     exit_signals = []
 
-    # 1. Significant loss
-    unrealized_plpc = float(position.unrealized_plpc or 0.0)
-    if float(unrealized_plpc) < -0.05:  # -5% stop loss
-        exit_signals.append(f"Stop loss hit: {unrealized_plpc:.1%} P&L")
+    # This logic is a safeguard, not the primary exit strategy.
+    # The primary exit is handled by the bracket order's take_profit and stop_loss.
 
-    # 2. Quick Momentum Shifts - Only exit if significant drop
-    if is_long:
-        if momentum < -5 and unrealized_plpc > 0:  # Need profit to use quick exit
-            if unrealized_plpc > 0.05:  # Need 5% profit to use quick exit
-                exit_signals.append(f"Momentum reversal: {momentum:.1f}% drop while +{unrealized_plpc:.1%}% up")
+    if is_profitable:
+        # --- Let Winners Run ---
+        # Only exit profitable trades on a major reversal signal.
+        if is_long:
+            if momentum < -15:  # A very significant momentum drop
+                exit_signals.append(f"Major momentum reversal: {momentum:.1f}% drop")
+            if score < 0.4:  # Technicals have severely degraded
+                exit_signals.append(f"Technical score collapse: {score:.2f}")
+        else:  # is_short
+            if momentum > 15:  # A very significant momentum spike against the short
+                exit_signals.append(f"Major momentum reversal: {momentum:.1f}% rise")
+            if score > 0.8:  # Technicals have become strongly bullish
+                exit_signals.append(f"Technical score collapse for short: {score:.2f}")
+
     else:
-        # For shorts: exit if momentum is strongly positive
-        if momentum > 5 and unrealized_plpc > 0:  # Need profit to use quick exit
-            if unrealized_plpc > 0.05:  # Need 5% profit to use quick exit
-                exit_signals.append(
-                    f"Momentum reversal: {momentum:.1f}% rise against short position +{unrealized_plpc:.1%}% up"
-                )
+        # --- Cut Losses on Clear Signals ---
+        # Exit losing trades if conditions significantly worsen beyond the original thesis.
+        # The bracket order's stop-loss is the primary defense. This is a secondary check.
+        if is_long:
+            if momentum < -10:  # A strong momentum drop
+                exit_signals.append(f"Strong momentum drop: {momentum:.1f}%")
+            if score < 0.5:  # Technicals have degraded
+                weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.BUY)
+                if weak_tech_signals:
+                    exit_signals.append(f"Technical weakness: {weak_tech_signals}")
+        else:  # is_short
+            if momentum > 10:  # A strong momentum spike against the short
+                exit_signals.append(f"Strong momentum rise: {momentum:.1f}%")
+            if score > 0.7:  # Technicals have become bullish
+                weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.SELL)
+                if weak_tech_signals:
+                    exit_signals.append(f"Technical strength against short: {weak_tech_signals}")
 
-    # 3. Technical Weakness
-    if is_long:
-        if score < 0.6:  # Weak technical score
-            weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.BUY)
-            if weak_tech_signals is not None:
-                exit_signals.append(weak_tech_signals)
-    else:
-        # For shorts: strong technicals means bullish signals (bad for shorts)
-        if score > 0.7:  # Strong bullish score is bad for shorts
-            weak_tech_signals = TechnicalAnalyzer().weak_technicals(
-                ticker_signals, OrderSide.SELL
-            )  # Check for bullish signals
-            if weak_tech_signals is not None:
-                exit_signals.append(weak_tech_signals)
-
-    # Check if any exit signals triggered
     if exit_signals:
         reason_str = ", ".join(exit_signals)
-        # Store exit reason to block immediate re-entry
-        logger.info(f"\nSELL {position.symbol} due to: {reason_str}")
+        logger.info(f"\nDYNAMIC EXIT FOR {position.symbol} due to: {reason_str}")
         logger.debug(f"Position details: {position}")
         if unrealized_plpc < 0:
-            logger.info(f"LOSS: {unrealized_plpc:.2%} P&L loss on trade")
+            logger.info(f"LOSS: {unrealized_plpc:.2%} P&L on trade")
         else:
-            logger.info(f"WIN: {unrealized_plpc:.2%} P&L gain on trade")
+            logger.info(f"WIN: {unrealized_plpc:.2%} P&L on trade")
         logger.analyze(
             f"Ticker: {position.symbol}, Side: {position.side}, Exit Reason: {reason_str}, "
             f"P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"

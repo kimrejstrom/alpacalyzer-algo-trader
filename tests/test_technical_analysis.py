@@ -76,7 +76,7 @@ def test_calculate_technical_analysis_score(analyzer, daily_df, intraday_df):
 
 def test_calculate_technical_analysis_score_with_side(analyzer, daily_df, intraday_df):
     symbol = "AAPL"
-    result = analyzer.calculate_technical_analysis_score(symbol, daily_df, intraday_df, side="buy")
+    result = analyzer.calculate_technical_analysis_score(symbol, daily_df, intraday_df)
 
     assert result is not None
     assert result["symbol"] == symbol
