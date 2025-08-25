@@ -31,7 +31,7 @@ def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
         client = get_openai_client()
 
         response = client.responses.parse(
-            model="o4-mini",
+            model="gpt-5-mini",
             reasoning={"effort": "medium"},
             input=messages,
             text_format=function_schema,
@@ -48,7 +48,7 @@ def call_gpt_web(messages, function_schema: type[T]) -> T | None:
         client = get_openai_client()
 
         response = client.responses.parse(
-            model="gpt-4.1",
+            model="gpt-5-mini",
             tools=[{"type": "web_search_preview"}],
             input=messages,
             text_format=function_schema,

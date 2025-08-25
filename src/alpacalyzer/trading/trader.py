@@ -74,8 +74,9 @@ class Trader:
     def scan_for_technical_opportunities(self):
         """Main trading loop."""
 
-        self.market_status = get_market_status()
-        self.is_market_open = self.market_status == "open"
+        if not self.ignore_market_status:
+            self.market_status = get_market_status()
+            self.is_market_open = self.market_status == "open"
 
         if not self.is_market_open:
             logger.info(f"=== Momentum Scanner Paused - Market Status: {self.market_status} ===")

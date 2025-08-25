@@ -38,15 +38,13 @@ def risk_management_agent(state: AgentState):
 
         if position is not None:
             positions = state["data"]["portfolio"].get("positions", {})
-            positions[ticker] = (
-                {
-                    "quantity": float(position.qty),  # Number of shares held long
-                    "cost_basis": float(position.cost_basis),  # Average cost basis for long positions
-                    "current_price": float(position.current_price) if position.current_price else 0,  # Current price
-                    "side": position.side,  # Position side (long or short)
-                    "unrealized_pl": float(position.unrealized_pl) if position.unrealized_pl else 0,
-                },
-            )
+            positions[ticker] = {
+                "quantity": float(position.qty),  # Number of shares held long
+                "cost_basis": float(position.cost_basis),  # Average cost basis for long positions
+                "current_price": float(position.current_price) if position.current_price else 0,  # Current price
+                "side": position.side,  # Position side (long or short)
+                "unrealized_pl": float(position.unrealized_pl) if position.unrealized_pl else 0,
+            }
 
         # Get the current price and ensure it's a float
         if position and position.current_price:

@@ -356,15 +356,19 @@ def weighted_signal_combination(signals, weights):
     else:
         final_score = 0
 
-    # Convert back to signal
+    # Convert back to signal and calculate appropriate confidence
     if final_score > 0.2:
         signal = "bullish"
+        confidence = min(abs(final_score), 1.0)
     elif final_score < -0.2:
         signal = "bearish"
+        confidence = min(abs(final_score), 1.0)
     else:
         signal = "neutral"
+        # For neutral signals, use the average confidence of all strategies
+        confidence = total_confidence / sum(weights.values()) if sum(weights.values()) > 0 else 0.5
 
-    return {"signal": signal, "confidence": abs(final_score)}
+    return {"signal": signal, "confidence": confidence}
 
 
 def normalize_pandas(obj):

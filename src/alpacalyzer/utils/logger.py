@@ -88,9 +88,6 @@ def setup_logger():
     # Add the handler directly
     logger._analytics_logger.addHandler(analytics_handler)
 
-    # Force flush on first message
-    logger.analyze("ANALYTICS LOGGER INITIALIZED")
-
     return logger
 
 

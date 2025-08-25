@@ -12,6 +12,8 @@ from alpacalyzer.agents.sentiment_agent import sentiment_agent
 from alpacalyzer.agents.technicals_agent import technical_analyst_agent
 from alpacalyzer.agents.warren_buffet_agent import warren_buffett_agent
 
+# from alpacalyzer.agents.web_agent import web_agent
+
 # Define analyst configuration - single source of truth
 ANALYST_CONFIG = {
     "technical_analyst": {

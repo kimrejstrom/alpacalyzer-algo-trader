@@ -441,7 +441,6 @@ class TechnicalAnalyzer:
                 "Hammer (Intraday)",
                 "Strong bullish MACD",
                 "Price below Lower BB",
-                "Breakout (Volume spike)",
             }
 
         # Find signals that match any of the weak_signal_checks substrings
