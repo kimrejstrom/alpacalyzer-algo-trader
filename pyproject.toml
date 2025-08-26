@@ -64,7 +64,7 @@ extend-exclude = [
     "dist",
 ]
 target-version = "py313"
-line-length = 120
+line-length = 200
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -121,6 +121,7 @@ python-version = "3.13"
 
 [tool.ty.rules]
 "unresolved-import" = "ignore"
+"invalid-argument-type" = "warn"
 "possibly-unresolved-reference" = "error"
 "possibly-unbound-attribute" = "error"
 "unsupported-operator" = "error"

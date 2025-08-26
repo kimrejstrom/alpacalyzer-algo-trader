@@ -25,7 +25,7 @@ def get_openai_client():
     return _client
 
 
-def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
+def call_gpt_structured[T](messages, function_schema: type[T]) -> T | None:
     try:
         # Get client only when needed
         client = get_openai_client()
@@ -42,7 +42,7 @@ def call_gpt_structured(messages, function_schema: type[T]) -> T | None:
         return None
 
 
-def call_gpt_web(messages, function_schema: type[T]) -> T | None:
+def call_gpt_web[T](messages, function_schema: type[T]) -> T | None:
     try:
         # Get client only when needed
         client = get_openai_client()

@@ -2,10 +2,11 @@ import argparse
 import os
 import threading
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import schedule
 
+from alpacalyzer.analysis.eod_performance import EODPerformanceAnalyzer
 from alpacalyzer.trading.alpaca_client import consume_trade_updates, get_market_close_time, liquidate_all_positions
 from alpacalyzer.trading.trader import Trader
 from alpacalyzer.utils.logger import get_logger
@@ -50,15 +51,34 @@ def main():  # pragma: no cover
     parser.add_argument("--stream", action="store_true", help="Enable websocket streaming")
     parser.add_argument("--analyze", action="store_true", help="Run in dry run mode (disables trading)")
     parser.add_argument("--tickers", type=str, help="Comma-separated list of tickers to analyze (e.g., AAPL,MSFT,GOOG)")
-    parser.add_argument(
-        "--agents", type=str, default="ALL", help="Comma-separated list of agents to use (e.g., ALL,TRADE,INVEST)"
-    )
-    parser.add_argument(
-        "--ignore-market-status", action="store_true", help="Ignore market status and trade at any time"
-    )
+    parser.add_argument("--agents", type=str, default="ALL", help="Comma-separated list of agents to use (e.g., ALL,TRADE,INVEST)")
+    parser.add_argument("--ignore-market-status", action="store_true", help="Ignore market status and trade at any time")
+    # EOD analyzer options
+    parser.add_argument("--eod-analyze", action="store_true", help="Run End-of-Day analyzer and exit")
+    parser.add_argument("--eod-date", type=str, help="EET date (YYYY-MM-DD) to analyze; defaults to today")
+    parser.add_argument("--eod-threshold", type=float, default=1.0, help="Threshold percent (default 1.0)")
+    parser.add_argument("--eod-timeframe", type=str, default="5Min", help="Bar timeframe (e.g., 5Min)")
     args = parser.parse_args()
 
     try:
+        # Run the EOD analyzer and exit if requested
+        if args.eod_analyze:
+            logger.info("Running End-of-Day Performance Analyzer")
+            target_date = None
+            if args.eod_date:
+                try:
+                    target_date = datetime.strptime(args.eod_date, "%Y-%m-%d").date()
+                except ValueError:
+                    logger.error("Invalid --eod-date format. Use YYYY-MM-DD.")
+                    return
+            analyzer = EODPerformanceAnalyzer(
+                threshold_pct=args.eod_threshold,
+                timeframe=args.eod_timeframe,
+            )
+            report_path = analyzer.run(target_date)
+            logger.info(f"EOD analysis complete: {report_path}")
+            return
+
         if args.analyze:
             logger.info("ANALYZE MODE: Trading actions are disabled")
 
