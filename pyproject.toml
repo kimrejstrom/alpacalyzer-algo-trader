@@ -5,7 +5,7 @@ description = "Alpacalyzer Algo Trading"
 requires-python = ">=3.13"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Samuel MARLHENS", email = "samuel.marlhens@proton.me" },
+    { name = "Kim Rejström", email = "mr.rejstrom@gmail.com" },
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
 dependencies = [

@@ -185,9 +185,7 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
             # Check market status
             if get_market_status() == "open":
                 # Fetch the latest bar for fresh data (only available during market hours)
-                latest_bar_response = history_client.get_stock_latest_bar(
-                    StockLatestBarRequest(symbol_or_symbols=symbol)
-                )
+                latest_bar_response = history_client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
                 latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
 
                 # Append the latest bar if available, otherwise duplicate the last candle
@@ -235,9 +233,7 @@ def get_account_info() -> dict[str, float | int]:
         "buying_power": float(account_instance.buying_power) if account_instance.buying_power else 0,
         "initial_margin": float(account_instance.initial_margin) if account_instance.initial_margin else 0,
         "margin_multiplier": float(account_instance.multiplier) if account_instance.multiplier else 0,
-        "daytrading_buying_power": float(account_instance.daytrading_buying_power)
-        if account_instance.daytrading_buying_power
-        else 0,
+        "daytrading_buying_power": float(account_instance.daytrading_buying_power) if account_instance.daytrading_buying_power else 0,
         "maintenance_margin": float(account_instance.maintenance_margin) if account_instance.maintenance_margin else 0,
     }
 
@@ -306,27 +302,82 @@ def parse_strategy_from_client_order_id(client_order_id: str) -> str:
 
 
 async def trade_updates_handler(update: TradeUpdate):
-    """Processes trade update and writes to SQLite via `upsert_position`."""
+    """
+    Listen to Alpaca trade updates and emit standardized analytics execution logs.
 
-    client_order_id = update.order.client_order_id
-    symbol = update.order.symbol
-    event = update.event
-    side = update.order.side if update.order.side else OrderSide.BUY
+    We write compact one-line [EXECUTION] entries into analytics_log.log that EOD analysis can parse to
+    reconstruct actual entries/exits, partial fills, cancels and rejections.
+
+    Format examples:
+      [EXECUTION] Ticker: NVDA, Side: BUY, Cum: 27/27 @ 179.87, OrderType: limit, OrderId: e806..., ClientOrderId: hedge_NVDA_BUY_xxx, Status: fill
+      [EXECUTION] Ticker: IXHL, Side: BUY, Cum: 500/7519 @ 0.6600, OrderType: limit, OrderId: 4daf..., ClientOrderId: hedge_IXHL_BUY_xxx, Status: partial_fill
+      [EXECUTION] Ticker: REAX, Side: BUY, OrderType: limit, OrderId: c3aa..., ClientOrderId: hedge_REAX_BUY_xxx, Status: canceled
+    """
+    order = update.order
+    client_order_id = order.client_order_id
+    symbol = order.symbol
+    event = update.event or "unknown"
+    side = order.side if order.side else OrderSide.BUY
     strategy = parse_strategy_from_client_order_id(client_order_id)
 
-    logger.info(f"\nTrade Update: {event} for ticker: {symbol} - Strategy: {strategy} ({side})")
+    # Helper conversions (Alpaca SDK often uses strings for qty/prices)
+    def _to_int(x) -> int | None:
+        try:
+            return int(float(x)) if x is not None else None
+        except Exception:
+            return None
 
+    def _to_float(x) -> float | None:
+        try:
+            return float(x) if x is not None else None
+        except Exception:
+            return None
+
+    side_str = getattr(side, "value", str(side)).upper()
+    order_type = getattr(order, "order_type", None) or "N/A"
+    order_id = getattr(order, "id", None) or "N/A"
+    ord_qty = _to_int(getattr(order, "qty", None))
+    filled_qty = _to_int(getattr(order, "filled_qty", None))
+    filled_avg_price = _to_float(getattr(order, "filled_avg_price", None))
+    limit_price = _to_float(getattr(order, "limit_price", None))
+    stop_price = _to_float(getattr(order, "stop_price", None))
+    # Some TradeUpdate payloads include a last fill price
+    last_px = _to_float(getattr(update, "price", None))
+
+    logger.info(f"\nTrade Update: {event} for ticker: {symbol} - Strategy: {strategy} ({side_str})")
+
+    # Build a standardized analytics line
+    base = f"[EXECUTION] Ticker: {symbol}, Side: {side_str}, OrderType: {order_type}, OrderId: {order_id}, ClientOrderId: {client_order_id}, Status: {event}"
+
+    # Include cumulative fill snapshot for fill/partial_fill
     if event in {"fill", "partial_fill"}:
-        if symbol is None:
-            logger.warning(f"Trade update missing symbol: {update}")
-            return
-        logger.info(f"Order filled for ticker: {symbol} - Strategy: {strategy} ({side})")
+        # Prefer filled_avg_price, fallback to last_px, then limit/stop
+        px = filled_avg_price or last_px or limit_price or stop_price
+        cum_seg = ""
+        if filled_qty is not None and ord_qty is not None:
+            cum_seg = f"Cum: {filled_qty}/{ord_qty} @ {px if px is not None else 'N/A'}"
+        elif filled_qty is not None:
+            cum_seg = f"Cum: {filled_qty} @ {px if px is not None else 'N/A'}"
+        elif px is not None:
+            cum_seg = f"Px: {px}"
 
-    elif event == "canceled":
-        logger.warning(f"Order canceled for ticker: {symbol} - Strategy: {strategy} ({side})")
+        line = f"[EXECUTION] Ticker: {symbol}, Side: {side_str}, {cum_seg}, OrderType: {order_type}, OrderId: {order_id}, ClientOrderId: {client_order_id}, Status: {event}"
+        logger.analyze(line)
+        logger.info(f"Order update for {symbol}: {cum_seg} ({event})")
 
-    elif event == "rejected":
-        logger.warning(f"Order rejected for ticker: {symbol} - Strategy: {strategy} ({side})")
+    elif event in {"canceled", "rejected"}:
+        reason_hint = ""
+        # Try to include any message/reason in the update payload if present
+        for attr in ("reason", "message", "status_message"):
+            val = getattr(update, attr, None)
+            if val:
+                reason_hint = f", Reason: {val}"
+                break
+        logger.analyze(base + reason_hint)
+
+    else:
+        # Still log unknown events in analytics for completeness
+        logger.analyze(base)
 
 
 def consume_trade_updates():

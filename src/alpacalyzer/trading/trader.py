@@ -115,9 +115,7 @@ class Trader:
                 )
 
                 if trading_signals["score"] < ta_threshold:
-                    entry_blockers.append(
-                        f"Technical data too weak: {trading_signals['score']:.2f} < {ta_threshold:.2f}"
-                    )
+                    entry_blockers.append(f"Technical data too weak: {trading_signals['score']:.2f} < {ta_threshold:.2f}")
 
                 # Check for conflicting signals
                 if momentum < 0 and stock["sentiment_rank"] > 20:
@@ -127,11 +125,7 @@ class Trader:
                     entry_blockers.append(f"Weak momentum {momentum:.1f}%")
 
                 # Only allow weaker setups if breakout pattern detected
-                if (
-                    15 < vix_close < 30
-                    and trading_signals["score"] < 0.8
-                    and not any("TA: Breakout" in signal for signal in signals)
-                ):
+                if 15 < vix_close < 30 and trading_signals["score"] < 0.8 and not any("TA: Breakout" in signal for signal in signals):
                     entry_blockers.append("No breakout pattern detected")
 
                 # 3. Technical Weakness
@@ -206,11 +200,7 @@ class Trader:
             active_tickers = [p.symbol for p in positions]
             cooldown_tickers = list(self.recently_exited_tickers.keys())
 
-            filtered_opportunities = [
-                opp
-                for opp in self.opportunities
-                if opp.ticker not in active_tickers and opp.ticker not in cooldown_tickers
-            ]
+            filtered_opportunities = [opp for opp in self.opportunities if opp.ticker not in active_tickers and opp.ticker not in cooldown_tickers]
 
             if not filtered_opportunities:
                 logger.info("No new opportunities available to trade (all tickers are active or in cooldown).")
@@ -315,7 +305,8 @@ class Trader:
                     logger.analyze(
                         f"Ticker: {strategy.ticker}, Trade Type: {strategy.trade_type}, Quantity: {strategy.quantity}, "
                         f"Entry Point: {strategy.entry_point}, Target Price: {strategy.target_price}, "
-                        f"Risk/Reward Ratio: {strategy.risk_reward_ratio}, Notes: {strategy.strategy_notes}"
+                        f"Risk/Reward Ratio: {strategy.risk_reward_ratio}, Notes: {strategy.strategy_notes}, "
+                        f"ClientOrderId: {order.client_order_id}"
                     )
 
             # Remove all strategies for executed tickers
@@ -345,9 +336,7 @@ class Trader:
 
                     try:
                         # 1. Cancel all open orders for this symbol to avoid race conditions with bracket orders.
-                        open_orders_resp = trading_client.get_orders(
-                            GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[position.symbol])
-                        )
+                        open_orders_resp = trading_client.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[position.symbol]))
                         open_orders = cast(list[Order], open_orders_resp)
 
                         if open_orders:
@@ -370,9 +359,7 @@ class Trader:
                             # 2. Poll to confirm cancellation. Wait up to 30 seconds.
                             for _ in range(15):
                                 time.sleep(2)
-                                orders_after_cancel_resp = trading_client.get_orders(
-                                    GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[position.symbol])
-                                )
+                                orders_after_cancel_resp = trading_client.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[position.symbol]))
                                 if not cast(list[Order], orders_after_cancel_resp):
                                     logger.debug(f"Confirmed all open orders for {position.symbol} are canceled.")
                                     break
@@ -406,14 +393,10 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
         conditions_met = True
 
         for criteria in strategy.entry_criteria:
-            if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT and not criteria.value * (
-                1 - 0.005
-            ) <= price <= criteria.value * (1 + 0.005):
+            if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT and not criteria.value * (1 - 0.005) <= price <= criteria.value * (1 + 0.005):
                 logger.debug(f"Price near support: {price} +/- 0.5% from {criteria.value}")
                 conditions_met = False
-            if criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE and not criteria.value * (
-                1 - 0.005
-            ) <= price <= criteria.value * (1 + 0.005):
+            if criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE and not criteria.value * (1 - 0.005) <= price <= criteria.value * (1 + 0.005):
                 logger.debug(f"Price near resistance: {price} +/- 0.5% from {criteria.value}")
                 conditions_met = False
             if criteria.entry_type == EntryType.BREAKOUT_ABOVE and price <= criteria.value:
@@ -521,10 +504,7 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
             logger.info(f"LOSS: {unrealized_plpc:.2%} P&L on trade")
         else:
             logger.info(f"WIN: {unrealized_plpc:.2%} P&L on trade")
-        logger.analyze(
-            f"Ticker: {position.symbol}, Side: {position.side}, Exit Reason: {reason_str}, "
-            f"P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}"
-        )
+        logger.analyze(f"Ticker: {position.symbol}, Side: {position.side}, Exit Reason: {reason_str}, P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}")
         return True
 
     return False

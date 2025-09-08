@@ -60,6 +60,43 @@ class DecisionOutcome:
     warnings: list[str] = field(default_factory=list)
 
 
+@dataclass
+class ExecEvent:
+    ticker: str
+    side: str  # BUY or SELL
+    status: str  # fill, partial_fill, canceled, rejected, etc.
+    filled: int | None
+    order_qty: int | None
+    price: float | None
+    order_id: str | None
+    client_order_id: str | None
+    time_eet: datetime
+    time_et: datetime
+    time_utc: datetime
+
+
+@dataclass
+class CompletedTradeExec:
+    ticker: str
+    side: str  # LONG or SHORT
+    shares: int
+    entry_avg: float
+    exit_avg: float
+    realized_pl: float
+    realized_pl_per_share: float
+    entry_time_eet: datetime
+    exit_time_eet: datetime
+
+
+@dataclass
+class OpenPositionExec:
+    ticker: str
+    side: str  # LONG or SHORT
+    shares: int
+    avg_entry_price: float
+    entry_time_eet: datetime
+
+
 class EODPerformanceAnalyzer:
     def __init__(
         self,
@@ -92,9 +129,16 @@ class EODPerformanceAnalyzer:
         # Example:
         # Ticker: OPEN, Side: PositionSide.LONG, Exit Reason: ..., P/L: -0.30%, ... (DEBUG - 2025-08-25 22:30:12,987)
         self._exit_pat = re.compile(
-            r"Ticker:\s*(?P<ticker>[A-Z]+)\s*,\s*Side:\s*PositionSide\.(?P<side>LONG|SHORT).*?(?:P\s*/\s*L\s*:\s*(?P<pl>[+-]?\d+(?:[.,]\d+)?)%)?.*?\(DEBUG\s*-\s*(?P<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\)",
+            r"Ticker:\s*(?P<ticker>[A-Z]+)\s*,\s*Side:\s*(?:PositionSide\.)?(?P<side>LONG|SHORT).*?(?:P\s*/\s*L\s*:\s*(?P<pl>[+-]?\d+(?:[.,]\d+)?)%)?.*?\(DEBUG\s*-\s*(?P<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\)",
             re.IGNORECASE | re.DOTALL,
         )
+        # Execution lines from websocket listener
+        self._exec_pat = re.compile(
+            r"\[EXECUTION\]\s*Ticker:\s*(?P<ticker>[A-Z]+)\s*,\s*Side:\s*(?P<side>BUY|SELL)\s*,\s*(?:Cum:\s*(?P<filled>\d+)(?:/(?P<qty>\d+))?\s*@\s*(?P<price>[\d\.NA]+)|Px:\s*(?P<px_only>[\d\.]+))?\s*,\s*OrderType:\s*(?P<otype>[A-Za-z]+|N/A)\s*,\s*OrderId:\s*(?P<order_id>[^,]+)\s*,\s*ClientOrderId:\s*(?P<client_id>[^,]+)\s*,\s*Status:\s*(?P<status>\w+).*?\(DEBUG\s*-\s*(?P<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\)",
+            re.IGNORECASE | re.DOTALL,
+        )
+        # Storage for last parsed execution events (per parse run)
+        self._last_exec_events: list[ExecEvent] = []
 
     def _parse_ts_eet(self, ts: str) -> datetime:
         # Example: "2025-08-25 21:42:29,208"
@@ -231,6 +275,65 @@ class EODPerformanceAnalyzer:
                         raw=e,
                     )
                 )
+
+        # Parse EXECUTION lines from websocket to reconstruct actual fills/cancels
+        exec_events: list[ExecEvent] = []
+        for e in entries:
+            mx = self._exec_pat.search(e)
+            if not mx:
+                continue
+            ticker = mx.group("ticker").upper()
+            side = mx.group("side").upper()
+            status = (mx.group("status") or "").lower()
+            # Parse timestamp in EET
+            ts_eet = self._parse_ts_eet(mx.group("ts"))
+            if target_date_eet and ts_eet.date() != target_date_eet:
+                continue
+
+            # Filled quantities and prices
+            def _to_int_safe(val: str | None) -> int | None:
+                try:
+                    return int(val) if val is not None else None
+                except Exception:
+                    try:
+                        return int(float(val)) if val is not None else None
+                    except Exception:
+                        return None
+
+            def _to_float_safe(val: str | None) -> float | None:
+                try:
+                    if val is None:
+                        return None
+                    if val.upper() == "N/A":
+                        return None
+                    return float(val)
+                except Exception:
+                    return None
+
+            filled = _to_int_safe(mx.groupdict().get("filled"))
+            order_qty = _to_int_safe(mx.groupdict().get("qty"))
+            price = _to_float_safe(mx.groupdict().get("price") or mx.groupdict().get("px_only"))
+            order_id = mx.groupdict().get("order_id")
+            client_order_id = mx.groupdict().get("client_id")
+
+            exec_events.append(
+                ExecEvent(
+                    ticker=ticker,
+                    side=side,
+                    status=status,
+                    filled=filled,
+                    order_qty=order_qty,
+                    price=price,
+                    order_id=order_id,
+                    client_order_id=client_order_id,
+                    time_eet=ts_eet,
+                    time_et=self._to_et(ts_eet),
+                    time_utc=self._to_utc(ts_eet),
+                )
+            )
+
+        # Stash for report building
+        self._last_exec_events = exec_events
 
         # Preserve chronological order (already preserved by log scanning); optional sort by time if needed:
         decisions.sort(key=lambda d: d.decision_time_eet)
@@ -467,6 +570,150 @@ class EODPerformanceAnalyzer:
             warnings=warnings,
         )
 
+    def _build_execution_summary(self, exec_events: list[ExecEvent]) -> tuple[list[CompletedTradeExec], list[OpenPositionExec], float]:
+        """
+        Build completed round-trips and open position snapshots from execution events.
+
+        Rules:
+        - We process only 'fill' events to avoid double counting partials.
+        - Long-only flow supported; SHORT flow is handled generically if encountered.
+        - FIFO matching for open lots to compute open position snapshot.
+        - A 'CompletedTradeExec' is emitted when net position returns to zero.
+        """
+        completed: list[CompletedTradeExec] = []
+        open_positions: list[OpenPositionExec] = []
+        realized_total = 0.0
+
+        # Group by ticker and sort by time
+        events_by_ticker: dict[str, list[ExecEvent]] = {}
+        for ev in exec_events:
+            if ev.status not in {"fill", "partial_fill"}:
+                continue
+            events_by_ticker.setdefault(ev.ticker, []).append(ev)
+        for t in events_by_ticker:
+            events_by_ticker[t].sort(key=lambda x: x.time_eet)
+
+        for ticker, events in events_by_ticker.items():
+            net = 0  # positive = long, negative = short
+            side_mode: str | None = None  # "LONG" or "SHORT"
+            # Trade accumulators between flat->flat
+            first_entry_time: datetime | None = None
+            last_exit_time: datetime | None = None
+            entry_qty_sum = 0
+            entry_val_sum = 0.0
+            exit_qty_sum = 0
+            exit_val_sum = 0.0
+
+            # FIFO lots for open inventory snapshot
+            lots: list[tuple[int, float, datetime]] = []  # (qty, price, time_eet)
+
+            for ev in events:
+                qty = ev.filled or ev.order_qty or 0
+                px = ev.price
+                if qty <= 0 or px is None:
+                    continue
+
+                if ev.side == "BUY":
+                    if net == 0:
+                        side_mode = "LONG"
+                        first_entry_time = ev.time_eet
+                        # reset accumulators at start of a new trade window
+                        entry_qty_sum = 0
+                        entry_val_sum = 0.0
+                        exit_qty_sum = 0
+                        exit_val_sum = 0.0
+                    # record entries
+                    entry_qty_sum += qty
+                    entry_val_sum += qty * px
+                    lots.append((qty, px, ev.time_eet))
+                    net += qty
+
+                elif ev.side == "SELL":
+                    # Short initiation from flat (rare in this system)
+                    if net == 0:
+                        side_mode = "SHORT"
+                        first_entry_time = ev.time_eet
+                        entry_qty_sum = 0
+                        entry_val_sum = 0.0
+                        exit_qty_sum = 0
+                        exit_val_sum = 0.0
+
+                    if net > 0:
+                        # Closing a long: match against lots FIFO
+                        remaining = qty
+                        while remaining > 0 and lots:
+                            lot_qty, lot_px, lot_time = lots[0]
+                            matched = min(lot_qty, remaining)
+                            exit_qty_sum += matched
+                            exit_val_sum += matched * px
+                            lot_qty -= matched
+                            remaining -= matched
+                            if lot_qty == 0:
+                                lots.pop(0)
+                            else:
+                                lots[0] = (lot_qty, lot_px, lot_time)
+                        net -= qty
+                        last_exit_time = ev.time_eet
+
+                        if net <= 0:
+                            # Trade round-trip complete (flattened or flipped)
+                            # Clamp to non-negative
+                            net = max(net, 0)
+                            shares = max(exit_qty_sum, 0)
+                            if shares > 0 and entry_qty_sum > 0:
+                                entry_avg = entry_val_sum / entry_qty_sum
+                                exit_avg = exit_val_sum / exit_qty_sum if exit_qty_sum > 0 else entry_avg
+                                realized = (exit_avg - entry_avg) * shares
+                                completed.append(
+                                    CompletedTradeExec(
+                                        ticker=ticker,
+                                        side=side_mode or "LONG",
+                                        shares=shares,
+                                        entry_avg=entry_avg,
+                                        exit_avg=exit_avg,
+                                        realized_pl=realized,
+                                        realized_pl_per_share=(exit_avg - entry_avg),
+                                        entry_time_eet=first_entry_time or ev.time_eet,
+                                        exit_time_eet=last_exit_time or ev.time_eet,
+                                    )
+                                )
+                                realized_total += realized
+                            # reset accumulators and inventory
+                            side_mode = None
+                            first_entry_time = None
+                            last_exit_time = None
+                            entry_qty_sum = 0
+                            entry_val_sum = 0.0
+                            exit_qty_sum = 0
+                            exit_val_sum = 0.0
+                            lots = []
+                    else:
+                        # Increasing a short; not typical here, but maintain state
+                        net -= qty
+                        # For shorts, treat SELL as "entry" and BUY as "exit" (mirror logic)
+                        if side_mode != "SHORT":
+                            side_mode = "SHORT"
+                            first_entry_time = ev.time_eet
+                        entry_qty_sum += qty
+                        entry_val_sum += qty * px
+
+            # If any open long position remains (net > 0), capture snapshot
+            if net > 0 and lots:
+                total_shares = sum(q for q, _, _ in lots)
+                total_val = sum(q * p for q, p, _ in lots)
+                avg_px = total_val / total_shares if total_shares else 0.0
+                open_positions.append(
+                    OpenPositionExec(
+                        ticker=ticker,
+                        side="LONG",
+                        shares=total_shares,
+                        avg_entry_price=avg_px,
+                        entry_time_eet=lots[0][2],
+                    )
+                )
+
+        return completed, open_positions, realized_total
+
     def _score(self, action: str, pnl_long_close: float, pnl_short_close: float) -> tuple[str, str]:
         thr = self.threshold
 
@@ -588,9 +835,77 @@ class EODPerformanceAnalyzer:
         lines.append(f"- Missed SHORT opportunities (HOLD): {missed_short}")
         lines.append(f"- Direction errors (BUY/SHORT): {direction_errors}")
         lines.append(f"- Completed trades: {len(completed_trades)}")
+        # Execution-based trades summary
+        completed_exec_trades, open_exec_positions, realized_exec_total = self._build_execution_summary(getattr(self, "_last_exec_events", []))
+        lines.append(f"- Completed trades (Executions): {len(completed_exec_trades)}")
+        if completed_exec_trades:
+            lines.append(f"- Realized PnL (Executions): ${realized_exec_total:.2f}")
         lines.append("")
+        # Completed Trades from Executions
+        if completed_exec_trades:
+            lines.append("## Completed Trades (Executions):")
+            lines.append("")
+            lines.append("| Exit Time (EET) | Ticker | Side | Shares | Entry Px | Exit Px | Realized $PnL | $/Share |")
+            lines.append("|---|---|---|---:|---:|---:|---:|---:|")
+
+            def money(x: float | None) -> str:
+                if x is None:
+                    return "-"
+                return f"${x:,.2f}"
+
+            def fpx(x: float | None) -> str:
+                if x is None:
+                    return "-"
+                return f"{x:.4f}"
+
+            for ct in completed_exec_trades:
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        [
+                            ct.exit_time_eet.strftime("%Y-%m-%d %H:%M:%S"),
+                            ct.ticker,
+                            ct.side,
+                            str(ct.shares),
+                            fpx(ct.entry_avg),
+                            fpx(ct.exit_avg),
+                            money(ct.realized_pl),
+                            money(ct.realized_pl_per_share),
+                        ]
+                    )
+                    + " |"
+                )
+            lines.append("")
+        # Open positions snapshot from execution flow
+        if open_exec_positions:
+            lines.append("## Open Positions from Day (Executions):")
+            lines.append("")
+            lines.append("| Entry Time (EET) | Ticker | Side | Shares | Avg Entry Px |")
+            lines.append("|---|---|---|---:|---:|")
+
+            def fpx2(x: float | None) -> str:
+                if x is None:
+                    return "-"
+                return f"{x:.4f}"
+
+            for op in open_exec_positions:
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        [
+                            op.entry_time_eet.strftime("%Y-%m-%d %H:%M:%S"),
+                            op.ticker,
+                            op.side,
+                            str(op.shares),
+                            fpx2(op.avg_entry_price),
+                        ]
+                    )
+                    + " |"
+                )
+            lines.append("")
+        # Intent-based exit quality check (existing)
         if completed_trades:
-            lines.append("## Completed Trades:")
+            lines.append("## Intent Exits (Quality Check):")
             lines.append("")
             lines.append("| Time (EET) | Ticker | Side | Exit P/L | Ref Px | EOD Close | Outcome | Rationale |")
             lines.append("|---|---|---|---:|---:|---:|---|---|")
