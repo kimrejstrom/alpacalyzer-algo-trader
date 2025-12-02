@@ -51,6 +51,11 @@ def wrap_text(text: Any, width: int = 60) -> str:
     return wrapped_text
 
 
+# Correct rounding for prices
+def round_price(price):
+    return round(price, 2) if price > 1 else round(price, 4)
+
+
 def print_strategy_output(strategy: TradingStrategy) -> None:
     strategy_data = []
     action_color = {
@@ -68,8 +73,8 @@ def print_strategy_output(strategy: TradingStrategy) -> None:
             f"{Fore.CYAN}{strategy.ticker}{Style.RESET_ALL}",
             f"{action_color}{strategy.trade_type}{Style.RESET_ALL}",
             f"{action_color}{strategy.quantity}{Style.RESET_ALL}",
-            f"{Fore.WHITE}{strategy.entry_point} | {strategy.target_price}{Style.RESET_ALL}",
-            f"{Fore.WHITE}{strategy.stop_loss}{Style.RESET_ALL}",
+            f"{Fore.WHITE}{round_price(strategy.entry_point)} | {round_price(strategy.target_price)}{Style.RESET_ALL}",
+            f"{Fore.WHITE}{round_price(strategy.stop_loss)}{Style.RESET_ALL}",
             f"{Fore.GREEN}{strategy.risk_reward_ratio}{Style.RESET_ALL}",
             f"{Fore.WHITE}{wrapped_strategy_notes}{Style.RESET_ALL}",
         ]

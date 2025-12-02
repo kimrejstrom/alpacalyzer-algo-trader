@@ -276,11 +276,10 @@ class Trader:
 
                     # Determine order type
                     side = OrderSide.BUY if strategy.trade_type.lower() == "long" else OrderSide.SELL
-                    # Correct rounding for limit price
-                    if strategy.entry_point > 1:
-                        limit_price = round(strategy.entry_point, 2)
-                    else:
-                        limit_price = round(strategy.entry_point, 4)
+
+                    # Correct rounding for prices
+                    def round_price(price):
+                        return round(price, 2) if price > 1 else round(price, 4)
 
                     bracket_order = LimitOrderRequest(
                         symbol=strategy.ticker,
@@ -288,10 +287,10 @@ class Trader:
                         side=side,
                         type="limit",
                         time_in_force=TimeInForce.GTC,
-                        limit_price=limit_price,
+                        limit_price=round_price(strategy.entry_point),
                         order_class="bracket",
-                        stop_loss={"stop_price": strategy.stop_loss},
-                        take_profit={"limit_price": strategy.target_price},
+                        stop_loss={"stop_price": round_price(strategy.stop_loss)},
+                        take_profit={"limit_price": round_price(strategy.target_price)},
                         client_order_id=f"hedge_{strategy.ticker}_{side}_{uuid.uuid4()}",
                     )
                     # Submit order with bracket structure
@@ -304,7 +303,7 @@ class Trader:
                     executed_tickers.append(strategy.ticker)
                     logger.analyze(
                         f"Ticker: {strategy.ticker}, Trade Type: {strategy.trade_type}, Quantity: {strategy.quantity}, "
-                        f"Entry Point: {strategy.entry_point}, Target Price: {strategy.target_price}, "
+                        f"Entry Point: {round_price(strategy.entry_point)}, Target Price: {round_price(strategy.target_price)}, "
                         f"Risk/Reward Ratio: {strategy.risk_reward_ratio}, Notes: {strategy.strategy_notes}, "
                         f"ClientOrderId: {order.client_order_id}"
                     )
