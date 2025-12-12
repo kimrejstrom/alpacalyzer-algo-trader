@@ -193,7 +193,7 @@ class EODPerformanceAnalyzer:
             if stop_m := self._stop_pat.search(e):
                 try:
                     plan.stop_price = float(stop_m.group("stop"))
-                except Exception:
+                except Exception:  # nosec B110 - Silent failure is intentional for malformed data
                     pass
             plan_by_key[(ticker, ts_eet)] = plan
 
@@ -549,7 +549,7 @@ class EODPerformanceAnalyzer:
                     rationale += " Target was reachable based on intraday highs."
                 if d.plan.stop_price is not None and (window["low"] <= d.plan.stop_price).any():
                     rationale += " Stop would have been hit intraday."
-            except Exception:
+            except Exception:  # nosec B110 - Silent failure is intentional for missing intraday data
                 pass
 
         return DecisionOutcome(
@@ -858,23 +858,23 @@ class EODPerformanceAnalyzer:
                     return "-"
                 return f"{x:.4f}"
 
-            for ct in completed_exec_trades:
-                lines.append(
-                    "| "
-                    + " | ".join(
-                        [
-                            ct.exit_time_eet.strftime("%Y-%m-%d %H:%M:%S"),
-                            ct.ticker,
-                            ct.side,
-                            str(ct.shares),
-                            fpx(ct.entry_avg),
-                            fpx(ct.exit_avg),
-                            money(ct.realized_pl),
-                            money(ct.realized_pl_per_share),
-                        ]
-                    )
-                    + " |"
+            lines.extend(
+                "| "
+                + " | ".join(
+                    [
+                        ct.exit_time_eet.strftime("%Y-%m-%d %H:%M:%S"),
+                        ct.ticker,
+                        ct.side,
+                        str(ct.shares),
+                        fpx(ct.entry_avg),
+                        fpx(ct.exit_avg),
+                        money(ct.realized_pl),
+                        money(ct.realized_pl_per_share),
+                    ]
                 )
+                + " |"
+                for ct in completed_exec_trades
+            )
             lines.append("")
         # Open positions snapshot from execution flow
         if open_exec_positions:
@@ -888,20 +888,20 @@ class EODPerformanceAnalyzer:
                     return "-"
                 return f"{x:.4f}"
 
-            for op in open_exec_positions:
-                lines.append(
-                    "| "
-                    + " | ".join(
-                        [
-                            op.entry_time_eet.strftime("%Y-%m-%d %H:%M:%S"),
-                            op.ticker,
-                            op.side,
-                            str(op.shares),
-                            fpx2(op.avg_entry_price),
-                        ]
-                    )
-                    + " |"
+            lines.extend(
+                "| "
+                + " | ".join(
+                    [
+                        op.entry_time_eet.strftime("%Y-%m-%d %H:%M:%S"),
+                        op.ticker,
+                        op.side,
+                        str(op.shares),
+                        fpx2(op.avg_entry_price),
+                    ]
                 )
+                + " |"
+                for op in open_exec_positions
+            )
             lines.append("")
         # Intent-based exit quality check (existing)
         if completed_trades:

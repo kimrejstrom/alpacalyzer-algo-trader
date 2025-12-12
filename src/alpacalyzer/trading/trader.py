@@ -3,6 +3,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
+import pandas as pd
 from alpaca.common.exceptions import APIError
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.models import Asset, Order, Position
@@ -382,60 +383,103 @@ class Trader:
 
 def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -> bool:
     try:
-        latest_daily = signals["raw_data_daily"].iloc[-2]
-        latest_intraday = signals["raw_data_intraday"].iloc[-2]
-        price = signals["price"]
-        rsi = latest_daily["RSI"]
-        sma20 = latest_daily["SMA_20"]
-        sma50 = latest_daily["SMA_50"]
+        # Use 3-candle averages for consistency with exit conditions
+        daily_data = signals["raw_data_daily"]
+        intraday_data = signals["raw_data_intraday"]
 
-        conditions_met = True
+        # Get last 3 candles for averaging - returns Series
+        daily_3candle = cast(pd.Series, daily_data.iloc[-3:].mean())
+        intraday_3candle = cast(pd.Series, intraday_data.iloc[-3:].mean())
+
+        price = signals["price"]
+        rsi = daily_3candle["RSI"]
+        sma20 = daily_3candle["SMA_20"]
+        sma50 = daily_3candle["SMA_50"]
+
+        # Track met and failed conditions for fuzzy logic
+        conditions_met_count = 0
+        total_conditions = len(strategy.entry_criteria)
+        failed_conditions = []
 
         for criteria in strategy.entry_criteria:
-            if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT and not criteria.value * (1 - 0.005) <= price <= criteria.value * (1 + 0.005):
-                logger.debug(f"Price near support: {price} +/- 0.5% from {criteria.value}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE and not criteria.value * (1 - 0.005) <= price <= criteria.value * (1 + 0.005):
-                logger.debug(f"Price near resistance: {price} +/- 0.5% from {criteria.value}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.BREAKOUT_ABOVE and price <= criteria.value:
-                logger.debug(f"Breakout above: {price} <= {criteria.value}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.RSI_OVERSOLD and rsi > criteria.value:
-                logger.debug(f"RSI oversold: {rsi} > {criteria.value}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.RSI_OVERBOUGHT and rsi < criteria.value:
-                logger.debug(f"RSI overbought: {rsi} < {criteria.value}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_20 and price < sma20:
-                logger.debug(f"Price above SMA20: {price} < {sma20}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_20 and price > sma20:
-                logger.debug(f"Price below SMA20: {price} > {sma20}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_50 and price < sma50:
-                logger.debug(f"Price above SMA50: {price} < {sma50}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_50 and price > sma50:
-                logger.debug(f"Price below SMA50: {price} > {sma50}")
-                conditions_met = False
-            if criteria.entry_type == EntryType.BULLISH_ENGULFING and latest_intraday["Bullish_Engulfing"] != 100:
-                logger.debug("Bullish Engulfing not detected")
-                conditions_met = False
-            if criteria.entry_type == EntryType.BEARISH_ENGULFING and latest_intraday["Bearish_Engulfing"] != -100:
-                logger.debug("Bearish Engulfing not detected")
-                conditions_met = False
-            if criteria.entry_type == EntryType.SHOOTING_STAR and latest_intraday["Shooting_Star"] != 100:
-                logger.debug("Shooting Star not detected")
-                conditions_met = False
-            if criteria.entry_type == EntryType.HAMMER and latest_intraday["Hammer"] != 100:
-                logger.debug("Hammer not detected")
-                conditions_met = False
-            if criteria.entry_type == EntryType.DOJI and latest_intraday["Doji"] != 100:
-                logger.debug("Doji not detected")
-                conditions_met = False
+            condition_met = True
 
+            if criteria.entry_type == EntryType.PRICE_NEAR_SUPPORT:
+                # Increased tolerance from 0.5% to 1.5%
+                if not criteria.value * (1 - 0.015) <= price <= criteria.value * (1 + 0.015):
+                    logger.debug(f"Price near support: {price} +/- 1.5% from {criteria.value}")
+                    condition_met = False
+            elif criteria.entry_type == EntryType.PRICE_NEAR_RESISTANCE:
+                # Increased tolerance from 0.5% to 1.5%
+                if not criteria.value * (1 - 0.015) <= price <= criteria.value * (1 + 0.015):
+                    logger.debug(f"Price near resistance: {price} +/- 1.5% from {criteria.value}")
+                    condition_met = False
+            elif criteria.entry_type == EntryType.BREAKOUT_ABOVE and price <= criteria.value:
+                logger.debug(f"Breakout above: {price} <= {criteria.value}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.RSI_OVERSOLD and rsi > criteria.value:
+                logger.debug(f"RSI oversold: {rsi} > {criteria.value}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.RSI_OVERBOUGHT and rsi < criteria.value:
+                logger.debug(f"RSI overbought: {rsi} < {criteria.value}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_20 and price < sma20:
+                logger.debug(f"Price above SMA20: {price} < {sma20}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_20 and price > sma20:
+                logger.debug(f"Price below SMA20: {price} > {sma20}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.ABOVE_MOVING_AVERAGE_50 and price < sma50:
+                logger.debug(f"Price above SMA50: {price} < {sma50}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.BELOW_MOVING_AVERAGE_50 and price > sma50:
+                logger.debug(f"Price below SMA50: {price} > {sma50}")
+                condition_met = False
+            elif criteria.entry_type == EntryType.BULLISH_ENGULFING:
+                # Accept 80+ confidence instead of exact 100, using 3-candle average
+                bullish_engulfing_conf = intraday_3candle["Bullish_Engulfing"]
+                if bullish_engulfing_conf < 80:
+                    logger.debug(f"Bullish Engulfing not detected (3-candle avg confidence: {bullish_engulfing_conf:.1f})")
+                    condition_met = False
+            elif criteria.entry_type == EntryType.BEARISH_ENGULFING:
+                # Accept -80 or lower confidence instead of exact -100, using 3-candle average
+                bearish_engulfing_conf = intraday_3candle["Bearish_Engulfing"]
+                if bearish_engulfing_conf > -80:
+                    logger.debug(f"Bearish Engulfing not detected (3-candle avg confidence: {bearish_engulfing_conf:.1f})")
+                    condition_met = False
+            elif criteria.entry_type == EntryType.SHOOTING_STAR:
+                # Accept 80+ confidence instead of exact 100, using 3-candle average
+                shooting_star_conf = intraday_3candle["Shooting_Star"]
+                if shooting_star_conf < 80:
+                    logger.debug(f"Shooting Star not detected (3-candle avg confidence: {shooting_star_conf:.1f})")
+                    condition_met = False
+            elif criteria.entry_type == EntryType.HAMMER:
+                # Accept 80+ confidence instead of exact 100, using 3-candle average
+                hammer_conf = intraday_3candle["Hammer"]
+                if hammer_conf < 80:
+                    logger.debug(f"Hammer not detected (3-candle avg confidence: {hammer_conf:.1f})")
+                    condition_met = False
+            elif criteria.entry_type == EntryType.DOJI:
+                # Accept 80+ confidence instead of exact 100, using 3-candle average
+                doji_conf = intraday_3candle["Doji"]
+                if doji_conf < 80:
+                    logger.debug(f"Doji not detected (3-candle avg confidence: {doji_conf:.1f})")
+                    condition_met = False
+
+            if condition_met:
+                conditions_met_count += 1
+            else:
+                failed_conditions.append(criteria.entry_type.value)
+
+        # Fuzzy logic: require 70% of conditions met, not 100%
+        conditions_ratio = conditions_met_count / total_conditions if total_conditions > 0 else 0
+        conditions_met = conditions_ratio >= 0.7
+
+        logger.info(f"Entry conditions for {strategy.ticker}: {conditions_met_count}/{total_conditions} met ({conditions_ratio:.1%})")
+        if failed_conditions:
+            logger.debug(f"Failed conditions: {', '.join(failed_conditions)}")
         logger.info(f"Entry conditions met for {strategy.ticker}: {conditions_met}")
+
         return conditions_met
 
     except Exception as e:
@@ -449,8 +493,18 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
 
     This function serves as a safeguard against extreme adverse conditions,
     allowing the primary bracket order to manage the trade under normal circumstances.
+
+    Updated to use 3-candle averages for consistency and removed AND logic.
     """
-    ticker_signals = signals["signals"]
+    # Calculate 3-candle averages for consistency
+    daily_data = signals["raw_data_daily"]
+    intraday_data = signals["raw_data_intraday"]
+
+    # Get last 3 candles for averaging - returns Series
+    daily_3candle = cast(pd.Series, daily_data.iloc[-3:].mean())
+    intraday_3candle = cast(pd.Series, intraday_data.iloc[-3:].mean())
+
+    # Use averaged values for consistency
     momentum = signals["momentum"]
     score = signals["score"]
     is_long = position.side == "long"
@@ -465,10 +519,11 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
     if is_profitable:
         # --- Let Winners Run ---
         # Only exit profitable trades on a major reversal signal.
+        # Relaxed thresholds to give trades more room
         if is_long:
             if momentum < -15:  # A very significant momentum drop
                 exit_signals.append(f"Major momentum reversal: {momentum:.1f}% drop")
-            if score < 0.4:  # Technicals have severely degraded
+            if score < 0.3:  # Technicals have severely degraded (relaxed from 0.4)
                 exit_signals.append(f"Technical score collapse: {score:.2f}")
         else:  # is_short
             if momentum > 15:  # A very significant momentum spike against the short
@@ -479,26 +534,37 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
     else:
         # --- Cut Losses on Clear Signals ---
         # Exit losing trades if conditions significantly worsen beyond the original thesis.
-        # The bracket order's stop-loss is the primary defense. This is a secondary check.
+        # REMOVED AND LOGIC - now uses separate conditions
         if is_long:
-            if momentum < -10:  # A strong momentum drop
-                exit_signals.append(f"Strong momentum drop: {momentum:.1f}%")
-            if score < 0.5:  # Technicals have degraded
-                weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.BUY)
-                if weak_tech_signals:
-                    exit_signals.append(f"Technical weakness: {weak_tech_signals}")
+            weak_tech_signals = TechnicalAnalyzer().weak_technicals(signals["signals"], OrderSide.BUY)
+
+            # Require BOTH momentum degradation AND technical weakness
+            if momentum < -15 and weak_tech_signals:
+                exit_signals.append(f"Strong momentum drop: {momentum:.1f}% with weak technicals")
+            # OR severe technical collapse alone
+            elif score < 0.3 and weak_tech_signals:
+                exit_signals.append(f"Technical score collapse: {score:.2f} with weak technicals")
+            # OR catastrophic momentum without needing technical confirmation
+            elif momentum < -25:  # Emergency threshold
+                exit_signals.append(f"Catastrophic momentum drop: {momentum:.1f}%")
+
         else:  # is_short
-            if momentum > 10:  # A strong momentum spike against the short
-                exit_signals.append(f"Strong momentum rise: {momentum:.1f}%")
-            if score > 0.7:  # Technicals have become bullish
-                weak_tech_signals = TechnicalAnalyzer().weak_technicals(ticker_signals, OrderSide.SELL)
-                if weak_tech_signals:
-                    exit_signals.append(f"Technical strength against short: {weak_tech_signals}")
+            weak_tech_signals = TechnicalAnalyzer().weak_technicals(signals["signals"], OrderSide.SELL)
+
+            if momentum > 15 and weak_tech_signals:
+                exit_signals.append(f"Strong momentum rise: {momentum:.1f}% with weak technicals")
+            elif score > 0.7 and weak_tech_signals:
+                exit_signals.append(f"Technical score strength: {score:.2f} with weak technicals")
+            elif momentum > 25:  # Emergency threshold
+                exit_signals.append(f"Catastrophic momentum rise: {momentum:.1f}%")
 
     if exit_signals:
         reason_str = ", ".join(exit_signals)
         logger.info(f"\nDYNAMIC EXIT FOR {position.symbol} due to: {reason_str}")
         logger.debug(f"Position details: {position}")
+        logger.debug(
+            f"Using 3-candle averages - Daily: {daily_3candle.name if hasattr(daily_3candle, 'name') else 'N/A'}, Intraday: {intraday_3candle.name if hasattr(intraday_3candle, 'name') else 'N/A'}"
+        )
         if unrealized_plpc < 0:
             logger.info(f"LOSS: {unrealized_plpc:.2%} P&L on trade")
         else:

@@ -71,9 +71,7 @@ class TechnicalAnalyzer:
                 # Check market status
                 if get_market_status() == "open":
                     # Fetch the latest bar for fresh data (only available during market hours)
-                    latest_bar_response = history_client.get_stock_latest_bar(
-                        StockLatestBarRequest(symbol_or_symbols=symbol)
-                    )
+                    latest_bar_response = history_client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
                     latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
 
                     # Append the latest bar if available, otherwise duplicate the last candle
@@ -126,21 +124,11 @@ class TechnicalAnalyzer:
         df["BB_Lower"] = lower
 
         # Candlestick patterns
-        df["Bullish_Engulfing"] = talib.CDLENGULFING(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Bearish_Engulfing"] = talib.CDLENGULFING(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Hammer"] = talib.CDLHAMMER(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Doji"] = talib.CDLDOJI(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
+        df["Bullish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Bearish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Hammer"] = talib.CDLHAMMER(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Doji"] = talib.CDLDOJI(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
 
         return df
 
@@ -160,21 +148,11 @@ class TechnicalAnalyzer:
         df["ADX"] = talib.ADX(df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), timeperiod=14)
 
         # Candlestick patterns
-        df["Bullish_Engulfing"] = talib.CDLENGULFING(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Bearish_Engulfing"] = talib.CDLENGULFING(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Hammer"] = talib.CDLHAMMER(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
-        df["Doji"] = talib.CDLDOJI(
-            df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-        )
+        df["Bullish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Bearish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Hammer"] = talib.CDLHAMMER(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Doji"] = talib.CDLDOJI(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
 
         return df
 
@@ -192,9 +170,7 @@ class TechnicalAnalyzer:
             return None
         return self.calculate_daily_indicators(df)
 
-    def calculate_technical_analysis_score(
-        self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame
-    ) -> TradingSignals | None:
+    def calculate_technical_analysis_score(self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame) -> TradingSignals | None:
         """
         Calculate a technical analysis score using daily and intraday indicators.
 
@@ -235,17 +211,13 @@ class TechnicalAnalyzer:
         if price > sma20_daily and price > sma50_daily:
             if sma20_daily > sma50_daily:
                 signals["raw_score"] += 40  # Strong uptrend
-                signals["signals"].append(
-                    f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})"
-                )
+                signals["signals"].append(f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
             else:
                 signals["raw_score"] += 10  # Weak uptrend
         else:
             if price < sma20_daily and price < sma50_daily:
                 signals["raw_score"] -= 30  # Strong downtrend
-                signals["signals"].append(
-                    f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})"
-                )
+                signals["signals"].append(f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
             else:
                 signals["raw_score"] -= 10  # Weak downtrend
 
@@ -372,9 +344,7 @@ class TechnicalAnalyzer:
             # 5. Volume spike based breakout
             if price > latest_daily["SMA_50"] and latest_intraday["volume"] > 2 * latest_daily["Volume_MA"]:
                 signals["raw_score"] += 40
-                signals["signals"].append(
-                    f"TA: Breakout (Volume spike {latest_intraday['volume']:.0f} > 2 * {latest_daily['Volume_MA']:.0f})"
-                )
+                signals["signals"].append(f"TA: Breakout (Volume spike {latest_intraday['volume']:.0f} > 2 * {latest_daily['Volume_MA']:.0f})")
 
             # 4. Relative Volume (RVOL)
             rvol_intraday = latest_intraday["RVOL"]
@@ -395,9 +365,7 @@ class TechnicalAnalyzer:
         signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 
         logger.debug(
-            f"\n{symbol} - Technical Analysis:\n"
-            f"ATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']}, "
-            f"Momentum: {signals['momentum']:1f}, Signals: {signals['signals']}"
+            f"\n{symbol} - Technical Analysis:\nATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']}, Momentum: {signals['momentum']:1f}, Signals: {signals['signals']}"
         )
         return signals
 
@@ -451,23 +419,27 @@ class TechnicalAnalyzer:
         return None
 
     def calculate_ta_threshold(self, vix_close, rel_vol, atr_pct):
-        """Dynamically adjust technical score threshold based on VIX, volume, and volatility."""
+        """
+        Dynamically adjust technical score threshold based on VIX, volume, and volatility.
+
+        Updated thresholds (reduced by 0.1-0.15 points) to increase entry conversion rate.
+        """
 
         logger.debug(f"VIX: {vix_close:.1f}, Rel Vol: {rel_vol:.1f}, ATR %: {atr_pct:.2f}")
         if vix_close > 35:
             if rel_vol >= 3 and atr_pct < 0.08:  # Slightly raised ATR limit
-                return 0.8  # Allow strong setups
-            return 0.9  # Stricter threshold
+                return 0.65  # Reduced from 0.8
+            return 0.75  # Reduced from 0.9
 
         if vix_close >= 30:
             if rel_vol >= 2 and atr_pct < 0.10:  # Allow higher ATR in high VIX
-                return 0.7
-            return 0.75
+                return 0.55  # Reduced from 0.7
+            return 0.6  # Reduced from 0.75
 
         if vix_close >= 20:
             if rel_vol >= 1.5 and atr_pct < 0.12:  # More flexibility in calm markets
-                return 0.6
-            return 0.65
+                return 0.45  # Reduced from 0.6
+            return 0.5  # Reduced from 0.65
 
         # VIX < 20 (Calm market)
-        return 0.5  # Allow all setups
+        return 0.35  # Reduced from 0.5
