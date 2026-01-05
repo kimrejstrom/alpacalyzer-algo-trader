@@ -4,6 +4,13 @@
 # critical for the ongoing migration (see migration_plan.md).
 #
 # Documentation: See AGENTS.md section "Worktree Workflow Management"
+#
+# ⚠️  AGENT GUARDRAIL: One worktree = One issue = One session
+# Each worktree is created for a SINGLE GitHub issue. AI agents must:
+# - Complete ONLY the assigned issue in this worktree
+# - NEVER start work on a different issue in the same session
+# - Report completion and STOP when the issue PR is created/merged
+# The human orchestrator will create new worktrees for subsequent issues.
 
 # Post-create hooks run after a new worktree is created
 [hooks.post_create]

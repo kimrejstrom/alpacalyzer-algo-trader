@@ -30,9 +30,10 @@ uv run alpacalyzer            # Full trading mode
 
 1. **GitHub Issue First** - No work without an issue. Create one if missing.
 2. **Tests Before Code** - Write tests first, then implement.
-3. **One Thing At A Time** - Single feature per PR, focused commits.
-4. **No Secrets** - Use environment variables, never hardcode credentials.
-5. **Debug Efficiently** - Run tests once, save output, analyze. Never run full test suite repeatedly.
+3. **One Issue Per Session** - Each worktree session handles exactly ONE issue. Never start a new issue in the same session.
+4. **One Thing At A Time** - Single feature per PR, focused commits.
+5. **No Secrets** - Use environment variables, never hardcode credentials.
+6. **Debug Efficiently** - Run tests once, save output, analyze. Never run full test suite repeatedly.
 
 ## 🏗️ Architecture Overview
 
@@ -349,6 +350,7 @@ Before every commit:
 - ❌ Hardcode GitHub repo owner/name (always parse from `git remote`)
 - ❌ Modify production database or live trading without explicit confirmation
 - ❌ Place real trades in test mode
+- ❌ Start a new issue in the same worktree session (each issue needs its own worktree)
 
 ## 🌳 Worktree Management
 
@@ -389,9 +391,30 @@ wt remove
 ### Agent Responsibilities
 
 - **DO**: Implement features, write tests, create PRs, merge PRs
-- **DO NOT**: Create worktrees, remove worktrees, switch branches
+- **DO NOT**: Create worktrees, remove worktrees, switch branches, start new issues
 
 The human will tell you when you're in a worktree. Just focus on the feature work.
+
+### Session Scope (CRITICAL)
+
+**One worktree = One issue = One session**. This is a hard boundary.
+
+When your assigned issue is complete (PR created or merged):
+
+1. **STOP** - Do not look for "next steps" or "follow-up issues"
+2. **Report completion** - Tell the user the PR is ready/merged
+3. **Wait** - The human orchestrator will create a new worktree for the next issue
+
+**If asked to "continue" after completing an issue:**
+
+- Clarify: "Issue #XX is complete. Should I continue work within this issue, or are you asking about a different issue?"
+- Never assume "continue" means "start the next issue"
+
+**Why this matters:**
+
+- Each worktree has an isolated branch for ONE feature
+- Starting a new issue in the same session causes branch pollution
+- The human orchestrator manages parallel work across worktrees
 
 ### Worktree Commands (Reference Only)
 
