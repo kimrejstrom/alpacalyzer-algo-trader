@@ -71,12 +71,7 @@ def bill_ackman_agent(state: AgentState):
         valuation_analysis = analyze_valuation(financial_line_items, market_cap)
 
         # Combine partial scores or signals
-        total_score = (
-            quality_analysis["score"]
-            + balance_sheet_analysis["score"]
-            + activism_analysis["score"]
-            + valuation_analysis["score"]
-        )
+        total_score = quality_analysis["score"] + balance_sheet_analysis["score"] + activism_analysis["score"] + valuation_analysis["score"]
         max_possible_score = 20  # Adjust weighting as desired (5 from each sub-analysis, for instance)
 
         # Generate a simple buy/hold/sell (bullish/neutral/bearish) signal
@@ -222,11 +217,7 @@ def analyze_financial_discipline(metrics: list[Any], financial_line_items: list[
             details.append("Debt-to-equity >= 1.0 in many periods (could be high leverage).")
     else:
         # Fallback to total_liabilities / total_assets
-        liab_to_assets = [
-            item.total_liabilities / item.total_assets
-            for item in financial_line_items
-            if item.total_liabilities and item.total_assets and item.total_assets > 0
-        ]
+        liab_to_assets = [item.total_liabilities / item.total_assets for item in financial_line_items if item.total_liabilities and item.total_assets and item.total_assets > 0]
 
         if liab_to_assets:
             below_50pct_count = sum(1 for ratio in liab_to_assets if ratio < 0.5)
@@ -239,11 +230,7 @@ def analyze_financial_discipline(metrics: list[Any], financial_line_items: list[
             details.append("No consistent leverage ratio data available.")
 
     # 2. Capital allocation approach (dividends + share counts)
-    dividends_list = [
-        item.dividends_and_other_cash_distributions
-        for item in financial_line_items
-        if item.dividends_and_other_cash_distributions is not None
-    ]
+    dividends_list = [item.dividends_and_other_cash_distributions for item in financial_line_items if item.dividends_and_other_cash_distributions is not None]
     if dividends_list:
         paying_dividends_count = sum(1 for d in dividends_list if d < 0)
         if paying_dividends_count >= (len(dividends_list) // 2 + 1):
@@ -300,10 +287,7 @@ def analyze_activism_potential(financial_line_items: list[Any]) -> dict[str, Any
     # Suppose if there's decent revenue growth but margins are below 10%, Ackman might see activism potential.
     if revenue_growth > 0.15 and avg_margin < 0.10:
         score += 2
-        details.append(
-            f"Revenue growth is good (~{revenue_growth * 100:.1f}%), but margins are low (avg {avg_margin * 100:.1f}%)"
-            "Activism could unlock margin improvements."
-        )
+        details.append(f"Revenue growth is good (~{revenue_growth * 100:.1f}%), but margins are low (avg {avg_margin * 100:.1f}%)Activism could unlock margin improvements.")
     else:
         details.append("No clear sign of activism opportunity (either margins are already decent or growth is weak).")
 
@@ -340,9 +324,7 @@ def analyze_valuation(financial_line_items: list[Any], market_cap: float) -> dic
         present_value += pv
 
     # Terminal Value
-    terminal_value = (fcf * (1 + growth_rate) ** projection_years * terminal_multiple) / (
-        (1 + discount_rate) ** projection_years
-    )
+    terminal_value = (fcf * (1 + growth_rate) ** projection_years * terminal_multiple) / ((1 + discount_rate) ** projection_years)
 
     intrinsic_value = present_value + terminal_value
     margin_of_safety = (intrinsic_value - market_cap) / market_cap

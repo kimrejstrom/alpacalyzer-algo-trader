@@ -84,9 +84,7 @@ def fundamentals_agent(state: AgentState):
         signals.append("bullish" if growth_score >= 2 else "bearish" if growth_score == 0 else "neutral")
         reasoning["growth_signal"] = {
             "signal": signals[1],
-            "details": (
-                f"Revenue Growth: {revenue_growth:.2%}" if revenue_growth is not None else "Revenue Growth: N/A"
-            )
+            "details": (f"Revenue Growth: {revenue_growth:.2%}" if revenue_growth is not None else "Revenue Growth: N/A")
             + ", "
             + (f"Earnings Growth: {earnings_growth:.2%}" if earnings_growth is not None else "Earnings Growth: N/A"),
         }
@@ -103,11 +101,7 @@ def fundamentals_agent(state: AgentState):
             health_score += 1
         if debt_to_equity is not None and debt_to_equity < 0.5:  # Conservative debt levels
             health_score += 1
-        if (
-            free_cash_flow_per_share is not None
-            and earnings_per_share is not None
-            and free_cash_flow_per_share > earnings_per_share * 0.8
-        ):  # Strong FCF conversion
+        if free_cash_flow_per_share is not None and earnings_per_share is not None and free_cash_flow_per_share > earnings_per_share * 0.8:  # Strong FCF conversion
             health_score += 1
 
         signals.append("bullish" if health_score >= 2 else "bearish" if health_score == 0 else "neutral")

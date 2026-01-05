@@ -57,9 +57,7 @@ def setup_logger():
         logger.removeHandler(handler)
 
     # File handler
-    file_handler = TimedRotatingFileHandler(
-        os.path.join(LOGS_DIR, "trading_logs.log"), when="midnight", interval=1, backupCount=7
-    )
+    file_handler = TimedRotatingFileHandler(os.path.join(LOGS_DIR, "trading_logs.log"), when="midnight", interval=1, backupCount=7)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)"))
     logger.addHandler(file_handler)
@@ -72,9 +70,7 @@ def setup_logger():
     logger.addHandler(console_handler)
 
     # Analytics handler
-    analytics_handler = TimedRotatingFileHandler(
-        os.path.join(LOGS_DIR, "analytics_log.log"), when="midnight", interval=1, backupCount=7
-    )
+    analytics_handler = TimedRotatingFileHandler(os.path.join(LOGS_DIR, "analytics_log.log"), when="midnight", interval=1, backupCount=7)
     analytics_handler.setLevel(logging.DEBUG)
     analytics_handler.setFormatter(logging.Formatter("%(message)s         (%(levelname)s - %(asctime)s)"))
 

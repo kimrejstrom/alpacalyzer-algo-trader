@@ -11,9 +11,7 @@ class Cache:
         self._insider_trades_cache: dict[str, list[dict[str, Any]]] = {}
         self._company_news_cache: dict[str, list[dict[str, Any]]] = {}
 
-    def _merge_data(
-        self, existing: list[dict[str, Any]] | None, new_data: list[dict[str, Any]], key_field: str
-    ) -> list[dict[str, Any]]:
+    def _merge_data(self, existing: list[dict[str, Any]] | None, new_data: list[dict[str, Any]], key_field: str) -> list[dict[str, Any]]:
         """Merge existing and new data, avoiding duplicates based on a key field."""
         if not existing:
             return new_data
@@ -40,9 +38,7 @@ class Cache:
 
     def set_financial_metrics(self, ticker: str, data: list[dict[str, Any]]):
         """Append new financial metrics to cache."""
-        self._financial_metrics_cache[ticker] = self._merge_data(
-            self._financial_metrics_cache.get(ticker), data, key_field="report_period"
-        )
+        self._financial_metrics_cache[ticker] = self._merge_data(self._financial_metrics_cache.get(ticker), data, key_field="report_period")
 
     def get_line_items(self, ticker: str) -> list[dict[str, Any]] | None:
         """Get cached line items if available."""
@@ -50,9 +46,7 @@ class Cache:
 
     def set_line_items(self, ticker: str, data: list[dict[str, Any]]):
         """Append new line items to cache."""
-        self._line_items_cache[ticker] = self._merge_data(
-            self._line_items_cache.get(ticker), data, key_field="report_period"
-        )
+        self._line_items_cache[ticker] = self._merge_data(self._line_items_cache.get(ticker), data, key_field="report_period")
 
     def get_insider_trades(self, ticker: str) -> list[dict[str, Any]] | None:
         """Get cached insider trades if available."""
@@ -72,9 +66,7 @@ class Cache:
 
     def set_company_news(self, ticker: str, data: list[dict[str, Any]]):
         """Append new company news to cache."""
-        self._company_news_cache[ticker] = self._merge_data(
-            self._company_news_cache.get(ticker), data, key_field="date"
-        )
+        self._company_news_cache[ticker] = self._merge_data(self._company_news_cache.get(ticker), data, key_field="date")
 
 
 # Global cache instance

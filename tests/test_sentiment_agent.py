@@ -18,13 +18,9 @@ def mock_state():
 @patch("alpacalyzer.agents.sentiment_agent.FinvizScanner")
 @patch("alpacalyzer.agents.sentiment_agent.YFinanceClient")
 @patch("alpacalyzer.agents.sentiment_agent.calculate_sentiment_signals")
-def test_sentiment_agent_success(
-    mock_calculate_sentiment_signals, mock_yfinance_client, mock_finviz_scanner, mock_state
-):
+def test_sentiment_agent_success(mock_calculate_sentiment_signals, mock_yfinance_client, mock_finviz_scanner, mock_state):
     # Mock FinvizScanner
-    mock_finviz_scanner.return_value.get_ownership_stocks.return_value = MagicMock(
-        loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"])))
-    )
+    mock_finviz_scanner.return_value.get_ownership_stocks.return_value = MagicMock(loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"]))))
 
     # Mock YFinanceClient
     mock_yfinance_client.return_value.get_news.return_value = [
@@ -40,11 +36,7 @@ def test_sentiment_agent_success(
 
     # Mock calculate_sentiment_signals with proper Pydantic model objects
     mock_calculate_sentiment_signals.return_value = SentimentAnalysisResponse(
-        sentiment_analysis=[
-            SentimentAnalysis(
-                sentiment="Bullish", score=0.8, highlights=["Positive highlight"], rationale="This is bullish"
-            )
-        ]
+        sentiment_analysis=[SentimentAnalysis(sentiment="Bullish", score=0.8, highlights=["Positive highlight"], rationale="This is bullish")]
     )
 
     result = sentiment_agent(mock_state)
@@ -60,9 +52,7 @@ def test_sentiment_agent_success(
 @patch("alpacalyzer.agents.sentiment_agent.YFinanceClient")
 def test_sentiment_agent_no_news(mock_yfinance_client, mock_finviz_scanner, mock_state):
     # Mock FinvizScanner
-    mock_finviz_scanner.return_value.get_ownership_stocks.return_value = MagicMock(
-        loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"])))
-    )
+    mock_finviz_scanner.return_value.get_ownership_stocks.return_value = MagicMock(loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"]))))
 
     # Mock YFinanceClient
     mock_yfinance_client.return_value.get_news.return_value = None

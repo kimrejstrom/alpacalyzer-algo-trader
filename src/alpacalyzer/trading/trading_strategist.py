@@ -121,9 +121,7 @@ def serialize_trading_signals(signals: TradingSignals) -> str:
     return json.dumps(json_ready_signals, indent=2)  # Convert to JSON string
 
 
-def get_trading_strategies(
-    trading_signals: TradingSignals, decision: PortfolioDecision
-) -> TradingStrategyResponse | None:
+def get_trading_strategies(trading_signals: TradingSignals, decision: PortfolioDecision) -> TradingStrategyResponse | None:
     """Generate trading strategies based on the given signals and recommendations."""
     system_message = {
         "role": "system",

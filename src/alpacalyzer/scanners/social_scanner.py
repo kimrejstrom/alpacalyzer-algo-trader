@@ -148,9 +148,7 @@ class SocialScanner:
         for _, row in combined_df.iterrows():
             ta_data = self.technical_analyzer.analyze_stock(row["ticker"])
             if ta_data:
-                ta_results.append(
-                    {"ticker": ta_data["symbol"], "technical_score": ta_data["score"], "trading_signals": ta_data}
-                )
+                ta_results.append({"ticker": ta_data["symbol"], "technical_score": ta_data["score"], "trading_signals": ta_data})
 
         # Add technical ranks
         ta_df = pd.DataFrame(ta_results)

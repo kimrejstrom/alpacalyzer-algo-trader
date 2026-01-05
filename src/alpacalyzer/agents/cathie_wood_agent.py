@@ -155,9 +155,7 @@ def analyze_disruptive_potential(metrics: list[Any], financial_line_items: list[
         # Check if growth is accelerating (first growth rate higher than last, since they're in reverse order)
         if len(growth_rates) >= 2 and growth_rates[0] > growth_rates[-1]:
             score += 2
-            details.append(
-                f"Revenue growth is accelerating: {(growth_rates[0] * 100):.1f}% vs {(growth_rates[-1] * 100):.1f}%"
-            )
+            details.append(f"Revenue growth is accelerating: {(growth_rates[0] * 100):.1f}% vs {(growth_rates[-1] * 100):.1f}%")
 
         # Check absolute growth rate (most recent growth rate is at index 0)
         latest_growth = growth_rates[0] if growth_rates else 0
@@ -174,11 +172,7 @@ def analyze_disruptive_potential(metrics: list[Any], financial_line_items: list[
         details.append("Insufficient revenue data for growth analysis")
 
     # 2. Gross Margin Analysis - Check for expanding margins
-    gross_margins = [
-        item.gross_margin
-        for item in financial_line_items
-        if hasattr(item, "gross_margin") and item.gross_margin is not None
-    ]
+    gross_margins = [item.gross_margin for item in financial_line_items if hasattr(item, "gross_margin") and item.gross_margin is not None]
     if len(gross_margins) >= 2:
         margin_trend = gross_margins[0] - gross_margins[-1]
         if margin_trend > 0.05:  # 5% improvement
@@ -197,11 +191,7 @@ def analyze_disruptive_potential(metrics: list[Any], financial_line_items: list[
 
     # 3. Operating Leverage Analysis
     revenues = [item.revenue for item in financial_line_items if item.revenue]
-    operating_expenses = [
-        item.operating_expense
-        for item in financial_line_items
-        if hasattr(item, "operating_expense") and item.operating_expense
-    ]
+    operating_expenses = [item.operating_expense for item in financial_line_items if hasattr(item, "operating_expense") and item.operating_expense]
 
     if len(revenues) >= 2 and len(operating_expenses) >= 2:
         rev_growth = (revenues[0] - revenues[-1]) / abs(revenues[-1])
@@ -214,11 +204,7 @@ def analyze_disruptive_potential(metrics: list[Any], financial_line_items: list[
         details.append("Insufficient data for operating leverage analysis")
 
     # 4. R&D Investment Analysis
-    rd_expenses = [
-        item.research_and_development
-        for item in financial_line_items
-        if hasattr(item, "research_and_development") and item.research_and_development is not None
-    ]
+    rd_expenses = [item.research_and_development for item in financial_line_items if hasattr(item, "research_and_development") and item.research_and_development is not None]
     if rd_expenses and revenues:
         rd_intensity = rd_expenses[0] / revenues[0]
         if rd_intensity > 0.15:  # High R&D intensity
@@ -263,11 +249,7 @@ def analyze_innovation_growth(metrics: list[Any], financial_line_items: list[Lin
         return {"score": 0, "details": "Insufficient data to analyze innovation-driven growth"}
 
     # 1. R&D Investment Trends
-    rd_expenses = [
-        item.research_and_development
-        for item in financial_line_items
-        if hasattr(item, "research_and_development") and item.research_and_development
-    ]
+    rd_expenses = [item.research_and_development for item in financial_line_items if hasattr(item, "research_and_development") and item.research_and_development]
     revenues = [item.revenue for item in financial_line_items if item.revenue]
     if rd_expenses and revenues and len(rd_expenses) >= 2:
         rd_growth = (rd_expenses[0] - rd_expenses[-1]) / abs(rd_expenses[-1]) if rd_expenses[-1] != 0 else 0
@@ -283,9 +265,7 @@ def analyze_innovation_growth(metrics: list[Any], financial_line_items: list[Lin
         rd_intensity_end = rd_expenses[0] / revenues[0]
         if rd_intensity_end > rd_intensity_start:
             score += 2
-            details.append(
-                f"Increasing R&D intensity: {(rd_intensity_end * 100):.1f}% vs {(rd_intensity_start * 100):.1f}%"
-            )
+            details.append(f"Increasing R&D intensity: {(rd_intensity_end * 100):.1f}% vs {(rd_intensity_start * 100):.1f}%")
     else:
         details.append("Insufficient R&D data for trend analysis")
 
@@ -325,11 +305,7 @@ def analyze_innovation_growth(metrics: list[Any], financial_line_items: list[Lin
         details.append("Insufficient operating margin data")
 
     # 4. Capital Allocation Analysis
-    capex = [
-        item.capital_expenditure
-        for item in financial_line_items
-        if hasattr(item, "capital_expenditure") and item.capital_expenditure
-    ]
+    capex = [item.capital_expenditure for item in financial_line_items if hasattr(item, "capital_expenditure") and item.capital_expenditure]
     if capex and revenues and len(capex) >= 2:
         capex_intensity = abs(capex[0]) / revenues[0]
         capex_growth = (abs(capex[0]) - abs(capex[-1])) / abs(capex[-1]) if capex[-1] != 0 else 0
@@ -345,9 +321,7 @@ def analyze_innovation_growth(metrics: list[Any], financial_line_items: list[Lin
 
     # 5. Growth Reinvestment Analysis
     dividends = [
-        item.dividends_and_other_cash_distributions
-        for item in financial_line_items
-        if hasattr(item, "dividends_and_other_cash_distributions") and item.dividends_and_other_cash_distributions
+        item.dividends_and_other_cash_distributions for item in financial_line_items if hasattr(item, "dividends_and_other_cash_distributions") and item.dividends_and_other_cash_distributions
     ]
     if dividends and fcf_vals:
         latest_payout_ratio = dividends[0] / fcf_vals[0] if fcf_vals[0] != 0 else 1
@@ -402,9 +376,7 @@ def analyze_cathie_wood_valuation(financial_line_items: list[LineItem], market_c
         present_value += pv
 
     # Terminal Value
-    terminal_value = (fcf * (1 + growth_rate) ** projection_years * terminal_multiple) / (
-        (1 + discount_rate) ** projection_years
-    )
+    terminal_value = (fcf * (1 + growth_rate) ** projection_years * terminal_multiple) / ((1 + discount_rate) ** projection_years)
     intrinsic_value = present_value + terminal_value
 
     margin_of_safety = (intrinsic_value - market_cap) / market_cap
