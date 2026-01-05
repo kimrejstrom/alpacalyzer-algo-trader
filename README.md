@@ -1,39 +1,29 @@
 # Alpacalyzer Algo Trader
 
-An algorithmic trading platform that leverages technical analysis, social media sentiment, and AI-powered decision making to execute automated trading strategies through the Alpaca Markets API.
+An AI-powered algorithmic trading platform that combines technical analysis, social media sentiment, and multi-agent decision-making to execute automated trading strategies through the Alpaca Markets API.
 
 ---
 
 ## Table of Contents
 
-- [Alpacalyzer Algo Trader](#alpacalyzer-algo-trader)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Features](#features)
-  - [Architecture](#architecture)
-    - [Analyze Phase](#analyze-phase)
-    - [Trade Phase](#trade-phase)
-    - [Core Components](#core-components)
-  - [Usage](#usage)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [What's in the box ?](#whats-in-the-box-)
-    - [uv](#uv)
-    - [pre-commit](#pre-commit)
-    - [ruff](#ruff)
-    - [mypy](#mypy)
-  - [Testing](#testing)
-  - [Docs](#docs)
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Development](#development)
+- [Testing](#testing)
+- [Documentation](#documentation)
 
 ---
 
 ## Overview
 
-Alpacalyzer is an algorithmic, AI powered hedge fund suite, with analytic as well as trading capabilities. It combines multiple data sources to identify trading opportunities:
+Alpacalyzer is an algorithmic, AI-powered hedge fund suite with analytic and trading capabilities. It combines multiple data sources to identify trading opportunities:
 
-- **Technical Analysis**: Evaluates price patterns, momentum indicators, and chart formations
-- **Social Media Insights**: Analyzes Reddit and other social platforms for trending stocks
-- **AI Decision Engine**: Uses a "Hedge Fund Agent" framework to make final trading decisions
+- **Technical Analysis**: Evaluates price patterns, momentum indicators (RSI, MACD), and chart formations via TA-Lib
+- **Social Media Insights**: Analyzes Reddit (r/wallstreetbets, r/stocks), Stocktwits, and Finviz for trending stocks
+- **AI Decision Engine**: Uses a LangGraph-based "Hedge Fund Agent" framework with GPT-4 for final trading decisions
 
 The system executes trades automatically with predefined risk management parameters through bracket orders.
 
@@ -42,115 +32,137 @@ The system executes trades automatically with predefined risk management paramet
 ## Features
 
 - **Multi-source Market Scanning**: Combines technical, social media, and fundamental analysis
-- **Hedge Fund Agent Framework**: Uses AI-based decision making to evaluate trading opportunities
-- **Automated Trading**: Executes trades based on configurable strategies
-- **Technical Analysis**: Calculates various technical indicators to identify entry/exit points
-- **Position Management**: Monitors open positions and implements stop loss/take profit rules
+- **Hedge Fund Agent Framework**: LangGraph workflow with specialized AI agents (value investors, quants, sentiment analysts)
+- **Automated Trading**: Executes trades with configurable strategies via Alpaca API
+- **Technical Analysis**: TA-Lib powered indicators (RSI, MACD, Bollinger Bands, moving averages)
+- **Position Management**: Monitors open positions with stop loss/take profit rules
 - **Bracket Orders**: Uses Alpaca's bracket orders for trade management with predefined exits
 
 ---
 
 ## Architecture
 
-### Analyze Phase
-
-```mermaid
-flowchart LR
-  subgraph Opportunity Scanners
-    day[day scanner]
-    swing[swing scanner]
-  end
-
-  subgraph Agents
-    ta[TA agent]
-    quant[Quant agent]
-    other[Other Agents]
-  end
-
-  day --> ta
-  day --> quant
-  day --> other
-
-  swing --> ta
-  swing --> quant
-  swing --> other
-
-  ta --> rm[Risk manager]
-  quant --> rm
-  other --> rm
-
-  rm -->|sizing| pm[Portfolio manager]
-  pm -->|trading decision| strategist[Trading strategist]
-  strategist --> strategy[Trading strategy]
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     OPPORTUNITY SCANNERS                         │
+├─────────────────────────────────────────────────────────────────┤
+│  RedditScanner      - Analyzes r/wallstreetbets, r/stocks       │
+│  SocialScanner      - WSB + Stocktwits + Finviz trending        │
+│  FinvizScanner      - Fundamental + technical screening          │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   HEDGE FUND AGENT WORKFLOW (LangGraph)          │
+├─────────────────────────────────────────────────────────────────┤
+│  Technical Analyst  - RSI, MACD, moving averages, patterns      │
+│  Sentiment Agent    - Social media sentiment analysis           │
+│  Quant Agent        - Quantitative metrics analysis             │
+│  Value Investors    - Graham, Buffett, Munger, Ackman, Wood    │
+│           │                                                      │
+│           ▼                                                      │
+│  Risk Manager       - Position sizing, risk assessment          │
+│  Portfolio Manager  - Portfolio allocation decisions            │
+│  Trading Strategist - Final trading recommendation              │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        TRADER (Execution)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Monitors positions and market conditions                        │
+│  Evaluates entry/exit conditions                                │
+│  Places bracket orders (LONG/SHORT with stop-loss + target)     │
+│  Executes liquidations when conditions met                       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Trade Phase
+### Key Components
 
-```mermaid
-flowchart LR
-  strategy[Trading strategies] --> monitor[Monitor & trade]
+| Component       | Tech            | Location                                         |
+| --------------- | --------------- | ------------------------------------------------ |
+| CLI Entry       | Click           | `src/alpacalyzer/cli.py`                         |
+| Hedge Fund      | LangGraph       | `src/alpacalyzer/hedge_fund.py`                  |
+| Agents          | LangGraph nodes | `src/alpacalyzer/agents/`                        |
+| Scanners        | Python classes  | `src/alpacalyzer/scanners/`                      |
+| Tech Analysis   | TA-Lib          | `src/alpacalyzer/analysis/technical_analysis.py` |
+| Trader          | Stateful class  | `src/alpacalyzer/trading/trader.py`              |
+| Alpaca Client   | alpaca-py       | `src/alpacalyzer/trading/alpaca_client.py`       |
+| Data Models     | Pydantic        | `src/alpacalyzer/data/models.py`                 |
+| GPT Integration | OpenAI API      | `src/alpacalyzer/gpt/call_gpt.py`                |
 
-  monitor --> entry[Check entry conditions]
-  entry --> exec[Execute strategy]
-  exec -->|LONG/SHORT bracket order| alpaca[Alpaca client]
-  exec -->|Liquidate position| alpaca
-  monitor --> exit[Check exit conditions]
-  exit --> exec
+---
 
+## Quick Start
 
+### Prerequisites
 
+- **Python** >=3.13.0 <3.14.0
+- **uv** >=0.5.7 ([installation](https://docs.astral.sh/uv/getting-started/installation/))
+- **TA-Lib** system library (see below)
+
+### Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/kimrejstrom/alpacalyzer-algo-trader.git
+cd alpacalyzer-algo-trader
+
+# 2. Install TA-Lib system library
+# macOS
+brew install ta-lib
+
+# Linux (Ubuntu/Debian)
+wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz
+tar -xzf ta-lib-0.6.4-src.tar.gz
+cd ta-lib-0.6.4 && ./configure && make && sudo make install
+cd ..
+
+# 3. Install Python dependencies
+uv sync
+
+# 4. Setup environment
+cp .env.example .env
+# Edit .env with your API keys (see below)
+
+# 5. Enable pre-commit hooks
+pre-commit install
 ```
 
-### Core Components
+### Environment Variables
 
-- **Scanners**: Identify potential trading opportunities
+Create a `.env` file with:
 
-  - `FinvizScanner`: Fetches fundamental and technical data
-  - `RedditScanner`: Analyzes subreddits and mentions on Reddit
-  - `SocialScanner`: Tracks social media sentiment and mentions
+```bash
+# Alpaca API (paper trading recommended for development)
+APCA_API_KEY_ID=your_key_here
+APCA_API_SECRET_KEY=your_secret_here
+APCA_API_BASE_URL=https://paper-api.alpaca.markets
 
-- **Analyzers**: Evaluate opportunities using technical analysis
+# OpenAI API (for GPT-4 agents)
+OPENAI_API_KEY=your_key_here
 
-  - `TechnicalAnalyzer`: Calculates indicators like RSI, MACD, moving averages
-
-- **Hedge Fund**: AI-powered decision making system
-
-  - Aggregates inputs from scanners and analyzers
-  - Agents evaluate opportunities and provide insights
-    - `Ben Graham`: Fundamental analysis
-    - `Bill Ackman`: Activist investing
-    - `Cathie Wood`: Growth investing
-    - `Charlie Munger`: Value investing
-    - `Fundamental Analyst`: Fundamental analysis
-    - `Quant Analyst`: Quantitative analysis
-    - `Sentiment Analyst`: Social media sentiment analysis
-    - `Technical Analyst`: Technical analysis
-    - `Warren Buffett`: Value investing
-  - Risk and portfolio managers assess risk and position sizing
-  - Makes final trade decisions with entry/exit strategies
-
-- **Trader**: Orchestrates scanning, analysis, and trade execution
-
-  - Monitors positions and market conditions
-  - Places orders with appropriate risk parameters
+# Optional
+LOG_LEVEL=INFO
+```
 
 ---
 
 ## Usage
 
-Run the main trader with:
-
-```bash
-uv run alpacalyzer
-```
-
-For analysis mode only (no real trades):
+### Analysis Mode (No Trades)
 
 ```bash
 uv run alpacalyzer --analyze
 ```
 
-To focus on specific tickers:
+### Full Trading Mode
+
+```bash
+uv run alpacalyzer
+```
+
+### Focus on Specific Tickers
 
 ```bash
 uv run alpacalyzer --analyze --tickers=AAPL,MSFT,GOOG
@@ -158,132 +170,74 @@ uv run alpacalyzer --analyze --tickers=AAPL,MSFT,GOOG
 
 ---
 
-## Prerequisites
+## Development
 
-- [Python](https://www.python.org/downloads/) **>=3.13.0 <3.14.0** (_tested with 3.13.1_)
-- [pre-commit](https://pre-commit.com/#install) **>=3.2.0 <5.0.0** (_tested with 4.0.1_)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) **>=0.5.7** (_tested with 0.5.15_)
+### Tooling
 
----
+| Tool                                      | Purpose                   | Config                      |
+| ----------------------------------------- | ------------------------- | --------------------------- |
+| [uv](https://github.com/astral-sh/uv)     | Package & project manager | `pyproject.toml`, `uv.lock` |
+| [pre-commit](https://pre-commit.com/)     | Git hooks                 | `.pre-commit-config.yaml`   |
+| [ruff](https://github.com/astral-sh/ruff) | Linting & formatting      | `pyproject.toml`            |
+| [ty](https://github.com/astral-sh/ty)     | Type checking             | -                           |
+| [pytest](https://docs.pytest.org/)        | Testing                   | `pyproject.toml`            |
 
-## Installation
+### Commands
 
-1. Clone the git repository
+```bash
+# Lint
+uv run ruff check .
 
-   ```bash
-   git clone https://github.com/your-username/alpacalyzer-algo-trader.git
-   ```
+# Format
+uv run ruff format .
 
-2. Go into the project directory
+# Type check
+uv run ty check src
 
-   ```bash
-   cd alpacalyzer-algo-trader/
-   ```
+# Run all checks
+uv run ruff check . && uv run ruff format . && uv run ty check src
+```
 
-3. Configure Python environment
+### For AI Agents
 
-   ```bash
-   uv python install
-   uv venv
-   source .venv/bin/activate
-   ```
+See [AGENTS.md](AGENTS.md) for comprehensive development guidelines including:
 
-4. Install dependencies
-
-   ```bash
-   uv pip install -e .
-   ```
-
-5. Enable pre-commit hooks
-
-   ```bash
-   pre-commit install
-   ```
-
-6. Set up environment variables (create .env file with your Alpaca API keys)
-
-   ```env
-   ALPACA_API_KEY=your_api_key
-   ALPACA_SECRET_KEY=your_secret_key
-   ```
-
----
-
-## What's in the box ?
-
-### uv
-
-[uv](https://github.com/astral-sh/uv) is an extremely fast Python package and project manager, written in Rust.
-
-- `pyproject.toml`: orchestrates your project and its dependencies
-- `uv.lock`: ensures package versions are consistent
-
-### pre-commit
-
-[pre-commit](https://pre-commit.com/) is a framework for managing and maintaining multi-language pre-commit hooks.
-
-- `.pre-commit-config.yaml`: defines what hooks run and when
-
-### ruff
-
-[ruff](https://github.com/astral-sh/ruff) is a fast Python linter written in Rust.
-
-- Configured in `pyproject.toml`
-
-### mypy
-
-[mypy](http://mypy-lang.org/) is a static type checker for Python.
-
-- Configured in `pyproject.toml`
+- Test-driven development workflow
+- Skill files for common tasks (`.claude/skills/`)
+- Code review instructions
+- Worktree management for parallel development
 
 ---
 
 ## Testing
 
-We use [pytest](https://docs.pytest.org/) and [pytest-cov](https://github.com/pytest-dev/pytest-cov) for testing and coverage.
-
-Run tests:
-
 ```bash
+# Run all tests
 uv run pytest tests
-```
 
-<details>
-<summary>Output</summary>
-
-```text
-collected 1 item
-
-tests/test_myapplication.py::test_hello_world PASSED
-```
-
-</details>
-
-Run tests with coverage:
-
-```bash
+# Run with coverage
 uv run pytest tests --cov=src
+
+# Run specific test file
+uv run pytest tests/test_technical_analysis.py -v
 ```
 
-<details>
-<summary>Output</summary>
+### Key Testing Patterns
 
-```text
-collected 1 item
+- **OpenAI mocking**: Automatic via `conftest.py` fixture
+- **Alpaca API mocking**: Use `monkeypatch` for trading logic tests
+- **No real API calls**: All external APIs must be mocked in tests
 
-tests/test_myapplication.py::test_hello_world PASSED
+---
 
----------- coverage: platform linux, python 3.10.4-final-0 -----------
-Name                            Stmts   Miss  Cover
----------------------------------------------------
-src/myapplication/__init__.py       1      0   100%
-src/myapplication/main.py           6      2    67%
----------------------------------------------------
-TOTAL                               7      2    71%
-```
+## Documentation
 
-</details>
+- [AGENTS.md](AGENTS.md) - AI agent development guidelines
+- [migration_plan.md](migration_plan.md) - Architecture refactoring roadmap
+- [docs/](docs/index.md) - In-depth technical documentation
 
-## Docs
+---
 
-[In-depth Guide](docs/index.md)
+## License
+
+MIT License - see [LICENSE](LICENSE)
