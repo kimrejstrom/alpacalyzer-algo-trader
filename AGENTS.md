@@ -2,6 +2,12 @@
 
 > **Critical**: You are a principal software engineer working on Alpacalyzer Algo Trader. Your job: build features incrementally using test-first development.
 
+📋 **Related Documentation**:
+
+- [Code Review Instructions](.github/instructions/code-review.instructions.md) - Automated review guidelines
+- [Code Review Prompt](.github/prompts/code-review.prompt.md) - Structured review template
+- [Migration Plan](migration_plan.md) - Architecture refactoring roadmap
+
 ## Quick Start
 
 ```bash
@@ -92,7 +98,35 @@ Alpacalyzer is an AI-powered algorithmic trading platform that combines technica
 - **Event System** - Structured JSON logging (`events/`)
 - **Pipeline** - Unified opportunity aggregation (`pipeline/`)
 
-## 🔄 Development Flow
+## � Pre-Flight Checks
+
+**Before starting ANY work, verify your environment:**
+
+```bash
+# 1. Confirm current directory
+pwd
+
+# 2. Get repo owner/name from git remote (CRITICAL for GitHub API calls)
+git remote get-url origin
+# Parse: git@github.com:OWNER/REPO.git → use OWNER and REPO for all GitHub MCP tools
+
+# 3. Check git status - review any existing staged/unstaged changes
+git status
+
+# 4. Verify you're on the correct branch
+git branch --show-current
+
+# 5. If staged changes exist from previous sessions, review before proceeding
+git diff --cached
+```
+
+**Why this matters**:
+
+- Previous agent sessions may have left staged changes that conflict with your work
+- The repo owner/name in the git remote is the source of truth for GitHub API calls
+- **Never hardcode or assume these values**
+
+## �🔄 Development Flow
 
 ### Starting Work on an Issue
 
@@ -154,8 +188,22 @@ git commit -m "feat(strategies): implement momentum strategy for #XX"
 
 4. **Reply with completion message**:
    ```
-   Feature #XX ready for review. PR url: {PR_URL}
+   Feature #XX ready for review. PR url: {PR_URL}, also see _PLAN_issue-XX.md for details
    ```
+
+### Closing a Pull Request
+
+When the feature is approved and ready to merge:
+
+1. **Review docs impact**: Update README.md or AGENTS.md if the change affects setup or architecture
+2. **Merge PR**: Use GitHub MCP tools to squash merge (auto-closes linked issue)
+3. **Highlight future work**: Call out any follow-ups or ideas discovered during implementation, ask user whether each should be tracked as a new GitHub issue
+4. **Notify user**: Tell the user the PR is merged and they can remove the worktree:
+   ```
+   PR merged! You can now close this IDE window and run `wt remove` from the main worktree.
+   ```
+
+> **Note**: Worktree removal is handled by the human orchestrator, not the agent.
 
 ## 🧪 Testing
 
@@ -225,7 +273,19 @@ uv run pytest tests/test_failing_module.py -vv
 
 ### Commits
 
-Follow conventional commits:
+Follow conventional commits with **single-line format only** (avoids terminal issues):
+
+```bash
+# ✅ GOOD - single line
+git commit -m "feat(strategies): implement momentum strategy for #XX"
+
+# ❌ BAD - multi-line causes issues
+git commit -m "feat(strategies): implement momentum strategy
+
+This adds..."
+```
+
+Examples:
 
 - `feat(scope): add momentum strategy for #XX`
 - `fix(agents): correct sentiment analysis bug for #XX`
@@ -344,6 +404,17 @@ The human will tell you when you're in a worktree. Just focus on the feature wor
 | List all worktrees       | `wt list`                          |
 | Open in IDE              | `kiro .` (from worktree directory) |
 | Remove worktree          | `wt remove`                        |
+
+### Code Review Files
+
+When generating or reading code reviews:
+
+- **Location**: Root directory of the worktree
+- **Naming**: `CODE_REVIEW_<issue_number>.md` or `CODE_REVIEW_<feature_name>.md`
+- **Example**: `CODE_REVIEW_42.md`, `CODE_REVIEW_momentum_strategy.md`
+- **Note**: These files are git-ignored (see `.gitignore`)
+
+When asked to read a code review file, search for `CODE_REVIEW_*.md` in the root.
 
 ## 📋 GitHub Operations
 
