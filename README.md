@@ -42,39 +42,50 @@ The system executes trades automatically with predefined risk management paramet
 
 ## Architecture
 
+### Analyze Phase
+
+```mermaid
+flowchart LR
+  subgraph Opportunity Scanners
+    day[day scanner]
+    swing[swing scanner]
+  end
+
+  subgraph Agents
+    ta[TA agent]
+    quant[Quant agent]
+    other[Other Agents]
+  end
+
+  day --> ta
+  day --> quant
+  day --> other
+
+  swing --> ta
+  swing --> quant
+  swing --> other
+
+  ta --> rm[Risk manager]
+  quant --> rm
+  other --> rm
+
+  rm -->|sizing| pm[Portfolio manager]
+  pm -->|trading decision| strategist[Trading strategist]
+  strategist --> strategy[Trading strategy]
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     OPPORTUNITY SCANNERS                         │
-├─────────────────────────────────────────────────────────────────┤
-│  RedditScanner      - Analyzes r/wallstreetbets, r/stocks       │
-│  SocialScanner      - WSB + Stocktwits + Finviz trending        │
-│  FinvizScanner      - Fundamental + technical screening          │
-└─────────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   HEDGE FUND AGENT WORKFLOW (LangGraph)          │
-├─────────────────────────────────────────────────────────────────┤
-│  Technical Analyst  - RSI, MACD, moving averages, patterns      │
-│  Sentiment Agent    - Social media sentiment analysis           │
-│  Quant Agent        - Quantitative metrics analysis             │
-│  Value Investors    - Graham, Buffett, Munger, Ackman, Wood    │
-│           │                                                      │
-│           ▼                                                      │
-│  Risk Manager       - Position sizing, risk assessment          │
-│  Portfolio Manager  - Portfolio allocation decisions            │
-│  Trading Strategist - Final trading recommendation              │
-└─────────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        TRADER (Execution)                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Monitors positions and market conditions                        │
-│  Evaluates entry/exit conditions                                │
-│  Places bracket orders (LONG/SHORT with stop-loss + target)     │
-│  Executes liquidations when conditions met                       │
-└─────────────────────────────────────────────────────────────────┘
+
+### Trade Phase
+
+```mermaid
+flowchart LR
+  strategy[Trading strategies] --> monitor[Monitor & trade]
+
+  monitor --> entry[Check entry conditions]
+  entry --> exec[Execute strategy]
+  exec -->|LONG/SHORT bracket order| alpaca[Alpaca client]
+  exec -->|Liquidate position| alpaca
+  monitor --> exit[Check exit conditions]
+  exit --> exec
 ```
 
 ### Key Components
@@ -131,13 +142,12 @@ pre-commit install
 
 ### Environment Variables
 
-Create a `.env` file with:
+Create a `.env` file (see `.env.example`):
 
 ```bash
 # Alpaca API (paper trading recommended for development)
-APCA_API_KEY_ID=your_key_here
-APCA_API_SECRET_KEY=your_secret_here
-APCA_API_BASE_URL=https://paper-api.alpaca.markets
+ALPACA_API_KEY=your_key_here
+ALPACA_SECRET_KEY=your_secret_here
 
 # OpenAI API (for GPT-4 agents)
 OPENAI_API_KEY=your_key_here
