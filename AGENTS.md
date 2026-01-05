@@ -17,8 +17,8 @@ uv sync
 # 2. Setup environment
 cp .env.example .env
 # Edit .env with required API keys:
-# - APCA_API_KEY_ID (Alpaca API)
-# - APCA_API_SECRET_KEY (Alpaca secret)
+# - ALPACA_API_KEY (Alpaca API)
+# - ALPACA_SECRET_KEY (Alpaca secret)
 # - OPENAI_API_KEY (GPT-4)
 
 # 3. Start development
@@ -455,13 +455,12 @@ git remote get-url origin
 
 ### Environment Variables
 
-Required in `.env`:
+Required in `.env` (see `.env.example`):
 
 ```bash
 # Alpaca API (paper trading recommended for development)
-APCA_API_KEY_ID=your_key_here
-APCA_API_SECRET_KEY=your_secret_here
-APCA_API_BASE_URL=https://paper-api.alpaca.markets  # Paper trading
+ALPACA_API_KEY=your_key_here
+ALPACA_SECRET_KEY=your_secret_here
 
 # OpenAI API (for GPT-4 agents)
 OPENAI_API_KEY=your_key_here
