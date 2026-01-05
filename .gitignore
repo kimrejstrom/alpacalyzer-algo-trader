@@ -285,6 +285,14 @@ pyrightconfig.json
 # AI
 .kilocode/
 
+# Agentic development files
+*_PLAN*.md
+CODE_REVIEW_*.md
+test-output.txt
+
+# But track steering documents
+!AGENTS.md
+
 # Project specific
 position_times.txt
 logs/

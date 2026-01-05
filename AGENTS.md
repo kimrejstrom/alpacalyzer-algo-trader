@@ -1,0 +1,450 @@
+# AI Agent Instructions for Alpacalyzer Algo Trader
+
+> **Critical**: You are a principal software engineer working on Alpacalyzer Algo Trader. Your job: build features incrementally using test-first development.
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+uv sync
+
+# 2. Setup environment
+cp .env.example .env
+# Edit .env with required API keys:
+# - APCA_API_KEY_ID (Alpaca API)
+# - APCA_API_SECRET_KEY (Alpaca secret)
+# - OPENAI_API_KEY (GPT-4)
+
+# 3. Start development
+uv run alpacalyzer --analyze  # Analysis mode (no real trades)
+uv run alpacalyzer            # Full trading mode
+```
+
+## 🎯 Golden Rules
+
+1. **GitHub Issue First** - No work without an issue. Create one if missing.
+2. **Tests Before Code** - Write tests first, then implement.
+3. **One Thing At A Time** - Single feature per PR, focused commits.
+4. **No Secrets** - Use environment variables, never hardcode credentials.
+5. **Debug Efficiently** - Run tests once, save output, analyze. Never run full test suite repeatedly.
+
+## 🏗️ Architecture Overview
+
+Alpacalyzer is an AI-powered algorithmic trading platform that combines technical analysis, social media sentiment, and multi-agent decision-making.
+
+### Current Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     OPPORTUNITY SCANNERS                         │
+├─────────────────────────────────────────────────────────────────┤
+│  RedditScanner      - Analyzes r/wallstreetbets, r/stocks       │
+│  SocialScanner      - WSB + Stocktwits + Finviz trending        │
+│  FinvizScanner      - Fundamental + technical screening          │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   HEDGE FUND AGENT WORKFLOW (LangGraph)          │
+├─────────────────────────────────────────────────────────────────┤
+│  Technical Analyst  - RSI, MACD, moving averages, patterns      │
+│  Sentiment Agent    - Social media sentiment analysis           │
+│  Quant Agent        - Quantitative metrics analysis             │
+│  Value Investors    - Graham, Buffett, Munger, Ackman, Wood    │
+│           │                                                      │
+│           ▼                                                      │
+│  Risk Manager       - Position sizing, risk assessment          │
+│  Portfolio Manager  - Portfolio allocation decisions            │
+│  Trading Strategist - Final trading recommendation              │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        TRADER (Execution)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Monitors positions and market conditions                        │
+│  Evaluates entry/exit conditions                                │
+│  Places bracket orders (LONG/SHORT with stop-loss + target)     │
+│  Executes liquidations when conditions met                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component       | Tech            | Location                                         | Key Pattern            |
+| --------------- | --------------- | ------------------------------------------------ | ---------------------- |
+| CLI Entry       | Click           | `src/alpacalyzer/cli.py`                         | Command + scheduling   |
+| Hedge Fund      | LangGraph       | `src/alpacalyzer/hedge_fund.py`                  | DAG workflow           |
+| Agents          | LangGraph nodes | `src/alpacalyzer/agents/`                        | Agent pattern          |
+| Scanners        | Python classes  | `src/alpacalyzer/scanners/`                      | Data collectors        |
+| Tech Analysis   | TA-Lib          | `src/alpacalyzer/analysis/technical_analysis.py` | Indicator calculations |
+| Trader          | Stateful class  | `src/alpacalyzer/trading/trader.py`              | Entry/exit logic       |
+| Alpaca Client   | alpaca-py       | `src/alpacalyzer/trading/alpaca_client.py`       | API wrapper            |
+| Data Models     | Pydantic        | `src/alpacalyzer/data/models.py`                 | Type-safe models       |
+| GPT Integration | OpenAI API      | `src/alpacalyzer/gpt/call_gpt.py`                | Structured output      |
+
+### Migration in Progress
+
+**See `migration_plan.md` for the target architecture**. We are refactoring from a monolithic trader to:
+
+- **Strategy Abstraction** - Pluggable trading strategies (`strategies/`)
+- **Execution Engine** - Clean execution loop (`execution/`)
+- **Event System** - Structured JSON logging (`events/`)
+- **Pipeline** - Unified opportunity aggregation (`pipeline/`)
+
+## 🔄 Development Flow
+
+### Starting Work on an Issue
+
+When the user says "start work on issue XX":
+
+1. **Get Repo Info from Git Remote** (CRITICAL - do this FIRST):
+
+   ```bash
+   git remote get-url origin
+   ```
+
+   Parse owner and repo name. **Never hardcode or assume repo owner/name.**
+
+2. **Fetch the Issue**: Use GitHub MCP tools with correct owner/repo
+3. **Verify Branch**: Confirm you're on the correct feature branch
+4. **Plan Implementation**: Break down tasks, define specs, list test scenarios
+5. **Create Local Plan File**: `_PLAN_issue-XX.md` (git-ignored)
+6. **Follow TDD Flow**
+
+### Standard TDD Flow
+
+```bash
+# 1. Write test in tests/
+# Example: tests/test_momentum_strategy.py
+
+# 2. Verify test fails
+uv run pytest tests/test_momentum_strategy.py -v
+
+# 3. Implement minimal code to pass
+# Example: src/alpacalyzer/strategies/momentum.py
+
+# 4. Verify test passes
+uv run pytest tests/test_momentum_strategy.py -v
+
+# 5. Commit
+git add tests/test_momentum_strategy.py src/alpacalyzer/strategies/momentum.py
+git commit -m "feat(strategies): implement momentum strategy for #XX"
+
+# 6. Create PR using GitHub MCP tools
+```
+
+### Completing a Feature
+
+1. **Ensure all tests pass**
+
+   ```bash
+   uv run pytest tests
+   ```
+
+2. **Run linting and type checking**
+
+   ```bash
+   uv run ruff check .
+   uv run ruff format .
+   uv run ty check src
+   ```
+
+3. **Push changes and create PR** using GitHub MCP tools
+
+4. **Reply with completion message**:
+   ```
+   Feature #XX ready for review. PR url: {PR_URL}
+   ```
+
+## 🧪 Testing
+
+### Test Structure
+
+```
+tests/
+├── conftest.py              # Fixtures (OpenAI client auto-mocked!)
+├── test_agents/             # Agent tests
+├── test_scanners/           # Scanner tests
+├── test_strategies/         # Strategy tests (new)
+├── test_technical_analysis.py
+└── test_*.py
+```
+
+### Key Testing Patterns
+
+**OpenAI mocking is automatic** via `conftest.py`:
+
+```python
+# No need to mock in individual tests!
+# The fixture does it automatically
+def test_agent_analysis(mock_openai_client):
+    mock_openai_client.chat.completions.create.return_value = ...
+```
+
+**Trading logic tests** should mock Alpaca API:
+
+```python
+from unittest.mock import MagicMock
+
+def test_place_order(monkeypatch):
+    mock_client = MagicMock()
+    monkeypatch.setattr("alpacalyzer.trading.alpaca_client.get_client",
+                       lambda: mock_client)
+    # Test order placement
+```
+
+### Debugging Test Failures
+
+**CRITICAL: Follow this exact process!**
+
+```bash
+# Step 1: Run ONCE and save output
+uv run pytest tests > test-output.txt 2>&1
+
+# Step 2: Identify failing tests
+cat test-output.txt | grep "FAILED"
+
+# Step 3: Read error messages BEFORE looking at code
+cat test-output.txt | grep -A 20 "Error:"
+
+# Step 4: Run ONLY failing test file
+uv run pytest tests/test_failing_module.py -vv
+```
+
+**Never run the full test suite repeatedly during debugging!**
+
+## 📝 Conventions
+
+### Files
+
+- Python files: `snake_case.py`
+- Test files: `test_{module_name}.py`
+- Classes: `PascalCase`
+- Functions/variables: `snake_case`
+
+### Commits
+
+Follow conventional commits:
+
+- `feat(scope): add momentum strategy for #XX`
+- `fix(agents): correct sentiment analysis bug for #XX`
+- `docs(readme): update architecture diagram for #XX`
+- `test(strategies): add breakout strategy tests for #XX`
+
+### Branches
+
+Format: `feature/issue-XX-short-description`
+
+- Example: `feature/issue-4-strategy-config`
+- Example: `feature/issue-17-event-models`
+
+### Imports
+
+Use absolute imports from package root:
+
+```python
+from alpacalyzer.agents.technicals_agent import TechnicalsAgent
+from alpacalyzer.data.models import TradingSignals
+from alpacalyzer.strategies.base import BaseStrategy
+```
+
+## 📚 Common Tasks & Skills
+
+For detailed step-by-step procedures, see skill files in `.claude/skills/`:
+
+| Task                        | Skill File                     | When to Use                              |
+| --------------------------- | ------------------------------ | ---------------------------------------- |
+| Create new hedge fund agent | `new-agent/SKILL.md`           | Adding Warren Buffett, Ray Dalio, etc.   |
+| Create new data scanner     | `new-scanner/SKILL.md`         | Adding Twitter, StockTwits scanner       |
+| Create trading strategy     | `new-strategy/SKILL.md`        | Adding breakout, mean reversion strategy |
+| Add technical indicator     | `technical-indicator/SKILL.md` | Adding Bollinger Bands, ATR, etc.        |
+| Work with GPT/prompts       | `gpt-integration/SKILL.md`     | Modifying agent prompts, GPT calls       |
+| Create Pydantic models      | `pydantic-model/SKILL.md`      | Event types, configs, data models        |
+
+**Always reference skill files when performing these tasks.**
+
+## Pre-Commit Checklist
+
+Before every commit:
+
+- [ ] GitHub issue exists and referenced (`#XX`)
+- [ ] Test written BEFORE implementation
+- [ ] All tests pass (`uv run pytest tests`)
+- [ ] Linting clean (`uv run ruff check .`)
+- [ ] Formatting applied (`uv run ruff format .`)
+- [ ] Type checking passes (`uv run ty check src`)
+- [ ] Commit follows conventional format
+- [ ] No hardcoded secrets (check for API keys, tokens)
+- [ ] Single focused change only
+
+## 🚫 Never Do This
+
+- ❌ Code without tests
+- ❌ Hardcode API keys, secrets, or credentials
+- ❌ Skip test verification
+- ❌ Large multi-feature PRs
+- ❌ Run full test suite repeatedly to debug (save to file first!)
+- ❌ Assume staged git changes are correct without reviewing
+- ❌ Hardcode GitHub repo owner/name (always parse from `git remote`)
+- ❌ Modify production database or live trading without explicit confirmation
+- ❌ Place real trades in test mode
+
+## 🌳 Worktree Management
+
+> **Important**: You are working in a **git worktree** - an isolated workspace with its own branch and Python venv. The human orchestrator manages worktree creation/removal from the terminal. Your job is feature implementation.
+
+### What the Worktree Provides (Already Configured)
+
+- **Isolated branch**: Your changes don't affect main or other worktrees
+- **Isolated venv**: Dependencies are copied/synced per worktree
+- **Safe development**: Multiple agents can work on different features simultaneously
+
+### Parallel Work Safety
+
+Multiple worktrees can run simultaneously without conflicts because each has:
+
+- Different branch
+- Different virtual environment (`.venv/`)
+- Different test databases (if applicable)
+
+### Human Orchestrator Workflow
+
+The human manages worktrees from the terminal using `wt` (worktrunk):
+
+```bash
+# Create and switch to new worktree for an issue
+wt switch -c feature/issue-XX-description
+
+# Open in IDE with AI agent
+kiro .   # or: cursor . / code .
+
+# Monitor active worktrees
+wt list
+
+# After PR is merged, cleanup worktree
+wt remove
+```
+
+### Agent Responsibilities
+
+- **DO**: Implement features, write tests, create PRs, merge PRs
+- **DO NOT**: Create worktrees, remove worktrees, switch branches
+
+The human will tell you when you're in a worktree. Just focus on the feature work.
+
+### Worktree Commands (Reference Only)
+
+> **Note**: These commands are for the human orchestrator. Do not run them from the IDE.
+
+| Task                     | Command (Terminal)                 |
+| ------------------------ | ---------------------------------- |
+| Create worktree + switch | `wt switch -c feature/issue-XX`    |
+| Switch to existing       | `wt switch feature/issue-XX`       |
+| List all worktrees       | `wt list`                          |
+| Open in IDE              | `kiro .` (from worktree directory) |
+| Remove worktree          | `wt remove`                        |
+
+## 📋 GitHub Operations
+
+**Use GitHub MCP tools** instead of `gh` CLI for all GitHub operations:
+
+### Issue Management
+
+- Read issue: `mcp_io_github_git_issue_read(owner, repo, issue_number, method="get")`
+- Create issue: `mcp_io_github_git_issue_write(method="create", owner, repo, title, body)`
+- Update issue: `mcp_io_github_git_issue_write(method="update", owner, repo, issue_number, state="closed")`
+
+### Pull Requests
+
+- Create PR: `mcp_io_github_git_create_pull_request(owner, repo, title, body, head, base)`
+- Update PR: `mcp_io_github_git_update_pull_request(owner, repo, pullNumber, ...)`
+- Merge PR: `mcp_io_github_git_merge_pull_request(owner, repo, pullNumber, merge_method="squash")`
+
+**Always get repo info first**:
+
+```bash
+git remote get-url origin
+# Parse: owner = "kimrejstrom", repo = "alpacalyzer-algo-trader"
+```
+
+**Never hardcode** owner/repo values. Always parse from git remote.
+
+## 🔍 Project-Specific Context
+
+### Trading Platform Critical Safety
+
+**This is a real trading platform**. Mistakes can cause financial loss:
+
+1. **Analyze Mode First**: Always test in analyze mode before enabling real trades
+2. **Mock External APIs**: All tests must mock Alpaca API and OpenAI
+3. **No Hardcoded Symbols**: Never hardcode ticker symbols in production code
+4. **Validate Orders**: Always validate order parameters before submission
+5. **Risk Limits**: Respect risk management rules (position sizing, stop losses)
+
+### Environment Variables
+
+Required in `.env`:
+
+```bash
+# Alpaca API (paper trading recommended for development)
+APCA_API_KEY_ID=your_key_here
+APCA_API_SECRET_KEY=your_secret_here
+APCA_API_BASE_URL=https://paper-api.alpaca.markets  # Paper trading
+
+# OpenAI API (for GPT-4 agents)
+OPENAI_API_KEY=your_key_here
+
+# Optional
+LOG_LEVEL=INFO
+```
+
+**Never commit `.env` file!**
+
+### Technical Analysis
+
+This project uses **TA-Lib** extensively. Installation requires system library:
+
+```bash
+# macOS
+brew install ta-lib
+
+# Linux (CI workflow shows the process)
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+tar -xvzf ta-lib-0.4.0-src.tar.gz
+cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+```
+
+Python wrapper: `pip install ta-lib` (via `uv sync`)
+
+### LangGraph Workflows
+
+Agents are implemented as LangGraph nodes. When modifying agent workflow:
+
+1. Understand the DAG structure in `hedge_fund.py`
+2. Each agent returns a dictionary that updates shared state
+3. State is defined in `graph/state.py`
+4. Test agents in isolation first, then integration
+
+### Migration Context
+
+**Active migration in progress** - see `migration_plan.md`.
+
+When working on migration issues:
+
+- **Phase 1**: Creating new `strategies/` module (issues #4-8)
+- **Phase 2**: Creating new `execution/` module (issues #9-15)
+- **Phase 3**: Creating new `events/` module (issues #17-20)
+- **Phase 4**: Refactoring `scanners/` and `pipeline/` (issues #21-24)
+- **Phase 5**: New strategies and backtesting (issues #25-28)
+
+**Preserve existing components** during migration:
+
+- `agents/` - Keep as-is
+- `analysis/technical_analysis.py` - Keep as-is
+- `data/models.py` - Keep as-is
+- `gpt/call_gpt.py` - Keep as-is
+
+---
+
+**Remember**: Tests first, small changes, always reference issues. You're building a production trading system - precision and safety matter!
