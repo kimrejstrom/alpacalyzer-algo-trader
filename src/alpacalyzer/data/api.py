@@ -135,19 +135,11 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
                 # Cash flow items
                 operating_cash_flow = get_value_from_df(cash_flow, "Operating Cash Flow", date)
                 capital_expenditure = get_value_from_df(cash_flow, "Capital Expenditure", date)
-                free_cash_flow = (
-                    operating_cash_flow + capital_expenditure if operating_cash_flow and capital_expenditure else None
-                )
+                free_cash_flow = operating_cash_flow + capital_expenditure if operating_cash_flow and capital_expenditure else None
 
                 # Calculate derived metrics
-                gross_margin = (
-                    get_value_from_df(financial_data, "Gross Profit", date) / total_revenue if total_revenue else None
-                )
-                operating_margin = (
-                    get_value_from_df(financial_data, "Operating Income", date) / total_revenue
-                    if total_revenue
-                    else None
-                )
+                gross_margin = get_value_from_df(financial_data, "Gross Profit", date) / total_revenue if total_revenue else None
+                operating_margin = get_value_from_df(financial_data, "Operating Income", date) / total_revenue if total_revenue else None
                 net_margin = net_income / total_revenue if net_income and total_revenue else None
 
                 # Return ratios
@@ -197,9 +189,7 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
                     price_to_book_ratio=pb_ratio,
                     price_to_sales_ratio=ps_ratio,
                     enterprise_value_to_ebitda_ratio=info.get("enterpriseToEbitda"),
-                    enterprise_value_to_revenue_ratio=enterprise_value / total_revenue
-                    if enterprise_value and total_revenue
-                    else None,
+                    enterprise_value_to_revenue_ratio=enterprise_value / total_revenue if enterprise_value and total_revenue else None,
                     free_cash_flow_yield=free_cash_flow / market_cap if free_cash_flow and market_cap else None,
                     peg_ratio=info.get("pegRatio"),
                     gross_margin=gross_margin,
@@ -217,9 +207,7 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
                     current_ratio=current_ratio,
                     quick_ratio=None,  # Not easily available
                     cash_ratio=None,  # Not easily available
-                    operating_cash_flow_ratio=operating_cash_flow / current_liabilities
-                    if operating_cash_flow and current_liabilities
-                    else None,
+                    operating_cash_flow_ratio=operating_cash_flow / current_liabilities if operating_cash_flow and current_liabilities else None,
                     debt_to_equity=debt_to_equity,
                     debt_to_assets=total_liabilities / total_assets if total_liabilities and total_assets else None,
                     interest_coverage=None,  # Not easily available
@@ -253,9 +241,7 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
         return []
 
 
-def search_line_items(
-    ticker: str, line_items: list[str], end_date: str, period: str = "ttm", limit: int = 10
-) -> list[LineItem]:
+def search_line_items(ticker: str, line_items: list[str], end_date: str, period: str = "ttm", limit: int = 10) -> list[LineItem]:
     """Search financial line items for a ticker."""
 
     try:
@@ -405,8 +391,7 @@ def get_insider_trades(
         filtered_data = [
             InsiderTrade(**trade)  # type: ignore
             for trade in cached_data
-            if (start_date is None or (trade.get("transaction_date") or trade["filing_date"]) >= start_date)
-            and (trade.get("transaction_date") or trade["filing_date"]) <= end_date
+            if (start_date is None or (trade.get("transaction_date") or trade["filing_date"]) >= start_date) and (trade.get("transaction_date") or trade["filing_date"]) <= end_date
         ]
         filtered_data.sort(key=lambda x: x.transaction_date or x.filing_date, reverse=True)
         if filtered_data:

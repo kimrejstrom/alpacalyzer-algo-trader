@@ -13,10 +13,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+      - name: Set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run ruff check
+        run: uv run ruff check .
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+      - name: Set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run type checking
+        run: uv run ty check src
+
+  test:
+    name: Test
     env:
       UV_CACHE_DIR: /tmp/.uv-cache
     runs-on: ubuntu-24.04
+    needs: [lint, typecheck]
     steps:
       - name: Install TA-Lib system library
         run: |

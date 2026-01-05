@@ -62,11 +62,7 @@ def get_reddit_insights() -> TopTickersResponse | None:
 
 def format_top_tickers(tickers: list[TopTicker]) -> str:
     """Format list of TopTicker objects into a readable string for API consumption."""
-    formatted = [
-        f"Symbol: {ticker.ticker}\nSignal: {ticker.signal}\n"
-        f"Confidence: {ticker.confidence}\nReasoning: {ticker.reasoning}\n"
-        for ticker in tickers
-    ]
+    formatted = [f"Symbol: {ticker.ticker}\nSignal: {ticker.signal}\nConfidence: {ticker.confidence}\nReasoning: {ticker.reasoning}\n" for ticker in tickers]
     return "\n".join(formatted)
 
 

@@ -17,26 +17,14 @@ from alpacalyzer.agents.technicals_agent import (
 
 @pytest.fixture
 def mock_state():
-    return {
-        "data": {
-            "tickers": ["AAPL", "MSFT"],
-            "analyst_signals": {}
-        },
-        "messages": [],
-        "metadata": {
-            "show_reasoning": False
-        }
-    }
+    return {"data": {"tickers": ["AAPL", "MSFT"], "analyst_signals": {}}, "messages": [], "metadata": {"show_reasoning": False}}
+
 
 @pytest.fixture
 def mock_prices_df():
-    data = {
-        "close": [150, 152, 154, 153, 155],
-        "high": [151, 153, 155, 154, 156],
-        "low": [149, 151, 153, 152, 154],
-        "volume": [1000, 1100, 1050, 1200, 1150]
-    }
+    data = {"close": [150, 152, 154, 153, 155], "high": [151, 153, 155, 154, 156], "low": [149, 151, 153, 152, 154], "volume": [1000, 1100, 1050, 1200, 1150]}
     return pd.DataFrame(data)
+
 
 @patch("alpacalyzer.agents.technicals_agent.get_stock_bars")
 @patch("alpacalyzer.agents.technicals_agent.progress.update_status")
@@ -50,11 +38,13 @@ def test_technical_analyst_agent(mock_update_status, mock_get_stock_bars, mock_s
     assert "technical_analyst_agent" in result["data"]["analyst_signals"]
     assert len(result["data"]["analyst_signals"]["technical_analyst_agent"]) == 2  # Two tickers
 
+
 def test_calculate_trend_signals(mock_prices_df):
     result = calculate_trend_signals(mock_prices_df)
     assert "signal" in result
     assert "confidence" in result
     assert "metrics" in result
+
 
 def test_calculate_mean_reversion_signals(mock_prices_df):
     result = calculate_mean_reversion_signals(mock_prices_df)
@@ -62,11 +52,13 @@ def test_calculate_mean_reversion_signals(mock_prices_df):
     assert "confidence" in result
     assert "metrics" in result
 
+
 def test_calculate_momentum_signals(mock_prices_df):
     result = calculate_momentum_signals(mock_prices_df)
     assert "signal" in result
     assert "confidence" in result
     assert "metrics" in result
+
 
 def test_calculate_volatility_signals(mock_prices_df):
     result = calculate_volatility_signals(mock_prices_df)
@@ -74,11 +66,13 @@ def test_calculate_volatility_signals(mock_prices_df):
     assert "confidence" in result
     assert "metrics" in result
 
+
 def test_calculate_stat_arb_signals(mock_prices_df):
     result = calculate_stat_arb_signals(mock_prices_df)
     assert "signal" in result
     assert "confidence" in result
     assert "metrics" in result
+
 
 def test_weighted_signal_combination():
     signals = {
@@ -98,6 +92,7 @@ def test_weighted_signal_combination():
     result = weighted_signal_combination(signals, weights)
     assert "signal" in result
     assert "confidence" in result
+
 
 def test_normalize_pandas():
     df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})

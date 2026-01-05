@@ -299,11 +299,7 @@ def test_print_trading_output_with_strategy_display(mock_logger, mock_tabulate, 
     for call in mock_tabulate.call_args_list:
         if "headers" in call[1]:
             headers = call[1]["headers"]
-            if (
-                any("TICKER" in str(h).upper() for h in headers)
-                and any("TRADE TYPE" in str(h).upper() for h in headers)
-                and any("RISK/REWARD RATIO" in str(h).upper() for h in headers)
-            ):
+            if any("TICKER" in str(h).upper() for h in headers) and any("TRADE TYPE" in str(h).upper() for h in headers) and any("RISK/REWARD RATIO" in str(h).upper() for h in headers):
                 strategy_headers_call_found = True
                 break
 

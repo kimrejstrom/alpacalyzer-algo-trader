@@ -279,9 +279,7 @@ def calculate_intrinsic_value(financial_line_items: list[Any]) -> dict[str, Any]
         future_value += present_value
 
     # Add terminal value
-    terminal_value = (owner_earnings * (1 + growth_rate) ** projection_years * terminal_multiple) / (
-        1 + discount_rate
-    ) ** projection_years
+    terminal_value = (owner_earnings * (1 + growth_rate) ** projection_years * terminal_multiple) / (1 + discount_rate) ** projection_years
     intrinsic_value = future_value + terminal_value
 
     return {
