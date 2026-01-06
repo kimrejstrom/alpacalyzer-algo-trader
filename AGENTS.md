@@ -6,7 +6,7 @@
 
 - [Code Review Instructions](.github/instructions/code-review.instructions.md) - Automated review guidelines
 - [Code Review Prompt](.github/prompts/code-review.prompt.md) - Structured review template
-- [Migration Plan](migration_plan.md) - Architecture refactoring roadmap
+- [Migration Plan](migration_roadmap.md) - Architecture refactoring roadmap
 
 ## Quick Start
 
@@ -92,7 +92,7 @@ Alpacalyzer is an AI-powered algorithmic trading platform that combines technica
 
 ### Migration in Progress
 
-**See `migration_plan.md` for the target architecture**. We are refactoring from a monolithic trader to:
+**See `migration_roadmap.md` for the target architecture**. We are refactoring from a monolithic trader to:
 
 - **Strategy Abstraction** - Pluggable trading strategies (`strategies/`)
 - **Execution Engine** - Clean execution loop (`execution/`)
@@ -521,7 +521,7 @@ Agents are implemented as LangGraph nodes. When modifying agent workflow:
 
 ### Migration Context
 
-**Active migration in progress** - see `migration_plan.md`.
+**Active migration in progress** - see `migration_roadmap.md`.
 
 When working on migration issues:
 

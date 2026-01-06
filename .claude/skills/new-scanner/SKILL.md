@@ -238,7 +238,7 @@ from alpacalyzer.scanners.<scanner>_scanner import <Scanner>Scanner
 
 **Future integration** (Phase 4 migration):
 
-Scanners will be registered in `ScannerRegistry` and called by `OpportunityAggregator`. See `migration_plan.md` Phase 4 for details.
+Scanners will be registered in `ScannerRegistry` and called by `OpportunityAggregator`. See `migration_roadmap.md` Phase 4 for details.
 
 ## 6. Write Tests
 

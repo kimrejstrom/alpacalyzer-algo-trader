@@ -61,7 +61,7 @@ Pay special attention to:
 2. **Test Coverage**: Ensure all code paths tested, mocks used for APIs
 3. **Type Safety**: Check for proper type hints, no loose `Any` types
 4. **Security**: No hardcoded secrets, proper validation
-5. **Migration Alignment**: Changes align with migration_plan.md phases
+5. **Migration Alignment**: Changes align with migration_roadmap.md phases
 
 ## Automated Checks
 
@@ -214,7 +214,7 @@ Generate: `CODE_REVIEW_[feature-name].md` with:
 
 [Only if part of migration]
 
-- **Phase**: [Phase X from migration_plan.md]
+- **Phase**: [Phase X from migration_roadmap.md]
 - **Alignment**: ✅/❌
 - **Notes**: [how it fits into migration]
 

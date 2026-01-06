@@ -13,7 +13,7 @@ description: "Use this skill ONLY when creating a new trading strategy (e.g., Me
 
 # Context: Migration Phase 1
 
-This skill supports the **Strategy Abstraction** migration (Phase 1 in `migration_plan.md`). The goal is to make trading strategies pluggable and testable.
+This skill supports the **Strategy Abstraction** migration (Phase 1 in `migration_roadmap.md`). The goal is to make trading strategies pluggable and testable.
 
 **Key concepts**:
 
@@ -42,7 +42,7 @@ cat src/alpacalyzer/strategies/config.py
 cat src/alpacalyzer/strategies/momentum.py
 ```
 
-**If base classes don't exist yet**: You are implementing Phase 1! See `migration_plan.md` sections 1.1 and 1.2 first.
+**If base classes don't exist yet**: You are implementing Phase 1! See `migration_roadmap.md` sections 1.1 and 1.2 first.
 
 ## 2. Define Strategy Configuration
 
@@ -570,7 +570,7 @@ strategy = <Strategy>Strategy(config)
 
 - `src/alpacalyzer/strategies/momentum.py` - Full reference implementation
 - `src/alpacalyzer/strategies/base.py` - Base classes and protocols
-- `migration_plan.md` Phase 1 - Strategy abstraction details
+- `migration_roadmap.md` Phase 1 - Strategy abstraction details
 
 # Special Considerations
 

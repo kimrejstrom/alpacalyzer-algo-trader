@@ -454,8 +454,8 @@ class TradingSignal(BaseModel):
 # Reference: Existing Models
 
 - `src/alpacalyzer/data/models.py` - TradingSignals, Position, AgentResponse, TradingStrategy
-- `migration_plan.md` Phase 1 - StrategyConfig, MarketContext, EntryDecision, ExitDecision
-- `migration_plan.md` Phase 3 - Event models
+- `migration_roadmap.md` Phase 1 - StrategyConfig, MarketContext, EntryDecision, ExitDecision
+- `migration_roadmap.md` Phase 3 - Event models
 
 # Special Considerations
 
@@ -469,7 +469,7 @@ class TradingSignal(BaseModel):
 
 5. **Performance**: Pydantic validation has overhead. Cache validated instances when possible.
 
-6. **Migration**: New models for migration phases should follow the architecture in `migration_plan.md`.
+6. **Migration**: New models for migration phases should follow the architecture in `migration_roadmap.md`.
 
 7. **Testing**: Always test validation logic, especially custom validators and cross-field constraints.
 

@@ -12,84 +12,42 @@
 # - Report completion and STOP when the issue PR is created/merged
 # The human orchestrator will create new worktrees for subsequent issues.
 
-# Post-create hooks run after a new worktree is created
-[hooks.post_create]
-
-# Copy .env file to new worktree
-# This ensures API keys and secrets are available in the new worktree
-# without committing them to git.
-[[hooks.post_create.commands]]
-name = "copy-env"
-command = "cp"
-args = ["{{main_worktree_dir}}/.env", "{{worktree_dir}}/.env"]
-continue_on_error = true  # Don't fail if .env doesn't exist
-
-# Sync dependencies using uv
-# Ensures the new worktree has all dependencies installed
-[[hooks.post_create.commands]]
-name = "uv-sync"
-command = "uv"
-args = ["sync"]
-working_dir = "{{worktree_dir}}"
-continue_on_error = false  # Must succeed for working environment
+# Post-create hooks run after a new worktree is created (blocking)
+# These must succeed before worktree switch completes
+[post-create]
+# Copy .env file from main worktree (continue if .env doesn't exist)
+copy-env = "cp {{ main_worktree_path }}/.env {{ worktree_path }}/.env 2>/dev/null || true"
+# Sync dependencies using uv - must succeed for working environment
+uv-sync = "uv sync"
 
 # Optional: Install pre-commit hooks in new worktree
 # Uncomment if pre-commit is added to the project
-# [[hooks.post_create.commands]]
-# name = "pre-commit-install"
-# command = "uv"
-# args = ["run", "pre-commit", "install"]
-# working_dir = "{{worktree_dir}}"
-# continue_on_error = true
+# pre-commit-install = "uv run pre-commit install"
 
-# Worktree naming convention
-# Format: prefix-issue-number-description
-# Example: feature-42-add-rsi-indicator
-[naming]
-default_prefix = "feature"
-# Other valid prefixes: bugfix, hotfix, refactor, docs, test
-
-# Worktree root directory
-# All worktrees will be created under this directory
-[paths]
-worktrees_root = ".worktrees"  # Relative to repo root
-
-# Cleanup behavior
-[cleanup]
-# Auto-remove merged worktrees
-auto_remove_merged = true
-# Confirm before deleting worktree
-confirm_delete = true
-
-# Integration with migration workflow
-[metadata]
-# Track which migration phase each worktree is for
-# This is informational only, no automation attached
-migration_phases = [
-    "phase-1-strategy-abstraction",
-    "phase-2-execution-engine",
-    "phase-3-event-logging",
-    "phase-4-pipeline",
-    "phase-5-backtesting"
-]
+# Pre-merge hooks run before merging to target branch (fail-fast)
+# All commands must exit 0 for the merge to proceed
+[pre-merge]
+# Run tests before merging
+test = "uv run pytest tests"
+# Check linting
+lint = "uv run ruff check ."
+# Type checking
+typecheck = "uv run ty check src"
 
 # Usage Examples
 # ----------------
 #
 # Create worktree for issue #42:
-#   wt create feature-42-add-rsi-indicator
-#
-# Create worktree for migration phase 1:
-#   wt create phase-1-strategy-abstraction
+#   wt switch -c feature/issue-42-add-rsi-indicator
 #
 # List all worktrees:
 #   wt list
 #
 # Switch to worktree:
-#   wt switch feature-42-add-rsi-indicator
+#   wt switch feature/issue-42-add-rsi-indicator
 #
 # Remove worktree (after merging):
-#   wt remove feature-42-add-rsi-indicator
+#   wt remove
 #
 # For full worktree workflow, see AGENTS.md section:
 # "Worktree Workflow Management"

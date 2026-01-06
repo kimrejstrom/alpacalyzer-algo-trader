@@ -84,7 +84,7 @@ Guidelines for code reviews on Alpacalyzer Algo Trader - an algorithmic trading 
 
 ### 7) Migration Awareness
 
-**Context**: Ongoing migration (see `migration_plan.md`)
+**Context**: Ongoing migration (see `migration_roadmap.md`)
 
 - [ ] Changes align with migration phases
 - [ ] New code uses new architecture patterns where applicable
@@ -152,7 +152,7 @@ Guidelines for code reviews on Alpacalyzer Algo Trader - an algorithmic trading 
 
 ### Migration PRs Additionally Need:
 
-- [ ] Aligns with phase in `migration_plan.md`
+- [ ] Aligns with phase in `migration_roadmap.md`
 - [ ] Follows new architecture patterns
 - [ ] Preserves existing functionality (unless explicitly deprecating)
 - [ ] Integration tests pass

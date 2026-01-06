@@ -243,7 +243,7 @@ uv run pytest tests/test_technical_analysis.py -v
 ## Documentation
 
 - [AGENTS.md](AGENTS.md) - AI agent development guidelines
-- [migration_plan.md](migration_plan.md) - Architecture refactoring roadmap
+- [migration_roadmap.md](migration_roadmap.md) - Architecture refactoring roadmap
 - [docs/](docs/index.md) - In-depth technical documentation
 
 ---
