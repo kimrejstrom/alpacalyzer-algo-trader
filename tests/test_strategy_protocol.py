@@ -2,18 +2,28 @@
 
 import pytest
 
-from alpacalyzer.strategies.base import BaseStrategy, EntryDecision, MarketContext, Strategy
+from alpacalyzer.analysis.technical_analysis import TradingSignals
+from alpacalyzer.data.models import Position, TradingStrategy
+from alpacalyzer.strategies.base import BaseStrategy, EntryDecision, ExitDecision, MarketContext, Strategy
 
 
 class MockStrategy(BaseStrategy):
     """Mock strategy for testing protocol compliance."""
 
-    def evaluate_entry(self, signal: dict, context: MarketContext, agent_recommendation: dict | None = None) -> EntryDecision:
+    def evaluate_entry(
+        self,
+        signal: TradingSignals,
+        context: MarketContext,
+        agent_recommendation: TradingStrategy | None = None,
+    ) -> EntryDecision:
         return EntryDecision(should_enter=False, reason="Mock")
 
-    def evaluate_exit(self, position: dict, signal: dict, context: MarketContext):
-        from alpacalyzer.strategies.base import ExitDecision
-
+    def evaluate_exit(
+        self,
+        position: Position,
+        signal: TradingSignals,
+        context: MarketContext,
+    ) -> ExitDecision:
         return ExitDecision(should_exit=False, reason="Mock")
 
 

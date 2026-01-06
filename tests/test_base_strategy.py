@@ -1,19 +1,30 @@
 """Tests for BaseStrategy functionality."""
 
+import pandas as pd
 import pytest
 
-from alpacalyzer.strategies.base import BaseStrategy, EntryDecision, MarketContext
+from alpacalyzer.analysis.technical_analysis import TradingSignals
+from alpacalyzer.data.models import Position, TradingStrategy
+from alpacalyzer.strategies.base import BaseStrategy, EntryDecision, ExitDecision, MarketContext
 
 
 class MockStrategy(BaseStrategy):
     """Mock strategy for testing BaseStrategy methods."""
 
-    def evaluate_entry(self, signal: dict, context: MarketContext, agent_recommendation: dict | None = None) -> EntryDecision:
+    def evaluate_entry(
+        self,
+        signal: TradingSignals,
+        context: MarketContext,
+        agent_recommendation: TradingStrategy | None = None,
+    ) -> EntryDecision:
         return EntryDecision(should_enter=False, reason="Mock")
 
-    def evaluate_exit(self, position: dict, signal: dict, context: MarketContext):
-        from alpacalyzer.strategies.base import ExitDecision
-
+    def evaluate_exit(
+        self,
+        position: Position,
+        signal: TradingSignals,
+        context: MarketContext,
+    ) -> ExitDecision:
         return ExitDecision(should_exit=False, reason="Mock")
 
 
@@ -33,7 +44,19 @@ def market_context():
 @pytest.fixture
 def bullish_signal():
     """Bullish trading signal."""
-    return {"symbol": "AAPL", "price": 150.00, "score": 0.75, "momentum": 8.5}
+    empty_df = pd.DataFrame()
+    return TradingSignals(
+        symbol="AAPL",
+        price=150.00,
+        atr=2.5,
+        rvol=1.2,
+        signals=["RSI oversold", "Bullish crossover"],
+        raw_score=75,
+        score=0.75,
+        momentum=8.5,
+        raw_data_daily=empty_df,
+        raw_data_intraday=empty_df,
+    )
 
 
 def test_base_strategy_default_position_sizing(bullish_signal, market_context):
@@ -51,7 +74,19 @@ def test_base_strategy_position_sizing_zero_price():
     """Test calculate_position_size with zero price."""
     strategy = MockStrategy()
 
-    signal = {"symbol": "AAPL", "price": 0.0}
+    empty_df = pd.DataFrame()
+    signal = TradingSignals(
+        symbol="AAPL",
+        price=0.0,
+        atr=0.0,
+        rvol=1.0,
+        signals=[],
+        raw_score=0,
+        score=0.0,
+        momentum=0.0,
+        raw_data_daily=empty_df,
+        raw_data_intraday=empty_df,
+    )
     context = MarketContext(
         vix=15.0,
         market_status="open",
