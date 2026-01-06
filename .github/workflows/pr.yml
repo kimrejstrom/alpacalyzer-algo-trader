@@ -56,10 +56,21 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [lint, typecheck]
     steps:
-      - name: Install TA-Lib system library
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential wget
+      - name: Cache TA-Lib
+        id: cache-talib
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/lib/libta-lib.*
+            /usr/include/ta-lib/
+          key: talib-${{ runner.os }}-0.4.0
+      - name: Install TA-Lib from source
+        if: steps.cache-talib.outputs.cache-hit != 'true'
+        run: |
           wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
           tar -xvzf ta-lib-0.4.0-src.tar.gz
           cd ta-lib && ./configure --prefix=/usr && make && sudo make install

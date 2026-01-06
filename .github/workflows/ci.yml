@@ -20,7 +20,16 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+      - name: Cache TA-Lib
+        id: cache-talib
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/libta-lib.*
+            /usr/local/include/ta-lib/
+          key: talib-${{ runner.os }}-0.6.4
       - name: Install TA-Lib from source
+        if: steps.cache-talib.outputs.cache-hit != 'true'
         run: |
           wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz
           tar -xzf ta-lib-0.6.4-src.tar.gz
