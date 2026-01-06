@@ -22,6 +22,7 @@ from alpacalyzer.strategies.base import (
     MarketContext,
     Strategy,
 )
+from alpacalyzer.strategies.config import StrategyConfig
 
 __all__ = [
     "BaseStrategy",
@@ -29,4 +30,5 @@ __all__ = [
     "EntryDecision",
     "ExitDecision",
     "MarketContext",
+    "StrategyConfig",
 ]
