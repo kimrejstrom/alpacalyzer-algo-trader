@@ -8,6 +8,7 @@ without code changes.
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -56,7 +57,7 @@ class StrategyConfig:
 
     candlestick_pattern_confidence: float = 80.0
 
-    params: dict = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
         """
@@ -212,4 +213,6 @@ class StrategyConfig:
         flat_config.update(exit_filters)
         flat_config.update(timing)
 
-        return cls(**flat_config)
+        instance = cls(**flat_config)
+        instance.validate()
+        return instance

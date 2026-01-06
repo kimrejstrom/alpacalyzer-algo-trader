@@ -358,3 +358,119 @@ def test_strategy_config_default_values_match_trader_hardcoded_values():
     assert config.exit_score_threshold == 0.3
     assert config.cooldown_hours == 3
     assert config.catastrophic_momentum == -25.0
+
+
+def test_strategy_config_from_yaml_invalid_target_less_than_stop():
+    """Test from_yaml() raises when target_pct <= stop_loss_pct."""
+    yaml_content = """
+name: test_strategy
+description: Test description
+position_sizing:
+  max_position_pct: 0.10
+  min_position_value: 200.0
+risk_management:
+  stop_loss_pct: 0.05
+  target_pct: 0.03
+entry_filters:
+  min_confidence: 80.0
+  min_ta_score: 0.7
+  min_momentum: 0.0
+  min_rvol: 1.2
+  entry_conditions_ratio: 0.8
+exit_filters:
+  exit_momentum_threshold: -10.0
+  exit_score_threshold: 0.4
+  catastrophic_momentum: -20.0
+timing:
+  cooldown_hours: 5
+  max_hold_days: 7
+price_tolerance_pct: 0.02
+candlestick_pattern_confidence: 85.0
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "strategy_config.yaml"
+
+        with open(config_path, "w") as f:
+            f.write(yaml_content)
+
+        with pytest.raises(ValueError, match="target_pct.*must be greater than stop_loss_pct"):
+            StrategyConfig.from_yaml(config_path)
+
+
+def test_strategy_config_from_yaml_invalid_max_position_pct():
+    """Test from_yaml() raises when max_position_pct > 1."""
+    yaml_content = """
+name: test_strategy
+description: Test description
+position_sizing:
+  max_position_pct: 1.5
+  min_position_value: 200.0
+risk_management:
+  stop_loss_pct: 0.05
+  target_pct: 0.15
+entry_filters:
+  min_confidence: 80.0
+  min_ta_score: 0.7
+  min_momentum: 0.0
+  min_rvol: 1.2
+  entry_conditions_ratio: 0.8
+exit_filters:
+  exit_momentum_threshold: -10.0
+  exit_score_threshold: 0.4
+  catastrophic_momentum: -20.0
+timing:
+  cooldown_hours: 5
+  max_hold_days: 7
+price_tolerance_pct: 0.02
+candlestick_pattern_confidence: 85.0
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "strategy_config.yaml"
+
+        with open(config_path, "w") as f:
+            f.write(yaml_content)
+
+        with pytest.raises(ValueError, match="max_position_pct must be between 0 and 1"):
+            StrategyConfig.from_yaml(config_path)
+
+
+def test_strategy_config_yaml_preserves_default_params_when_omitted():
+    """Test from_yaml() preserves default empty params dict when section is omitted."""
+    yaml_content = """
+name: test_strategy
+description: Test description
+position_sizing:
+  max_position_pct: 0.10
+  min_position_value: 200.0
+risk_management:
+  stop_loss_pct: 0.05
+  target_pct: 0.15
+entry_filters:
+  min_confidence: 80.0
+  min_ta_score: 0.7
+  min_momentum: 0.0
+  min_rvol: 1.2
+  entry_conditions_ratio: 0.8
+exit_filters:
+  exit_momentum_threshold: -10.0
+  exit_score_threshold: 0.4
+  catastrophic_momentum: -20.0
+timing:
+  cooldown_hours: 5
+  max_hold_days: 7
+price_tolerance_pct: 0.02
+candlestick_pattern_confidence: 85.0
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "strategy_config.yaml"
+
+        with open(config_path, "w") as f:
+            f.write(yaml_content)
+
+        config = StrategyConfig.from_yaml(config_path)
+
+        assert config.params == {}
+        assert isinstance(config.params, dict)
