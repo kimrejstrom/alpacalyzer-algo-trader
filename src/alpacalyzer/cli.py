@@ -53,6 +53,7 @@ def main():  # pragma: no cover
     parser.add_argument("--tickers", type=str, help="Comma-separated list of tickers to analyze (e.g., AAPL,MSFT,GOOG)")
     parser.add_argument("--agents", type=str, default="ALL", help="Comma-separated list of agents to use (e.g., ALL,TRADE,INVEST)")
     parser.add_argument("--ignore-market-status", action="store_true", help="Ignore market status and trade at any time")
+    parser.add_argument("--strategy", type=str, help="Trading strategy to use from registry (e.g., momentum, breakout)")
     # EOD analyzer options
     parser.add_argument("--eod-analyze", action="store_true", help="Run End-of-Day analyzer and exit")
     parser.add_argument("--eod-date", type=str, help="EET date (YYYY-MM-DD) to analyze; defaults to today")
