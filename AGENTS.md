@@ -7,6 +7,9 @@
 - [Code Review Instructions](.github/instructions/code-review.instructions.md) - Automated review guidelines
 - [Code Review Prompt](.github/prompts/code-review.prompt.md) - Structured review template
 - [Migration Plan](migration_roadmap.md) - Architecture refactoring roadmap
+- [Superpowers Plugin Integration](SUPERPOWERS_INTEGRATION.md) - How to use superpowers skills with this project
+
+> **Important**: This document (AGENTS.md) always takes precedence over generic superpowers plugin skills. See [SUPERPOWERS_INTEGRATION.md](SUPERPOWERS_INTEGRATION.md) for details.
 
 ## Quick Start
 
