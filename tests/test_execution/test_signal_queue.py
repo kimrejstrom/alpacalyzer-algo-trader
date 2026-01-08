@@ -252,7 +252,8 @@ class TestSignalQueue:
 
         queue = SignalQueue()
 
-        assert queue.pop() is None
+        result = queue.pop()
+        assert result is None
 
     def test_remove_signal(self):
         """Test removing a signal by ticker."""
