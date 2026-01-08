@@ -10,10 +10,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from alpaca.trading.models import Position
+    from alpaca.trading.models import Position as AlpacaPosition
 
     from alpacalyzer.analysis.technical_analysis import TradingSignals
     from alpacalyzer.data.models import TradingStrategy
+
+    # Type alias for Position - at runtime this is alpaca.trading.models.Position
+    # but we use any type in protocol to allow flexibility
+    Position = AlpacaPosition
 
 
 @dataclass
@@ -174,7 +178,7 @@ class BaseStrategy(ABC):
     @abstractmethod
     def evaluate_exit(
         self,
-        position: "Position",
+        position: "Position",  # type: ignore[valid-type]
         signal: "TradingSignals",
         context: MarketContext,
     ) -> ExitDecision:
