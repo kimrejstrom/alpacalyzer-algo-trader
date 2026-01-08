@@ -113,6 +113,25 @@ class TestOrderParams:
         assert params1.client_order_id.startswith("momentum_AAPL_buy_")
         assert len(params1.client_order_id.split("_")) == 4
 
+    def test_client_order_id_is_cached(self):
+        """Test client_order_id returns same value on multiple accesses."""
+        params = OrderParams(
+            ticker="AAPL",
+            side="buy",
+            quantity=100,
+            entry_price=150.00,
+            stop_loss=145.50,
+            target=163.50,
+            strategy_name="momentum",
+        )
+
+        # Multiple accesses should return the same ID
+        first_id = params.client_order_id
+        second_id = params.client_order_id
+        third_id = params.client_order_id
+
+        assert first_id == second_id == third_id
+
 
 class TestOrderManager:
     """Test OrderManager class."""
@@ -178,6 +197,19 @@ class TestOrderManager:
 
         assert is_valid is False
         assert "cannot be shorted" in reason
+
+    def test_validate_asset_sell_does_not_require_shortable(self, order_manager, mock_trading_client):
+        """Test that sell side does not require shortability (selling existing long)."""
+        mock_asset = Mock(spec=Asset)
+        mock_asset.tradable = True
+        mock_asset.shortable = False  # Not shortable
+        mock_trading_client.get_asset.return_value = mock_asset
+
+        # Sell should succeed even if not shortable
+        is_valid, reason = order_manager.validate_asset("AAPL", "sell")
+
+        assert is_valid is True
+        assert reason == "Asset validated"
 
     def test_validate_asset_api_error(self, order_manager, mock_trading_client):
         """Test asset validation with API error."""
@@ -394,6 +426,34 @@ class TestOrderManager:
         assert len(pending) == 2
         assert mock_order1 in pending
         assert mock_order2 in pending
+
+    def test_remove_pending_order_success(self, order_manager):
+        """Test removing a pending order."""
+        mock_order = Mock(spec=Order)
+        mock_order.client_order_id = "order1"
+        order_manager._pending_orders["order1"] = mock_order
+
+        result = order_manager.remove_pending_order("order1")
+
+        assert result is True
+        assert "order1" not in order_manager._pending_orders
+
+    def test_remove_pending_order_not_found(self, order_manager):
+        """Test removing a non-existent pending order."""
+        result = order_manager.remove_pending_order("nonexistent")
+
+        assert result is False
+
+    def test_clear_pending_orders(self, order_manager):
+        """Test clearing all pending orders."""
+        mock_order1 = Mock(spec=Order)
+        mock_order2 = Mock(spec=Order)
+        order_manager._pending_orders["order1"] = mock_order1
+        order_manager._pending_orders["order2"] = mock_order2
+
+        order_manager.clear_pending_orders()
+
+        assert len(order_manager._pending_orders) == 0
 
     def test_round_price_above_one(self, order_manager):
         """Test price rounding for prices above $1."""

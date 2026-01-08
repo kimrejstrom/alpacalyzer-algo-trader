@@ -28,6 +28,7 @@ class OrderParams:
     target: float
     strategy_name: str
     time_in_force: str = "gtc"
+    _client_order_id: str | None = None  # Cached client order ID
 
     @property
     def order_side(self) -> OrderSide:
@@ -38,8 +39,14 @@ class OrderParams:
 
     @property
     def client_order_id(self) -> str:
-        """Generate unique client order ID."""
-        return f"{self.strategy_name}_{self.ticker}_{self.side}_{uuid.uuid4().hex[:8]}"
+        """Generate unique client order ID (cached on first access)."""
+        if self._client_order_id is None:
+            object.__setattr__(
+                self,
+                "_client_order_id",
+                f"{self.strategy_name}_{self.ticker}_{self.side}_{uuid.uuid4().hex[:8]}",
+            )
+        return self._client_order_id  # type: ignore[return-value]
 
 
 class OrderManager:
@@ -70,7 +77,8 @@ class OrderManager:
             if not asset.tradable:
                 return False, f"{ticker} is not tradable"
 
-            if side in ("sell", "short") and not asset.shortable:
+            # Only "short" requires shortability - "sell" is selling an existing long position
+            if side == "short" and not asset.shortable:
                 return False, f"{ticker} cannot be shorted"
 
             return True, "Asset validated"
@@ -212,6 +220,21 @@ class OrderManager:
     def get_pending_orders(self) -> list[Order]:
         """Get list of pending orders we submitted."""
         return list(self._pending_orders.values())
+
+    def remove_pending_order(self, client_order_id: str) -> bool:
+        """
+        Remove an order from pending orders tracking.
+
+        Returns True if order was found and removed.
+        """
+        if client_order_id in self._pending_orders:
+            del self._pending_orders[client_order_id]
+            return True
+        return False
+
+    def clear_pending_orders(self) -> None:
+        """Clear all pending orders from tracking."""
+        self._pending_orders.clear()
 
     def _round_price(self, price: float) -> float:
         """Round price appropriately based on magnitude."""
