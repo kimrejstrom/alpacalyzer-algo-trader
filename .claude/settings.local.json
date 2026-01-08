@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue view:*)",
+      "Bash(mkdir:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(uv run ruff format:*)",
+      "Bash(uv run ty check src:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat\\(execution\\): implement SignalQueue for #9\n\nImplements the SignalQueue class that manages pending trading signals\nfrom the analysis pipeline, providing a clean interface for the execution\nengine to consume.\n\nFeatures:\n- Priority-based ordering \\(higher confidence first\\)\n- Automatic expiration handling\n- Deduplication by ticker\n- Thread-safe operations\n- 100% test coverage\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git remote get-url:*)"
+    ]
+  }
+}
