@@ -55,7 +55,9 @@ class SignalQueue:
     - Priority-based ordering (higher confidence first)
     - Automatic expiration
     - Deduplication by ticker
-    - Thread-safe operations
+    - Safe for single-threaded use (no explicit locking)
+
+    Note: For multi-threaded scenarios, add threading.Lock or use queue.PriorityQueue.
     """
 
     def __init__(self, max_signals: int = 50, default_ttl_hours: int = 4):
