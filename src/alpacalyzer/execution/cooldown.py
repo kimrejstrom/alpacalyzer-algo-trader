@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 @dataclass
@@ -132,6 +133,6 @@ class CooldownManager:
         self._cooldowns.clear()
 
 
-def create_cooldown_manager_from_config(strategy_config) -> CooldownManager:
+def create_cooldown_manager_from_config(strategy_config: Any) -> CooldownManager:
     """Create a CooldownManager with settings from strategy config."""
-    return CooldownManager(default_hours=strategy_config.cooldown_hours)
+    return CooldownManager(default_hours=getattr(strategy_config, "cooldown_hours", 3))
