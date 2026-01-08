@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from alpaca.trading.models import Position
+
     from alpacalyzer.analysis.technical_analysis import TradingSignals
-    from alpacalyzer.data.models import Position, TradingStrategy
+    from alpacalyzer.data.models import TradingStrategy
 
 
 @dataclass
