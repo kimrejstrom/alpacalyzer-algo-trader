@@ -170,7 +170,7 @@ class ExecutionEngine:
         from alpacalyzer.trading.alpaca_client import get_account_info, get_market_status
 
         account_info = get_account_info()
-        vix = 20.0  # Mock VIX (would fetch from market data)
+        vix = 20.0  # TODO: Fetch VIX from market data API
         market_status = get_market_status()
 
         return MarketContext(
