@@ -201,7 +201,7 @@ class TestPositionTracker:
 
         positions = tracker.get_all()
         assert len(positions) == 3
-        assert set(p.ticker for p in positions) == {"AAPL", "MSFT", "GOOGL"}
+        assert {p.ticker for p in positions} == {"AAPL", "MSFT", "GOOGL"}
 
     def test_remove_position(self):
         """Test removing a position."""
