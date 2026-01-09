@@ -90,9 +90,19 @@ class TestExecutionEngine:
 
         # Mock position sync to not do anything in analyze mode
         def mock_sync():
-            pass
+            return []
 
         monkeypatch.setattr(engine.positions, "sync_from_broker", mock_sync)
+
+        # Mock Alpaca API calls used by _build_market_context
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_market_status",
+            lambda: "open",
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_account_info",
+            lambda: {"equity": 10000.0, "buying_power": 8000.0},
+        )
 
         # Run cycle should not raise
         engine.run_cycle()
