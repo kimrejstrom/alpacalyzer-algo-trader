@@ -153,7 +153,7 @@ class TestExecutionEngine:
         mock_pos.unrealized_pl = "50"
 
         engine.positions._positions["AAPL"] = MagicMock()
-        engine.cooldowns.add("MSFT", minutes=5)
+        engine.cooldowns.add_cooldown("MSFT", "test reason", "test_strategy")
 
         context = engine._build_market_context()
 

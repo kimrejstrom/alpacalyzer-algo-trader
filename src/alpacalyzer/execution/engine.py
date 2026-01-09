@@ -148,7 +148,7 @@ class ExecutionEngine:
     def _execute_exit(self, position: TrackedPosition, decision: ExitDecision) -> None:
         """Execute exit order for a position."""
         self.orders.close_position(position.ticker)
-        self.positions.remove(position.ticker)
+        self.positions.remove_position(position.ticker)
 
     def _execute_entry(self, signal: PendingSignal, decision: EntryDecision) -> None:
         """Execute entry order for a signal."""
@@ -163,7 +163,7 @@ class ExecutionEngine:
         )
 
         self.orders.submit_bracket_order(params)
-        self.cooldowns.add(signal.ticker, minutes=5)
+        self.cooldowns.add_cooldown(signal.ticker, "entry_filled", "execution_engine")
 
     def _build_market_context(self) -> MarketContext:
         """Build market and account context."""
@@ -178,8 +178,8 @@ class ExecutionEngine:
             market_status=market_status,
             account_equity=account_info["equity"],
             buying_power=account_info["buying_power"],
-            existing_positions=self.positions.get_tickers(),
-            cooldown_tickers=self.cooldowns.get_active_tickers(),
+            existing_positions=list(self.positions._positions.keys()),
+            cooldown_tickers=self.cooldowns.get_all_tickers(),
         )
 
     def _run_analyze_cycle(self) -> None:
