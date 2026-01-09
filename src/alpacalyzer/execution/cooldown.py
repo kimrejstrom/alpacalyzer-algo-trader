@@ -1,138 +1,121 @@
-"""Cooldown manager for tracking per-ticker cooldown periods."""
+"""Cooldown management for ticker trading restrictions."""
 
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 
-@dataclass
-class CooldownEntry:
-    """A cooldown record for a ticker."""
-
-    ticker: str
-    exit_time: datetime
-    cooldown_hours: int
-    reason: str
-    strategy_name: str
-
-    @property
-    def expires_at(self) -> datetime:
-        """When this cooldown expires."""
-        return self.exit_time + timedelta(hours=self.cooldown_hours)
-
-    def is_expired(self) -> bool:
-        """Check if cooldown has expired."""
-        return datetime.now(UTC) > self.expires_at
-
-    def remaining_time(self) -> timedelta:
-        """Time remaining in cooldown."""
-        remaining = self.expires_at - datetime.now(UTC)
-        return remaining if remaining > timedelta(0) else timedelta(0)
+def _get_current_time() -> datetime:
+    """Get current time (wrapper for mocking in tests)."""
+    return datetime.now(UTC)
 
 
 class CooldownManager:
     """
-    Manages per-ticker cooldown periods.
+    Track cooldown periods for tickers to prevent overtrading.
+
+    After a trade (or failed entry), a ticker is put in cooldown
+    to prevent rapid-fire trading of the same symbol.
 
     Features:
-    - Configurable default cooldown
-    - Per-ticker/per-strategy cooldowns
-    - Automatic expiration
-    - Query interface
+    - Add/retrieve cooldowns
+    - Check if cooldown is active
+    - Get remaining time
+    - Cleanup expired cooldowns
     """
 
-    def __init__(self, default_hours: int = 3):
-        self._cooldowns: dict[str, CooldownEntry] = {}
-        self.default_hours = default_hours
+    def __init__(self):
+        # ticker -> expiration_time (datetime)
+        self._cooldowns: dict[str, datetime] = {}
 
-    def add_cooldown(
-        self,
-        ticker: str,
-        reason: str,
-        strategy_name: str = "unknown",
-        cooldown_hours: int | None = None,
-    ) -> CooldownEntry:
+    def add(self, ticker: str, minutes: int = 5) -> None:
         """
-        Add a ticker to cooldown.
+        Add a cooldown for a ticker.
+
+        If ticker already has a cooldown, it is extended to the new expiration time.
 
         Args:
-            ticker: The ticker symbol
-            reason: Why the cooldown was triggered (e.g., "stop_loss_hit")
-            strategy_name: Strategy that exited the position
-            cooldown_hours: Override default cooldown duration
+            ticker: Stock ticker symbol
+            minutes: Length of cooldown in minutes (default: 5)
         """
-        entry = CooldownEntry(
-            ticker=ticker,
-            exit_time=datetime.now(UTC),
-            cooldown_hours=cooldown_hours or self.default_hours,
-            reason=reason,
-            strategy_name=strategy_name,
-        )
-        self._cooldowns[ticker] = entry
-        return entry
+        expiration = _get_current_time() + timedelta(minutes=minutes)
+        self._cooldowns[ticker] = expiration
 
-    def is_in_cooldown(self, ticker: str) -> bool:
-        """Check if a ticker is currently in cooldown."""
+    def is_active(self, ticker: str) -> bool:
+        """
+        Check if a ticker has an active cooldown.
+
+        This does NOT automatically clean up expired cooldowns.
+        Use cleanup_expired() for that.
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            True if cooldown exists and has not expired
+        """
         if ticker not in self._cooldowns:
             return False
 
-        entry = self._cooldowns[ticker]
-        if entry.is_expired():
-            del self._cooldowns[ticker]
-            return False
+        return _get_current_time() < self._cooldowns[ticker]
 
-        return True
+    def get_remaining_seconds(self, ticker: str) -> int:
+        """
+        Get remaining seconds in cooldown.
 
-    def get_cooldown(self, ticker: str) -> CooldownEntry | None:
-        """Get the cooldown entry for a ticker."""
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            Remaining seconds (0 if no cooldown or expired)
+        """
         if ticker not in self._cooldowns:
-            return None
+            return 0
 
-        entry = self._cooldowns[ticker]
-        if entry.is_expired():
-            del self._cooldowns[ticker]
-            return None
+        remaining = self._cooldowns[ticker] - _get_current_time()
+        return max(0, int(remaining.total_seconds()))
 
-        return entry
-
-    def remove_cooldown(self, ticker: str) -> bool:
-        """Manually remove a cooldown (e.g., for manual override)."""
-        if ticker in self._cooldowns:
-            del self._cooldowns[ticker]
-            return True
-        return False
-
-    def get_all_active(self) -> list[CooldownEntry]:
-        """Get all active cooldown entries."""
-        self.cleanup_expired()
-        return list(self._cooldowns.values())
-
-    def get_all_tickers(self) -> list[str]:
-        """Get all tickers currently in cooldown."""
-        self.cleanup_expired()
-        return list(self._cooldowns.keys())
-
-    def cleanup_expired(self) -> int:
+    def remove(self, ticker: str) -> None:
         """
-        Remove all expired cooldowns.
+        Remove a cooldown for a ticker.
 
-        Returns number of entries removed.
+        Safe to call even if ticker doesn't have a cooldown.
         """
-        expired = [ticker for ticker, entry in self._cooldowns.items() if entry.is_expired()]
-        for ticker in expired:
-            del self._cooldowns[ticker]
-        return len(expired)
-
-    def count(self) -> int:
-        """Get number of active cooldowns."""
-        self.cleanup_expired()
-        return len(self._cooldowns)
+        self._cooldowns.pop(ticker, None)
 
     def clear(self) -> None:
         """Clear all cooldowns."""
         self._cooldowns.clear()
 
+    def count(self) -> int:
+        """Get number of active cooldowns (includes expired until cleanup)."""
+        return len(self._cooldowns)
 
-def create_cooldown_manager_from_config(strategy_config: Any) -> CooldownManager:
-    """Create a CooldownManager with settings from strategy config."""
-    return CooldownManager(default_hours=getattr(strategy_config, "cooldown_hours", 3))
+    def get_active_tickers(self) -> list[str]:
+        """
+        Get list of tickers with cooldowns.
+
+        Note: This includes expired cooldowns until cleanup_expired() is called.
+        """
+        return list(self._cooldowns.keys())
+
+    def cleanup_expired(self) -> int:
+        """
+        Remove expired cooldowns.
+
+        Returns:
+            Number of cooldowns removed
+        """
+        now = _get_current_time()
+        expired = [ticker for ticker, expiration in self._cooldowns.items() if expiration <= now]
+
+        for ticker in expired:
+            del self._cooldowns[ticker]
+
+        return len(expired)
+
+    def has(self, ticker: str) -> bool:
+        """
+        Alias for is_active().
+
+        Check if ticker has an active cooldown.
+        """
+        return self.is_active(ticker)
