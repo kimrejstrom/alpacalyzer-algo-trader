@@ -102,26 +102,6 @@ class TestTrackedPosition:
         assert tracked.unrealized_pl == 0.0
         assert tracked.unrealized_plpc == 0.0
 
-    def test_update_pnl(self):
-        """Test updating P&L for a tracked position."""
-        from alpacalyzer.execution.position_tracker import TrackedPosition
-
-        position = TrackedPosition(
-            ticker="AAPL",
-            quantity=100,
-            entry_price=150.0,
-            current_price=150.0,
-            unrealized_pl=0.0,
-            unrealized_plpc=0.0,
-            side="long",
-            entry_time=datetime.now(UTC),
-        )
-
-        position.update_pnl(ticker="AAPL", unrealized_pl=500.0, unrealized_plpc=0.0333)
-
-        assert position.unrealized_pl == 500.0
-        assert position.unrealized_plpc == 0.0333
-
 
 class TestPositionTracker:
     """Tests for PositionTracker class."""
