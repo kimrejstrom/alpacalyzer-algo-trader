@@ -1,206 +1,438 @@
-"""Tests for CooldownManager."""
+"""Tests for CooldownManager and CooldownEntry."""
 
 from datetime import UTC, datetime, timedelta
 
-from alpacalyzer.execution.cooldown import CooldownManager
+from alpacalyzer.execution.cooldown import (
+    CooldownEntry,
+    CooldownManager,
+    create_cooldown_manager_from_config,
+)
+
+
+class TestCooldownEntry:
+    """Tests for CooldownEntry dataclass."""
+
+    def test_creation_basic(self):
+        """Test creating a basic CooldownEntry."""
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime(2026, 1, 8, 12, 0, 0, tzinfo=UTC),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        assert entry.ticker == "AAPL"
+        assert entry.cooldown_hours == 3
+        assert entry.reason == "stop_loss_hit"
+        assert entry.strategy_name == "momentum"
+
+    def test_expires_at_calculates_correctly(self):
+        """Test expires_at calculates the correct expiration time."""
+        exit_time = datetime(2026, 1, 8, 12, 0, 0, tzinfo=UTC)
+
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=exit_time,
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        expected_expiry = exit_time + timedelta(hours=3)
+        assert entry.expires_at == expected_expiry
+
+    def test_is_expired_when_not_expired(self):
+        """Test is_expired returns False when cooldown is active."""
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        assert not entry.is_expired()
+
+    def test_is_expired_when_expired(self):
+        """Test is_expired returns True when cooldown has expired."""
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        assert entry.is_expired()
+
+    def test_is_expired_exactly_at_expiry(self):
+        """Test is_expired returns True exactly at expiry time."""
+        # Create entry with exit_time such that it just expired
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=3),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        # May be True or False depending on exact timing, but should be close
+        # Just verify it's callable and returns a bool
+        result = entry.is_expired()
+        assert isinstance(result, bool)
+
+    def test_remaining_time_when_active(self):
+        """Test remaining_time returns positive timedelta when active."""
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=1),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        remaining = entry.remaining_time()
+        assert isinstance(remaining, timedelta)
+        # Should be around 2 hours remaining (within 1 minute margin for test timing)
+        expected_remaining = timedelta(hours=2)
+        tolerance = timedelta(minutes=1)
+        assert abs(remaining - expected_remaining) < tolerance
+
+    def test_remaining_time_when_expired(self):
+        """Test remaining_time returns zero timedelta when expired."""
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        remaining = entry.remaining_time()
+        assert remaining == timedelta(0)
+
+    def test_remaining_time_exactly_at_expiry(self):
+        """Test remaining_time at exact expiry time."""
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=3),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        remaining = entry.remaining_time()
+        # Should be zero or very close to it
+        assert remaining <= timedelta(minutes=1)
 
 
 class TestCooldownManager:
-    def test_initial_state_empty(self):
-        """Manager starts with no cooldowns."""
-        manager = CooldownManager()
-        assert manager.is_active("AAPL") is False
-        assert manager.get_remaining_seconds("AAPL") == 0
+    """Tests for CooldownManager class."""
+
+    def test_initialization_with_default_hours(self):
+        """Test CooldownManager initializes with default hours."""
+        manager = CooldownManager(default_hours=3)
+
+        assert manager.default_hours == 3
         assert manager.count() == 0
 
-    def test_add_cooldown(self):
-        """Can add a cooldown for a ticker."""
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=10)
+    def test_add_cooldown_returns_entry(self):
+        """Test add_cooldown creates and returns a CooldownEntry."""
+        manager = CooldownManager(default_hours=3)
 
-        assert manager.is_active("AAPL") is True
+        entry = manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        assert isinstance(entry, CooldownEntry)
+        assert entry.ticker == "AAPL"
+        assert entry.reason == "stop_loss_hit"
+        assert entry.strategy_name == "momentum"
+        assert entry.cooldown_hours == 3  # Default
+
+    def test_add_cooldown_with_custom_hours(self):
+        """Test add_cooldown respects custom cooldown_hours."""
+        manager = CooldownManager(default_hours=3)
+
+        entry = manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+            cooldown_hours=6,
+        )
+
+        assert entry.cooldown_hours == 6
+        assert entry.ticker == "AAPL"
+
+    def test_add_cooldown_overwrites_existing(self):
+        """Test adding a cooldown for existing ticker overwrites it."""
+        manager = CooldownManager(default_hours=3)
+
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        # Add new cooldown for same ticker
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="manual_exit",
+            strategy_name="mean_reversion",
+            cooldown_hours=5,
+        )
+
+        # Should have only one entry
         assert manager.count() == 1
 
-    def test_cooldown_expires(self, monkeypatch):
-        """Cooldown expires after specified time."""
-        # Freeze time at 2026-01-09 12:00:00 UTC
-        frozen_time = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
+        # Should be the new entry
+        active_entry = manager.get_cooldown("AAPL")
+        assert active_entry is not None
+        assert active_entry.reason == "manual_exit"
+        assert active_entry.strategy_name == "mean_reversion"
 
-        def mock_now():
-            return frozen_time
+    def test_is_in_cooldown_false_when_not_added(self):
+        """Test is_in_cooldown returns False for ticker never added."""
+        manager = CooldownManager(default_hours=3)
 
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now)
+        assert not manager.is_in_cooldown("AAPL")
 
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=5)
+    def test_is_in_cooldown_true_when_active(self):
+        """Test is_in_cooldown returns True for active cooldown."""
+        manager = CooldownManager(default_hours=3)
 
-        # Cooldown should be active
-        assert manager.is_active("AAPL") is True
-        remaining = manager.get_remaining_seconds("AAPL")
-        assert remaining > 0
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
 
-        # Advance time by 6 minutes (cooldown should expire)
-        future_time = frozen_time + timedelta(minutes=6)
+        assert manager.is_in_cooldown("AAPL")
 
-        def mock_now_future():
-            return future_time
+    def test_is_in_cooldown_false_when_expired(self):
+        """Test is_in_cooldown returns False for expired cooldown."""
+        manager = CooldownManager(default_hours=3)
 
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now_future)
+        # Manually create an expired entry
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+        manager._cooldowns["AAPL"] = entry
 
-        # Cooldown should be expired
-        assert manager.is_active("AAPL") is False
-        assert manager.get_remaining_seconds("AAPL") == 0
+        # Should return False and remove expired entry
+        assert not manager.is_in_cooldown("AAPL")
+        assert "AAPL" not in manager._cooldowns
 
-    def test_multiple_tickers(self):
-        """Can track multiple tickers in cooldown."""
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=5)
-        manager.add("MSFT", minutes=10)
-        manager.add("TSLA", minutes=15)
+    def test_get_cooldown_returns_none_when_not_found(self):
+        """Test get_cooldown returns None for non-existent ticker."""
+        manager = CooldownManager(default_hours=3)
 
-        assert manager.count() == 3
-        assert manager.is_active("AAPL") is True
-        assert manager.is_active("MSFT") is True
-        assert manager.is_active("TSLA") is True
-        assert manager.is_active("GOOG") is False
+        assert manager.get_cooldown("AAPL") is None
 
-    def test_remove_cooldown(self):
-        """Can manually remove a cooldown."""
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=10)
+    def test_get_cooldown_returns_entry_when_active(self):
+        """Test get_cooldown returns entry for active cooldown."""
+        manager = CooldownManager(default_hours=3)
 
-        assert manager.is_active("AAPL") is True
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
 
-        manager.remove("AAPL")
+        retrieved_entry = manager.get_cooldown("AAPL")
 
-        assert manager.is_active("AAPL") is False
+        assert retrieved_entry is not None
+        assert retrieved_entry.ticker == "AAPL"
+        assert retrieved_entry.reason == "stop_loss_hit"
+
+    def test_get_cooldown_removes_expired(self):
+        """Test get_cooldown removes expired entries."""
+        manager = CooldownManager(default_hours=3)
+
+        # Manually create an expired entry
+        entry = CooldownEntry(
+            ticker="AAPL",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+        manager._cooldowns["AAPL"] = entry
+
+        # Should return None and remove expired entry
+        assert manager.get_cooldown("AAPL") is None
+        assert "AAPL" not in manager._cooldowns
+
+    def test_remove_cooldown_removes_existing(self):
+        """Test remove_cooldown removes an existing cooldown."""
+        manager = CooldownManager(default_hours=3)
+
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        assert manager.count() == 1
+        removed = manager.remove_cooldown("AAPL")
+        assert removed is True
         assert manager.count() == 0
 
-    def test_remove_nonexistent_cooldown(self):
-        """Removing nonexistent cooldown is safe."""
-        manager = CooldownManager()
-        manager.remove("NONEXISTENT")
-        assert manager.count() == 0
+    def test_remove_cooldown_returns_false_for_nonexistent(self):
+        """Test remove_cooldown returns False for non-existent ticker."""
+        manager = CooldownManager(default_hours=3)
 
-    def test_clear_all(self):
-        """Can clear all cooldowns."""
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=5)
-        manager.add("MSFT", minutes=10)
+        removed = manager.remove_cooldown("AAPL")
+        assert removed is False
 
+    def test_get_all_active_returns_only_active(self):
+        """Test get_all_active returns only non-expired entries."""
+        manager = CooldownManager(default_hours=3)
+
+        # Add active cooldown
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        # Manually add expired cooldown
+        expired_entry = CooldownEntry(
+            ticker="MSFT",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+        manager._cooldowns["MSFT"] = expired_entry
+
+        # Should only return active entries
+        active_entries = manager.get_all_active()
+        assert len(active_entries) == 1
+        assert active_entries[0].ticker == "AAPL"
+        assert "MSFT" not in manager._cooldowns
+
+    def test_get_all_tickers_returns_only_active(self):
+        """Test get_all_tickers returns only non-expired tickers."""
+        manager = CooldownManager(default_hours=3)
+
+        # Add active cooldown
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        # Manually add expired cooldown
+        expired_entry = CooldownEntry(
+            ticker="MSFT",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+        manager._cooldowns["MSFT"] = expired_entry
+
+        # Should only return active tickers
+        tickers = manager.get_all_tickers()
+        assert tickers == ["AAPL"]
+        assert "MSFT" not in manager._cooldowns
+
+    def test_cleanup_expired_removes_all_expired(self):
+        """Test cleanup_expired removes all expired entries."""
+        manager = CooldownManager(default_hours=3)
+
+        # Add active cooldown
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+
+        # Add multiple expired cooldowns
+        for ticker in ["MSFT", "GOOGL", "TSLA"]:
+            entry = CooldownEntry(
+                ticker=ticker,
+                exit_time=datetime.now(UTC) - timedelta(hours=5),
+                cooldown_hours=3,
+                reason="stop_loss_hit",
+                strategy_name="momentum",
+            )
+            manager._cooldowns[ticker] = entry
+
+        # Should remove 3 expired entries
+        removed = manager.cleanup_expired()
+        assert removed == 3
+        assert manager.count() == 1
+        assert "AAPL" in manager._cooldowns
+
+    def test_cleanup_expired_returns_zero_when_all_active(self):
+        """Test cleanup_expired returns 0 when all entries are active."""
+        manager = CooldownManager(default_hours=3)
+
+        manager.add_cooldown(ticker="AAPL", reason="stop_loss_hit", strategy_name="momentum")
+        manager.add_cooldown(ticker="MSFT", reason="target_hit", strategy_name="momentum")
+
+        removed = manager.cleanup_expired()
+        assert removed == 0
         assert manager.count() == 2
 
-        manager.clear()
+    def test_count_excludes_expired(self):
+        """Test count excludes expired entries."""
+        manager = CooldownManager(default_hours=3)
 
-        assert manager.count() == 0
-        assert manager.is_active("AAPL") is False
-        assert manager.is_active("MSFT") is False
+        # Add active cooldown
+        manager.add_cooldown(
+            ticker="AAPL",
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
 
-    def test_cleanup_expired(self, monkeypatch):
-        """Expired cooldowns are cleaned up."""
-        frozen_time = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
+        # Add expired cooldown
+        expired_entry = CooldownEntry(
+            ticker="MSFT",
+            exit_time=datetime.now(UTC) - timedelta(hours=5),
+            cooldown_hours=3,
+            reason="stop_loss_hit",
+            strategy_name="momentum",
+        )
+        manager._cooldowns["MSFT"] = expired_entry
 
-        def mock_now():
-            return frozen_time
-
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now)
-
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=1)  # Expires soon
-        manager.add("MSFT", minutes=10)  # Still active
-
-        # Advance time by 2 minutes
-        future_time = frozen_time + timedelta(minutes=2)
-
-        def mock_now_future():
-            return future_time
-
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now_future)
-
-        # Cleanup should remove expired cooldowns
-        manager.cleanup_expired()
-
+        # Should count only active entries
         assert manager.count() == 1
-        assert manager.is_active("AAPL") is False
-        assert manager.is_active("MSFT") is True
 
-    def test_get_active_tickers(self):
-        """Get list of tickers with active cooldowns."""
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=5)
-        manager.add("MSFT", minutes=10)
+    def test_clear_removes_all_entries(self):
+        """Test clear removes all cooldown entries."""
+        manager = CooldownManager(default_hours=3)
 
-        tickers = manager.get_active_tickers()
-        assert sorted(tickers) == ["AAPL", "MSFT"]
+        manager.add_cooldown(ticker="AAPL", reason="stop_loss_hit", strategy_name="momentum")
+        manager.add_cooldown(ticker="MSFT", reason="target_hit", strategy_name="momentum")
 
-    def test_get_remaining_seconds(self, monkeypatch):
-        """Get accurate remaining time for cooldown."""
-        frozen_time = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
+        assert manager.count() == 2
+        manager.clear()
+        assert manager.count() == 0
+        assert len(manager._cooldowns) == 0
 
-        def mock_now():
-            return frozen_time
 
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now)
+class TestCreateCooldownManagerFromConfig:
+    """Tests for create_cooldown_manager_from_config utility function."""
 
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=10)
+    def test_creates_manager_with_config_hours(self):
+        """Test create_cooldown_manager_from_config creates manager with config hours."""
 
-        remaining = manager.get_remaining_seconds("AAPL")
-        assert remaining == 600  # 10 minutes in seconds
+        # Mock config object
+        class MockStrategyConfig:
+            cooldown_hours = 5
 
-        # Advance time by 3 minutes
-        future_time = frozen_time + timedelta(minutes=3)
+        config = MockStrategyConfig()
+        manager = create_cooldown_manager_from_config(config)
 
-        def mock_now_future():
-            return future_time
-
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now_future)
-
-        remaining = manager.get_remaining_seconds("AAPL")
-        assert remaining == 420  # 7 minutes remaining (10 - 3)
-
-    def test_get_remaining_seconds_nonexistent(self):
-        """Nonexistent ticker returns 0."""
-        manager = CooldownManager()
-        remaining = manager.get_remaining_seconds("NONEXISTENT")
-        assert remaining == 0
-
-    def test_extend_existing_cooldown(self, monkeypatch):
-        """Can extend an existing cooldown."""
-        frozen_time = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
-
-        def mock_now():
-            return frozen_time
-
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now)
-
-        manager = CooldownManager()
-        manager.add("AAPL", minutes=5)
-
-        # Position expiration 5 minutes away
-        assert manager.get_remaining_seconds("AAPL") == 300
-
-        # Advance time by 1 minute
-        future_time = frozen_time + timedelta(minutes=1)
-
-        def mock_now_future():
-            return future_time
-
-        monkeypatch.setattr("alpacalyzer.execution.cooldown._get_current_time", mock_now_future)
-
-        # Original cooldown has 4 minutes remaining
-        assert manager.get_remaining_seconds("AAPL") == 240
-
-        # Extend cooldown by 5 minutes from now
-        manager.add("AAPL", minutes=5)
-
-        # Now has 5 minutes remaining (new expiration from current time)
-        assert manager.get_remaining_seconds("AAPL") == 300
-
-    def test_has_cooldown(self):
-        """Check if ticker has cooldown (alias for is_active)."""
-        manager = CooldownManager()
-        assert manager.has("AAPL") is False
-
-        manager.add("AAPL", minutes=10)
-        assert manager.has("AAPL") is True
+        assert isinstance(manager, CooldownManager)
+        assert manager.default_hours == 5

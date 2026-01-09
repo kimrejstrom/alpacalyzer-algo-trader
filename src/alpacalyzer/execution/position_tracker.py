@@ -1,129 +1,325 @@
-"""Position tracking for trade management."""
+"""PositionTracker for enriched local position state with broker synchronization."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
-from alpacalyzer.trading.alpaca_client import trading_client
+from alpaca.trading.models import Position
 
-if False:
-    from alpaca.trading.models import Position
+if TYPE_CHECKING:
+    pass
 
 
 @dataclass
 class TrackedPosition:
     """
-    A tracked position with P&L tracking.
+    Enriched position data beyond broker-provided information.
 
-    Attributes:
-        ticker: Stock ticker symbol
-        quantity: Number of shares (negative for short)
-        entry_price: Average entry price
-        current_price: Current market price
-        unrealized_pl: Unrealized profit/loss in USD
-        unrealized_plpc: Unrealized profit/loss as percentage
-        side: Position side ("long" or "short")
-        entry_time: When position was added to tracker
+    Tracks positions with strategy association, entry timestamps,
+    stop loss/target tracking, and exit attempt history.
     """
 
+    # Core position data
     ticker: str
-    quantity: int
-    entry_price: float
-    current_price: float
-    unrealized_pl: float
-    unrealized_plpc: float
     side: str
-    entry_time: datetime
+    quantity: int
+    avg_entry_price: float
+    current_price: float
+
+    # Computed values
+    market_value: float
+    unrealized_pnl: float
+    unrealized_pnl_pct: float
+
+    # Enriched metadata
+    strategy_name: str
+    opened_at: datetime
+    entry_order_id: str | None = None
+    stop_loss: float | None = None
+    target: float | None = None
+
+    # State tracking
+    exit_attempts: int = 0
+    last_exit_attempt: datetime | None = None
+    notes: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_alpaca_position(cls, position: "Position") -> "TrackedPosition":
+    def from_alpaca_position(
+        cls,
+        position: Position,
+        strategy_name: str = "unknown",
+        opened_at: datetime | None = None,
+        stop_loss: float | None = None,
+        target: float | None = None,
+    ) -> "TrackedPosition":
         """
-        Create TrackedPosition from Alpaca Position.
+        Create a TrackedPosition from an Alpaca Position.
 
-        Alpaca Position uses strings for numeric fields, so we convert them.
+        Args:
+            position: Alpaca Position object
+            strategy_name: Strategy that opened this position
+            opened_at: When position was opened (defaults to now)
+            stop_loss: Stop loss price
+            target: Target price
+
+        Returns:
+            TrackedPosition with enriched metadata
         """
-        side_str = position.side.value if hasattr(position.side, "value") else str(position.side)
+        qty = int(float(position.qty))
+        entry = float(position.avg_entry_price)
+        current = float(position.current_price) if position.current_price else entry
+        mkt_value = float(position.market_value) if position.market_value else qty * current
+        pnl = float(position.unrealized_pl) if position.unrealized_pl else 0.0
+        pnl_pct = float(position.unrealized_plpc) if position.unrealized_plpc else 0.0
 
         return cls(
             ticker=position.symbol,
-            quantity=int(float(position.qty)),
-            entry_price=float(position.avg_entry_price),
-            current_price=float(position.current_price) if position.current_price else 0.0,
-            unrealized_pl=float(position.unrealized_pl) if position.unrealized_pl else 0.0,
-            unrealized_plpc=float(position.unrealized_plpc) if position.unrealized_plpc else 0.0,
-            side=side_str,
-            entry_time=datetime.now(UTC),
+            side=position.side,
+            quantity=qty,
+            avg_entry_price=entry,
+            current_price=current,
+            market_value=mkt_value,
+            unrealized_pnl=pnl,
+            unrealized_pnl_pct=pnl_pct,
+            strategy_name=strategy_name,
+            opened_at=opened_at or datetime.now(UTC),
+            stop_loss=stop_loss,
+            target=target,
         )
+
+    def update_price(self, new_price: float) -> None:
+        """
+        Update current price and recalculate P&L.
+
+        Args:
+            new_price: New current price
+        """
+        self.current_price = new_price
+        self.market_value = self.quantity * new_price
+
+        if self.side == "long":
+            self.unrealized_pnl = (new_price - self.avg_entry_price) * self.quantity
+        else:
+            self.unrealized_pnl = (self.avg_entry_price - new_price) * self.quantity
+
+        if self.avg_entry_price > 0:
+            self.unrealized_pnl_pct = self.unrealized_pnl / (self.avg_entry_price * self.quantity)
+        else:
+            self.unrealized_pnl_pct = 0.0
+
+    def record_exit_attempt(self, reason: str) -> None:
+        """
+        Record an exit attempt.
+
+        Args:
+            reason: Reason for exit attempt
+        """
+        self.exit_attempts += 1
+        self.last_exit_attempt = datetime.now(UTC)
+        self.notes.append(f"Exit attempt {self.exit_attempts}: {reason}")
 
 
 class PositionTracker:
     """
-    Track and manage open positions.
+    Manages local position state with broker synchronization.
 
     Features:
-    - Add/remove positions
-    - Query by ticker
-    - Sync with broker
-    - Track P&L over time
+    - Rich position metadata (strategy, entry time, stop/target)
+    - Broker synchronization (detects adds/updates/removes)
+    - Position history for analytics
+    - Query interface for filtering
     """
 
     def __init__(self):
+        """Initialize PositionTracker."""
         self._positions: dict[str, TrackedPosition] = {}
+        self._closed_positions: list[TrackedPosition] = []
+        self._last_sync: datetime | None = None
 
-    def add(self, position: "Position") -> None:
-        """Add a position to the tracker."""
-        tracked = TrackedPosition.from_alpaca_position(position)
-        self._positions[tracked.ticker] = tracked
+    def sync_from_broker(self) -> list[str]:
+        """
+        Sync positions from Alpaca broker.
+
+        Updates existing positions, adds new ones, and moves closed
+        positions to history.
+
+        Returns:
+            List of tickers that changed (added or removed)
+        """
+        from alpacalyzer.trading.alpaca_client import get_positions
+
+        broker_positions = get_positions()
+        broker_tickers = {p.symbol for p in broker_positions}
+        local_tickers = set(self._positions.keys())
+
+        changes = []
+
+        # Update existing / add new positions
+        for pos in broker_positions:
+            ticker = pos.symbol
+
+            if ticker in self._positions:
+                # Update existing position
+                tracked = self._positions[ticker]
+                new_price = float(pos.current_price) if pos.current_price else tracked.current_price
+                tracked.update_price(new_price)
+            else:
+                # New position (opened outside our system or missed)
+                self._positions[ticker] = TrackedPosition.from_alpaca_position(pos)
+                changes.append(ticker)
+
+        # Handle closed positions
+        for ticker in local_tickers - broker_tickers:
+            closed = self._positions.pop(ticker)
+            self._closed_positions.append(closed)
+            changes.append(ticker)
+
+        self._last_sync = datetime.now(UTC)
+        return changes
+
+    def add_position(
+        self,
+        ticker: str,
+        side: str,
+        quantity: int,
+        entry_price: float,
+        strategy_name: str,
+        order_id: str | None = None,
+        stop_loss: float | None = None,
+        target: float | None = None,
+    ) -> TrackedPosition:
+        """
+        Add a new position (called after order fill).
+
+        Args:
+            ticker: Stock ticker symbol
+            side: Position side ("long" or "short")
+            quantity: Number of shares
+            entry_price: Average entry price
+            strategy_name: Strategy that opened this position
+            order_id: Entry order ID
+            stop_loss: Stop loss price
+            target: Target price
+
+        Returns:
+            Created TrackedPosition
+        """
+        position = TrackedPosition(
+            ticker=ticker,
+            side=side,
+            quantity=quantity,
+            avg_entry_price=entry_price,
+            current_price=entry_price,
+            market_value=quantity * entry_price,
+            unrealized_pnl=0.0,
+            unrealized_pnl_pct=0.0,
+            strategy_name=strategy_name,
+            opened_at=datetime.now(UTC),
+            entry_order_id=order_id,
+            stop_loss=stop_loss,
+            target=target,
+        )
+        self._positions[ticker] = position
+        return position
+
+    def remove_position(self, ticker: str) -> TrackedPosition | None:
+        """
+        Remove a position (called after exit).
+
+        Moves position to history.
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            Removed TrackedPosition or None if not found
+        """
+        if ticker in self._positions:
+            position = self._positions.pop(ticker)
+            self._closed_positions.append(position)
+            return position
+        return None
 
     def get(self, ticker: str) -> TrackedPosition | None:
-        """Get a tracked position by ticker."""
+        """
+        Get a position by ticker.
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            TrackedPosition or None if not found
+        """
         return self._positions.get(ticker)
 
     def get_all(self) -> list[TrackedPosition]:
-        """Get all tracked positions."""
+        """
+        Get all current positions.
+
+        Returns:
+            List of all open positions
+        """
         return list(self._positions.values())
 
-    def remove(self, ticker: str) -> bool:
+    def get_by_strategy(self, strategy_name: str) -> list[TrackedPosition]:
         """
-        Remove a position from tracker.
+        Get positions opened by a specific strategy.
 
-        Returns True if position was found and removed.
+        Args:
+            strategy_name: Strategy name to filter by
+
+        Returns:
+            List of positions for the strategy
         """
-        if ticker in self._positions:
-            del self._positions[ticker]
-            return True
-        return False
+        return [p for p in self._positions.values() if p.strategy_name == strategy_name]
 
-    def clear(self) -> None:
-        """Clear all positions."""
-        self._positions.clear()
+    def has_position(self, ticker: str) -> bool:
+        """
+        Check if we have a position in a ticker.
 
-    def count(self) -> int:
-        """Get number of tracked positions."""
-        return len(self._positions)
+        Args:
+            ticker: Stock ticker symbol
 
-    def get_tickers(self) -> list[str]:
-        """Get list of ticker symbols."""
-        return list(self._positions.keys())
-
-    def has(self, ticker: str) -> bool:
-        """Check if tracker has a position for the ticker."""
+        Returns:
+            True if position exists
+        """
         return ticker in self._positions
 
-    def update_pnl(self, ticker: str, unrealized_pl: float, unrealized_plpc: float) -> None:
-        """Update P&L for a tracked position."""
-        if ticker in self._positions:
-            self._positions[ticker].unrealized_pl = unrealized_pl
-            self._positions[ticker].unrealized_plpc = unrealized_plpc
-
-    def sync_from_broker(self) -> None:
+    def count(self) -> int:
         """
-        Sync positions from broker (Alpaca).
+        Get number of open positions.
 
-        This replaces all existing positions with fresh data from the broker.
+        Returns:
+            Number of open positions
         """
-        positions = trading_client.get_all_positions()
-        self._positions.clear()
+        return len(self._positions)
 
-        for position in positions:
-            tracked = TrackedPosition.from_alpaca_position(position)
-            self._positions[tracked.ticker] = tracked
+    def total_value(self) -> float:
+        """
+        Get total market value of all positions.
+
+        Returns:
+            Total market value
+        """
+        return sum(p.market_value for p in self._positions.values())
+
+    def total_pnl(self) -> float:
+        """
+        Get total unrealized P&L.
+
+        Returns:
+            Total unrealized profit/loss
+        """
+        return sum(p.unrealized_pnl for p in self._positions.values())
+
+    def get_closed_positions(self, limit: int = 100) -> list[TrackedPosition]:
+        """
+        Get recently closed positions.
+
+        Args:
+            limit: Maximum number of positions to return
+
+        Returns:
+            List of recently closed positions
+        """
+        return self._closed_positions[-limit:]
