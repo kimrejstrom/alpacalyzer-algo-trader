@@ -4,8 +4,7 @@
 
 📋 **Related Documentation**:
 
-- [Code Review Instructions](.github/instructions/code-review.instructions.md) - Automated review guidelines
-- [Code Review Prompt](.github/prompts/code-review.prompt.md) - Structured review template
+- [Code Review Subagent](.opencode/agent/code-reviewer.md) - Automated PR review agent
 - [Migration Plan](migration_roadmap.md) - Architecture refactoring roadmap
 - [Superpowers Plugin Integration](SUPERPOWERS_INTEGRATION.md) - How to use superpowers skills with this project
 
@@ -190,10 +189,25 @@ git commit -m "feat(strategies): implement momentum strategy for #XX"
 
 3. **Push changes and create PR** using GitHub MCP tools
 
-4. **Reply with completion message**:
+4. **Run automated code review** (MANDATORY):
+
+   ```
+   @code-reviewer Please review:
+   - ISSUE_NUMBER: <issue_number>
+   - PR_NUMBER: <pr_number>
+   - OWNER: <repo_owner>
+   - REPO: <repo_name>
+   - FEATURE_DESCRIPTION: <brief description>
+   ```
+
+5. **Address any Critical/High issues** found in `CODE_REVIEW_<ISSUE>.md`
+
+6. **Reply with completion message**:
    ```
    Feature #XX ready for review. PR url: {PR_URL}, also see _PLAN_issue-XX.md for details
    ```
+
+> **Note**: The `@code-reviewer` subagent is defined in `.opencode/agent/code-reviewer.md`. It will write findings to `CODE_REVIEW_<ISSUE>.md` in the root directory.
 
 ### Closing a Pull Request
 
@@ -317,14 +331,16 @@ from alpacalyzer.strategies.base import BaseStrategy
 
 For detailed step-by-step procedures, see skill files in `.claude/skills/`:
 
-| Task                        | Skill File                     | When to Use                              |
-| --------------------------- | ------------------------------ | ---------------------------------------- |
-| Create new hedge fund agent | `new-agent/SKILL.md`           | Adding Warren Buffett, Ray Dalio, etc.   |
-| Create new data scanner     | `new-scanner/SKILL.md`         | Adding Twitter, StockTwits scanner       |
-| Create trading strategy     | `new-strategy/SKILL.md`        | Adding breakout, mean reversion strategy |
-| Add technical indicator     | `technical-indicator/SKILL.md` | Adding Bollinger Bands, ATR, etc.        |
-| Work with GPT/prompts       | `gpt-integration/SKILL.md`     | Modifying agent prompts, GPT calls       |
-| Create Pydantic models      | `pydantic-model/SKILL.md`      | Event types, configs, data models        |
+| Task                        | Skill File                        | When to Use                              |
+| --------------------------- | --------------------------------- | ---------------------------------------- |
+| Create new hedge fund agent | `new-agent/SKILL.md`              | Adding Warren Buffett, Ray Dalio, etc.   |
+| Create new data scanner     | `new-scanner/SKILL.md`            | Adding Twitter, StockTwits scanner       |
+| Create trading strategy     | `new-strategy/SKILL.md`           | Adding breakout, mean reversion strategy |
+| Add technical indicator     | `technical-indicator/SKILL.md`    | Adding Bollinger Bands, ATR, etc.        |
+| Work with GPT/prompts       | `gpt-integration/SKILL.md`        | Modifying agent prompts, GPT calls       |
+| Create Pydantic models      | `pydantic-model/SKILL.md`         | Event types, configs, data models        |
+| PR code review              | `pr-code-review/SKILL.md`         | After creating PR, invoke @code-reviewer |
+| Address code review         | `addressing-code-review/SKILL.md` | Fix issues from CODE*REVIEW*\*.md        |
 
 **Always reference skill files when performing these tasks.**
 
