@@ -1,3 +1,5 @@
+"""Event emitter for structured logging."""
+
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable

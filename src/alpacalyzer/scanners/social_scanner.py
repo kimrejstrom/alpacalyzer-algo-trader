@@ -1,6 +1,10 @@
+import time
+from datetime import UTC, datetime
+
 import pandas as pd
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
+from alpacalyzer.events import ScanCompleteEvent, emit_event
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.stocktwits_scanner import StocktwitsScanner
 from alpacalyzer.scanners.wsb_scanner import WSBScanner
@@ -35,6 +39,8 @@ class SocialScanner:
         Fetch trending stocks from Reddit, Stocktwits, and Finviz, combine them, rank
         them.
         """  # noqa: D205
+
+        start_time = time.time()
 
         # Initialize empty sets to store tickers
         tickers_set = set()
@@ -84,9 +90,9 @@ class SocialScanner:
             return pd.DataFrame()
 
         # Fetch ranks for the combined tickers
-        return self.rank_stocks(tickers_list, limit)
+        return self.rank_stocks(tickers_list, limit, start_time)
 
-    def rank_stocks(self, tickers_list: list[str], limit: int) -> pd.DataFrame:
+    def rank_stocks(self, tickers_list: list[str], limit: int, start_time: float | None = None) -> pd.DataFrame:
         """Rank stocks based on the combined data."""
 
         # Fetch ranks for tickers from Stocktwits
@@ -167,6 +173,18 @@ class SocialScanner:
             )
             combined_df["final_rank"] = combined_df["sentiment_rank"] + combined_df["ta_rank"]
             combined_df["final_score"] = combined_df["sentiment_score"] + combined_df["technical_score"]
+
+            if start_time is not None:
+                duration = time.time() - start_time
+                emit_event(
+                    ScanCompleteEvent(
+                        timestamp=datetime.now(UTC),
+                        source="social_scanner",
+                        tickers_found=combined_df["ticker"].tolist(),
+                        duration_seconds=duration,
+                    )
+                )
+
             return combined_df.sort_values("final_rank").reset_index(drop=True)
         logger.warning("Technical analysis data is empty or invalid.")
 

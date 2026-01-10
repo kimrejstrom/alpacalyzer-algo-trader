@@ -16,6 +16,12 @@ from alpaca.trading.requests import GetCalendarRequest
 from alpaca.trading.stream import TradingStream
 from dotenv import load_dotenv
 
+from alpacalyzer.events import (
+    OrderCanceledEvent,
+    OrderFilledEvent,
+    OrderRejectedEvent,
+    emit_event,
+)
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import get_logger
 
@@ -365,6 +371,22 @@ async def trade_updates_handler(update: TradeUpdate):
         logger.analyze(line)
         logger.info(f"Order update for {symbol}: {cum_seg} ({event})")
 
+        # Emit OrderFilledEvent for analytics (skip for invalid orders)
+        if order_id != "N/A" and ord_qty is not None and filled_qty is not None and px is not None:
+            emit_event(
+                OrderFilledEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=symbol,
+                    order_id=str(order_id),
+                    client_order_id=str(client_order_id),
+                    side=side_str.lower(),
+                    quantity=ord_qty,
+                    filled_qty=filled_qty,
+                    avg_price=float(px),
+                    strategy=strategy,
+                )
+            )
+
     elif event in {"canceled", "rejected"}:
         reason_hint = ""
         # Try to include any message/reason in the update payload if present
@@ -374,6 +396,29 @@ async def trade_updates_handler(update: TradeUpdate):
                 reason_hint = f", Reason: {val}"
                 break
         logger.analyze(base + reason_hint)
+
+        # Emit appropriate event (skip for invalid orders)
+        if order_id != "N/A":
+            if event == "canceled":
+                emit_event(
+                    OrderCanceledEvent(
+                        timestamp=datetime.now(UTC),
+                        ticker=symbol,
+                        order_id=str(order_id),
+                        client_order_id=str(client_order_id),
+                        reason=getattr(update, "reason", None),
+                    )
+                )
+            elif event == "rejected":
+                emit_event(
+                    OrderRejectedEvent(
+                        timestamp=datetime.now(UTC),
+                        ticker=symbol,
+                        order_id=str(order_id),
+                        client_order_id=str(client_order_id),
+                        reason=getattr(update, "reason", None) or getattr(update, "message", None) or getattr(update, "status_message", None) or "Unknown reason",
+                    )
+                )
 
     else:
         # Still log unknown events in analytics for completeness

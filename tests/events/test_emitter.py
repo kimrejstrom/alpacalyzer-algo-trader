@@ -1,6 +1,6 @@
 """Tests for EventEmitter module."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -14,11 +14,15 @@ from alpacalyzer.events.emitter import (
     emit_event,
 )
 from alpacalyzer.events.models import (
+    EntryBlockedEvent,
     EntryTriggeredEvent,
     ExitTriggeredEvent,
+    OrderCanceledEvent,
     OrderFilledEvent,
+    OrderRejectedEvent,
     PositionClosedEvent,
     ScanCompleteEvent,
+    SignalGeneratedEvent,
 )
 
 
@@ -28,6 +32,11 @@ def reset_emitter_singleton():
     EventEmitter._instance = None
     yield
     EventEmitter._instance = None
+
+
+# =============================================================================
+# EventHandler Tests
+# =============================================================================
 
 
 def test_event_handler_abstract():
@@ -43,7 +52,7 @@ def test_console_handler_formats_entry_event():
     handler = ConsoleEventHandler()
 
     event = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -67,7 +76,7 @@ def test_console_handler_formats_exit_event_profit():
     handler = ConsoleEventHandler()
 
     event = ExitTriggeredEvent(
-        timestamp=datetime(2024, 1, 2, 12, 0, 0),
+        timestamp=datetime(2024, 1, 2, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -93,7 +102,7 @@ def test_console_handler_formats_scan_event():
     handler = ConsoleEventHandler()
 
     event = ScanCompleteEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         source="reddit",
         tickers_found=["AAPL", "TSLA", "NVDA"],
         duration_seconds=15.5,
@@ -113,7 +122,7 @@ def test_console_handler_filters_by_event_type():
 
     with patch("alpacalyzer.events.emitter.logger", mock_logger):
         entry_event = EntryTriggeredEvent(
-            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+            timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
             ticker="AAPL",
             strategy="momentum",
             side="long",
@@ -125,7 +134,7 @@ def test_console_handler_filters_by_event_type():
         )
 
         scan_event = ScanCompleteEvent(
-            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+            timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
             source="reddit",
             tickers_found=["AAPL"],
             duration_seconds=10.0,
@@ -144,7 +153,7 @@ def test_file_handler_writes_to_file(tmp_path):
     handler = FileEventHandler(file_path=str(file_path))
 
     event = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -170,7 +179,7 @@ def test_file_handler_append_mode(tmp_path):
     handler = FileEventHandler(file_path=str(file_path))
 
     event1 = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -182,7 +191,7 @@ def test_file_handler_append_mode(tmp_path):
     )
 
     event2 = ScanCompleteEvent(
-        timestamp=datetime(2024, 1, 1, 12, 1, 0),
+        timestamp=datetime(2024, 1, 1, 12, 1, 0, tzinfo=UTC),
         source="reddit",
         tickers_found=["TSLA"],
         duration_seconds=5.0,
@@ -206,7 +215,7 @@ def test_analytics_handler_filters_events():
 
     with patch("alpacalyzer.events.emitter.logger", mock_logger):
         analytics_event = OrderFilledEvent(
-            timestamp=datetime(2024, 1, 1, 12, 1, 0),
+            timestamp=datetime(2024, 1, 1, 12, 1, 0, tzinfo=UTC),
             ticker="AAPL",
             order_id="12345",
             client_order_id="client_123",
@@ -218,7 +227,7 @@ def test_analytics_handler_filters_events():
         )
 
         non_analytics_event = ScanCompleteEvent(
-            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+            timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
             source="reddit",
             tickers_found=["AAPL"],
             duration_seconds=10.0,
@@ -236,7 +245,7 @@ def test_analytics_handler_formats_order_filled():
     handler = AnalyticsEventHandler()
 
     event = OrderFilledEvent(
-        timestamp=datetime(2024, 1, 1, 12, 1, 0),
+        timestamp=datetime(2024, 1, 1, 12, 1, 0, tzinfo=UTC),
         ticker="AAPL",
         order_id="12345",
         client_order_id="client_123",
@@ -259,7 +268,7 @@ def test_analytics_handler_formats_position_closed():
     handler = AnalyticsEventHandler()
 
     event = PositionClosedEvent(
-        timestamp=datetime(2024, 1, 2, 12, 0, 0),
+        timestamp=datetime(2024, 1, 2, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         side="long",
         quantity=100,
@@ -289,7 +298,7 @@ def test_callback_handler():
     handler = CallbackEventHandler(callback)
 
     event = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -304,6 +313,11 @@ def test_callback_handler():
 
     assert len(received_events) == 1
     assert received_events[0].ticker == "AAPL"
+
+
+# =============================================================================
+# EventEmitter Tests
+# =============================================================================
 
 
 def test_event_emitter_singleton():
@@ -358,7 +372,7 @@ def test_event_emitter_emit_to_multiple_handlers():
     emitter.add_handler(CallbackEventHandler(lambda e: received2.append(e)))
 
     event = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -390,7 +404,7 @@ def test_event_emitter_error_handling():
     emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
 
     event = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -417,7 +431,7 @@ def test_emit_event_convenience_function():
     emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
 
     event = EntryTriggeredEvent(
-        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         ticker="AAPL",
         strategy="momentum",
         side="long",
@@ -431,3 +445,175 @@ def test_emit_event_convenience_function():
     emit_event(event)
 
     assert len(received) == 1
+
+
+# =============================================================================
+# Event-Specific Emission Tests (Integration)
+# =============================================================================
+
+
+def test_emit_event_entry_blocked():
+    """Test that EntryBlockedEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = EntryBlockedEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        ticker="MSFT",
+        strategy="momentum",
+        reason="Insufficient conditions",
+        conditions_met=2,
+        conditions_total=5,
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].ticker == "MSFT"
+    assert received[0].event_type == "ENTRY_BLOCKED"
+
+
+def test_emit_event_exit_triggered():
+    """Test that ExitTriggeredEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = ExitTriggeredEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        ticker="TSLA",
+        strategy="momentum",
+        side="short",
+        quantity=50,
+        entry_price=250.0,
+        exit_price=200.0,
+        pnl=-2500.0,
+        pnl_pct=-0.10,
+        hold_duration_hours=4.5,
+        reason="Stop loss hit",
+        urgency="normal",
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].ticker == "TSLA"
+    assert received[0].event_type == "EXIT_TRIGGERED"
+
+
+def test_emit_event_order_filled():
+    """Test that OrderFilledEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = OrderFilledEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        ticker="NVDA",
+        order_id="12345",
+        client_order_id="client_123",
+        side="buy",
+        quantity=100,
+        filled_qty=100,
+        avg_price=500.0,
+        strategy="momentum",
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].ticker == "NVDA"
+    assert received[0].event_type == "ORDER_FILLED"
+
+
+def test_emit_event_order_canceled():
+    """Test that OrderCanceledEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = OrderCanceledEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        ticker="AMD",
+        order_id="67890",
+        client_order_id="client_678",
+        reason="User requested",
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].ticker == "AMD"
+    assert received[0].event_type == "ORDER_CANCELED"
+
+
+def test_emit_event_order_rejected():
+    """Test that OrderRejectedEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = OrderRejectedEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        ticker="NFLX",
+        order_id=None,
+        client_order_id="client_nflx",
+        reason="Insufficient buying power",
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].ticker == "NFLX"
+    assert received[0].event_type == "ORDER_REJECTED"
+
+
+def test_emit_event_scan_complete():
+    """Test that ScanCompleteEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = ScanCompleteEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        source="social_scanner",
+        tickers_found=["AAPL", "MSFT", "GOOG"],
+        duration_seconds=5.2,
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].source == "social_scanner"
+    assert received[0].event_type == "SCAN_COMPLETE"
+
+
+def test_emit_event_signal_generated():
+    """Test that SignalGeneratedEvent is emitted correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = SignalGeneratedEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        ticker="TSLA",
+        action="buy",
+        confidence=0.80,
+        source="hedge_fund",
+        strategy="momentum",
+        reasoning="Strong bullish momentum",
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].ticker == "TSLA"
+    assert received[0].event_type == "SIGNAL_GENERATED"
