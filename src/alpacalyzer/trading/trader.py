@@ -1,7 +1,7 @@
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import pandas as pd
 from alpaca.common.exceptions import APIError
@@ -23,11 +23,14 @@ from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.display import print_strategy_output, print_trading_output
 from alpacalyzer.utils.logger import get_logger
 
+if TYPE_CHECKING:
+    from alpacalyzer.execution.signal_queue import PendingSignal
+
 logger = get_logger()
 
 
 class Trader:
-    def __init__(self, analyze_mode=False, direct_tickers=None, agents="ALL", ignore_market_status=False):
+    def __init__(self, analyze_mode=False, direct_tickers=None, agents: Literal["ALL", "TRADE", "INVEST"] = "ALL", ignore_market_status=False):
         """Initialize the Trader instance."""
         self.technical_analyzer = TechnicalAnalyzer()
         self.finviz_scanner = FinvizScanner()
@@ -228,6 +231,28 @@ class Trader:
 
         except Exception as e:
             logger.error(f"Error in run_hedge_fund: {str(e)}", exc_info=True)
+
+    def get_signals_from_strategies(self) -> list["PendingSignal"]:
+        """
+        Convert latest_strategies to PendingSignal objects for ExecutionEngine.
+
+        Returns:
+            List of PendingSignal objects created from hedge fund strategies.
+
+        Note:
+            Clears latest_strategies after conversion to prevent stale signal accumulation.
+        """
+        from alpacalyzer.execution.signal_queue import PendingSignal
+
+        signals = []
+        for strategy in self.latest_strategies:
+            signal = PendingSignal.from_strategy(strategy, source="hedge_fund")
+            signals.append(signal)
+
+        # Clear strategies after conversion to prevent accumulation
+        self.latest_strategies.clear()
+
+        return signals
 
     # Function to check real-time price and execute orders
     def monitor_and_trade(self):

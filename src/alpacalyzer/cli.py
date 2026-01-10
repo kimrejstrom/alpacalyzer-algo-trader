@@ -54,6 +54,7 @@ def main():  # pragma: no cover
     parser.add_argument("--agents", type=str, default="ALL", help="Comma-separated list of agents to use (e.g., ALL,TRADE,INVEST)")
     parser.add_argument("--ignore-market-status", action="store_true", help="Ignore market status and trade at any time")
     parser.add_argument("--strategy", type=str, help="Trading strategy to use from registry (e.g., momentum, breakout)")
+    parser.add_argument("--new-engine", action="store_true", help="Use new ExecutionEngine (experimental)")
     # EOD analyzer options
     parser.add_argument("--eod-analyze", action="store_true", help="Run End-of-Day analyzer and exit")
     parser.add_argument("--eod-date", type=str, help="EET date (YYYY-MM-DD) to analyze; defaults to today")
@@ -108,16 +109,44 @@ def main():  # pragma: no cover
             safe_execute(trader.scan_for_technical_opportunities)
             schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))  # type: ignore
 
-        # Run hedge fund every 5 minutes
-        safe_execute(trader.run_hedge_fund)
-        schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))  # type: ignore
+        # Choose between old Trader and new ExecutionEngine
+        if args.new_engine:
+            logger.info("Using new ExecutionEngine for trade execution")
+            from alpacalyzer.execution.engine import ExecutionConfig, ExecutionEngine
+            from alpacalyzer.strategies.momentum import MomentumStrategy
 
-        # Monitor Trading strategies every 2 minutes (skip if analyze enabled)
-        if not args.analyze:
-            safe_execute(trader.monitor_and_trade)
-            schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))  # type: ignore
+            # Create strategy and engine
+            strategy_instance = MomentumStrategy()
+            engine_config = ExecutionConfig(analyze_mode=args.analyze)
+            execution_engine = ExecutionEngine(strategy_instance, engine_config)  # type: ignore[arg-type]
+
+            # Create a function that feeds signals from trader to engine
+            def run_hedge_fund_with_signals():
+                """Run hedge fund and feed signals to execution engine."""
+                trader.run_hedge_fund()
+                signals = trader.get_signals_from_strategies()
+                for signal in signals:
+                    execution_engine.add_signal(signal)
+
+            # Schedule hedge fund with signal feeding (only once)
+            safe_execute(run_hedge_fund_with_signals)
+            schedule.every(5).minutes.do(lambda: safe_execute(run_hedge_fund_with_signals))  # type: ignore
+
+            # Schedule engine cycles every 2 minutes
+            safe_execute(execution_engine.run_cycle)
+            schedule.every(2).minutes.do(lambda: safe_execute(execution_engine.run_cycle))  # type: ignore
         else:
-            logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
+            # Original Trader behavior
+            # Run hedge fund every 5 minutes
+            safe_execute(trader.run_hedge_fund)
+            schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))  # type: ignore
+
+            # Monitor Trading strategies every 2 minutes (skip if analyze enabled)
+            if not args.analyze:
+                safe_execute(trader.monitor_and_trade)
+                schedule.every(2).minutes.do(lambda: safe_execute(trader.monitor_and_trade))  # type: ignore
+            else:
+                logger.info("Trading disabled in analyze mode - skipping monitor_and_trade")
 
         if args.stream:
             logger.info("Websocket Streaming Enabled")
