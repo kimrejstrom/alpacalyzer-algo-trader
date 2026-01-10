@@ -1,3 +1,4 @@
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
@@ -42,7 +43,7 @@ class ConsoleEventHandler(EventHandler):
         if event_type == "SCAN_COMPLETE":
             return f"🔍 Scan complete ({event.source}): {len(event.tickers_found)} tickers found"
         if event_type == "SIGNAL_GENERATED":
-            return f"📊 Signal: {event.ticker} {event.action.upper()} (confidence: {event.confidence:.0%})"
+            return f"📊 Signal: {event.ticker} {event.action.upper()} (confidence: {event.confidence * 100:.0f}%)"
         if event_type == "ORDER_FILLED":
             return f"💰 Filled: {event.ticker} {event.side.upper()} {event.filled_qty}x @ ${event.avg_price:.2f}"
         if event_type == "CYCLE_COMPLETE":
@@ -54,7 +55,11 @@ class FileEventHandler(EventHandler):
     """Writes events as JSON lines to a file."""
 
     def __init__(self, file_path: str | None = None):
+        from pathlib import Path
+
         self.file_path = file_path or "logs/events.jsonl"
+        # Ensure directory exists
+        Path(self.file_path).parent.mkdir(parents=True, exist_ok=True)
 
     def handle(self, event: TradingEvent) -> None:
         json_line = event.model_dump_json()
@@ -119,17 +124,21 @@ class EventEmitter:
     """
 
     _instance: "EventEmitter | None" = None
+    _lock = threading.Lock()
 
     def __init__(self):
         self._handlers: list[EventHandler] = []
 
     @classmethod
     def get_instance(cls) -> "EventEmitter":
-        """Get singleton instance."""
+        """Get singleton instance (thread-safe)."""
         if cls._instance is None:
-            cls._instance = cls()
-            cls._instance.add_handler(ConsoleEventHandler())
-            cls._instance.add_handler(AnalyticsEventHandler())
+            with cls._lock:
+                # Double-check after acquiring lock
+                if cls._instance is None:
+                    cls._instance = cls()
+                    cls._instance.add_handler(ConsoleEventHandler())
+                    cls._instance.add_handler(AnalyticsEventHandler())
         return cls._instance
 
     def add_handler(self, handler: EventHandler) -> None:

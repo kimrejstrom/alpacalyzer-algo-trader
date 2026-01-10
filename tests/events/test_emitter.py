@@ -22,6 +22,14 @@ from alpacalyzer.events.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_emitter_singleton():
+    """Reset EventEmitter singleton before and after each test."""
+    EventEmitter._instance = None
+    yield
+    EventEmitter._instance = None
+
+
 def test_event_handler_abstract():
     """Test EventHandler is abstract and requires handle method."""
     from alpacalyzer.events.emitter import EventHandler
