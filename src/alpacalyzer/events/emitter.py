@@ -1,87 +1,169 @@
 """Event emitter for structured logging."""
 
+import threading
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+
 from alpacalyzer.events.models import TradingEvent
 from alpacalyzer.utils.logger import get_logger
 
 logger = get_logger()
 
 
+class EventHandler(ABC):
+    """Base class for event handlers."""
+
+    @abstractmethod
+    def handle(self, event: TradingEvent) -> None:
+        """Handle an event."""
+        pass
+
+
+class ConsoleEventHandler(EventHandler):
+    """Logs events to console in human-readable format."""
+
+    def __init__(self, event_types: list[str] | None = None):
+        # If None, handle all events
+        self.event_types = event_types
+
+    def handle(self, event: TradingEvent) -> None:
+        if self.event_types and event.event_type not in self.event_types:
+            return
+
+        message = self._format_event(event)
+        logger.info(message)
+
+    def _format_event(self, event: TradingEvent) -> str:
+        """Format event for console output."""
+        event_type = event.event_type
+
+        if event_type == "ENTRY_TRIGGERED":
+            return f"📈 ENTRY: {event.ticker} {event.side.upper()} x{event.quantity} @ ${event.entry_price:.2f} (SL: ${event.stop_loss:.2f}, TP: ${event.target:.2f})"
+        if event_type == "EXIT_TRIGGERED":
+            emoji = "✅" if event.pnl >= 0 else "❌"
+            return f"{emoji} EXIT: {event.ticker} P/L: ${event.pnl:.2f} ({event.pnl_pct:.2%}) - {event.reason}"
+        if event_type == "SCAN_COMPLETE":
+            return f"🔍 Scan complete ({event.source}): {len(event.tickers_found)} tickers found"
+        if event_type == "SIGNAL_GENERATED":
+            return f"📊 Signal: {event.ticker} {event.action.upper()} (confidence: {event.confidence * 100:.0f}%)"
+        if event_type == "ORDER_FILLED":
+            return f"💰 Filled: {event.ticker} {event.side.upper()} {event.filled_qty}x @ ${event.avg_price:.2f}"
+        if event_type == "CYCLE_COMPLETE":
+            return f"🔄 Cycle: {event.entries_triggered} entries, {event.exits_triggered} exits, {event.positions_open} positions"
+        return f"[{event_type}] {event.ticker if hasattr(event, 'ticker') else 'system'}"
+
+
+class FileEventHandler(EventHandler):
+    """Writes events as JSON lines to a file."""
+
+    def __init__(self, file_path: str | None = None):
+        from pathlib import Path
+
+        self.file_path = file_path or "logs/events.jsonl"
+        # Ensure directory exists
+        Path(self.file_path).parent.mkdir(parents=True, exist_ok=True)
+
+    def handle(self, event: TradingEvent) -> None:
+        json_line = event.model_dump_json()
+
+        with open(self.file_path, "a") as f:
+            f.write(json_line + "\n")
+
+
+class AnalyticsEventHandler(EventHandler):
+    """Writes events to analytics log for EOD analysis."""
+
+    ANALYTICS_EVENTS = [
+        "ENTRY_TRIGGERED",
+        "EXIT_TRIGGERED",
+        "ORDER_FILLED",
+        "ORDER_CANCELED",
+        "POSITION_OPENED",
+        "POSITION_CLOSED",
+    ]
+
+    def handle(self, event: TradingEvent) -> None:
+        if event.event_type not in self.ANALYTICS_EVENTS:
+            return
+
+        line = self._format_analytics_line(event)
+        logger.analyze(line)
+
+    def _format_analytics_line(self, event: TradingEvent) -> str:
+        """Format event for analytics log (backwards compatible)."""
+        if event.event_type == "ORDER_FILLED":
+            return (
+                f"[EXECUTION] Ticker: {event.ticker}, Side: {event.side.upper()}, "
+                f"Cum: {event.filled_qty}/{event.quantity} @ {event.avg_price}, "
+                f"OrderType: limit, OrderId: {event.order_id}, "
+                f"ClientOrderId: {event.client_order_id}, Status: fill"
+            )
+        if event.event_type == "POSITION_CLOSED":
+            return f"[EXIT] Ticker: {event.ticker}, Side: {event.side}, Entry: {event.entry_price}, Exit: {event.exit_price}, P/L: {event.pnl_pct:.2%}, Reason: {event.exit_reason}"
+        return event.model_dump_json()
+
+
+class CallbackEventHandler(EventHandler):
+    """Calls a callback function for each event."""
+
+    def __init__(self, callback: Callable[[TradingEvent], None]):
+        self.callback = callback
+
+    def handle(self, event: TradingEvent) -> None:
+        self.callback(event)
+
+
+class EventEmitter:
+    """
+    Central event emission system.
+
+    Usage:
+        emitter = EventEmitter()
+        emitter.add_handler(ConsoleEventHandler())
+        emitter.add_handler(FileEventHandler())
+
+        emitter.emit(EntryTriggeredEvent(...))
+    """
+
+    _instance: "EventEmitter | None" = None
+    _lock = threading.Lock()
+
+    def __init__(self):
+        self._handlers: list[EventHandler] = []
+
+    @classmethod
+    def get_instance(cls) -> "EventEmitter":
+        """Get singleton instance (thread-safe)."""
+        if cls._instance is None:
+            with cls._lock:
+                # Double-check after acquiring lock
+                if cls._instance is None:
+                    cls._instance = cls()
+                    cls._instance.add_handler(ConsoleEventHandler())
+                    cls._instance.add_handler(AnalyticsEventHandler())
+        return cls._instance
+
+    def add_handler(self, handler: EventHandler) -> None:
+        """Add an event handler."""
+        self._handlers.append(handler)
+
+    def remove_handler(self, handler: EventHandler) -> None:
+        """Remove an event handler."""
+        self._handlers.remove(handler)
+
+    def emit(self, event: TradingEvent) -> None:
+        """Emit an event to all handlers."""
+        for handler in self._handlers:
+            try:
+                handler.handle(event)
+            except Exception as e:
+                logger.error(f"Event handler error: {e}", exc_info=True)
+
+    def clear_handlers(self) -> None:
+        """Remove all handlers."""
+        self._handlers.clear()
+
+
 def emit_event(event: TradingEvent) -> None:
-    """
-    Emit a trading event to the logger.
-
-    Format events for analytics and human readers. Analytics logs use the
-    analyze() method for EOD processing, while also logging to info() for
-    console output.
-    """
-    event_type = event.model_dump().get("event_type", "UNKNOWN")
-
-    data = event.model_dump()
-
-    if event_type == "ENTRY_TRIGGERED":
-        reason = f"{data.get('reason')} (Strategy: {data.get('strategy')}, Side: {data.get('side')}, Qty: {data.get('quantity')})"
-        logger.analyze(
-            f"[ENTRY] Ticker: {data.get('ticker')}, Action: {data.get('side')}, Entry: ${data.get('entry_price'):.2f}, "
-            f"Stop: ${data.get('stop_loss'):.2f}, Target: ${data.get('target'):.2f}, Reason: {reason}"
-        )
-        logger.info(f"Entry triggered for {data.get('ticker')}: {reason}")
-
-    elif event_type == "ENTRY_BLOCKED":
-        logger.debug(f"Entry blocked for {data.get('ticker')}: {data.get('reason')} ({data.get('conditions_met')}/{data.get('conditions_total')} criteria met)")
-
-    elif event_type == "EXIT_TRIGGERED":
-        logger.analyze(
-            f"[EXIT] Ticker: {data.get('ticker')}, Side: {data.get('side')}, Reason: {data.get('reason')}, "
-            f"Entry: ${data.get('entry_price'):.2f}, Exit: ${data.get('exit_price'):.2f}, P/L: {data.get('pnl_pct'):.2%}"
-        )
-        logger.info(f"Exit triggered for {data.get('ticker')}: {data.get('reason')} (P/L: {data.get('pnl_pct'):.2%})")
-
-    elif event_type == "ORDER_SUBMITTED":
-        logger.info(f"Order submitted: {data.get('ticker')} {data.get('side')} {data.get('quantity')} @ {data.get('limit_price') or 'market'} (ID: {data.get('order_id')})")
-
-    elif event_type == "ORDER_FILLED":
-        logger.analyze(
-            f"[EXECUTION] Ticker: {data.get('ticker')}, Side: {data.get('side')}, OrderId: {data.get('order_id')}, "
-            f"ClientOrderId: {data.get('client_order_id')}, Qty: {data.get('filled_qty')}/{data.get('quantity')}, "
-            f"AvgPrice: ${data.get('avg_price'):.2f}, Strategy: {data.get('strategy')}, Status: fill"
-        )
-        logger.info(f"Order filled: {data.get('ticker')} {data.get('side')} {data.get('filled_qty')} shares @ ${data.get('avg_price'):.2f}")
-
-    elif event_type == "ORDER_CANCELED":
-        logger.info(f"Order canceled: {data.get('ticker')} {data.get('order_id')}")
-        if data.get("reason"):
-            logger.debug(f"Cancel reason: {data.get('reason')}")
-
-    elif event_type == "ORDER_REJECTED":
-        logger.warning(f"Order rejected: {data.get('ticker')} - Reason: {data.get('reason')}")
-
-    elif event_type == "POSITION_OPENED":
-        logger.info(f"Position opened: {data.get('ticker')} {data.get('side')} {data.get('quantity')} @ ${data.get('entry_price'):.2f}")
-
-    elif event_type == "POSITION_CLOSED":
-        logger.analyze(
-            f"[EXIT] Ticker: {data.get('ticker')}, Side: {data.get('side')}, Exit Reason: {data.get('exit_reason')}, "
-            f"Entry: ${data.get('entry_price'):.2f}, Exit: ${data.get('exit_price'):.2f}, P/L: {data.get('pnl_pct'):.2%}, "
-            f"Held: {data.get('hold_duration_hours'):.1f}h"
-        )
-        logger.info(f"Position closed: {data.get('ticker')} (P/L: {data.get('pnl_pct'):.2%})")
-
-    elif event_type == "SCAN_COMPLETE":
-        logger.debug(f"Scan complete ({data.get('source')}): {len(data.get('tickers_found', []))} tickers in {data.get('duration_seconds'):.1f}s")
-
-    elif event_type == "SIGNAL_GENERATED":
-        logger.info(f"Signal generated: {data.get('ticker')} {data.get('action')} (confidence: {data.get('confidence'):.0%})")
-        if data.get("reasoning"):
-            logger.debug(f"Reasoning: {data.get('reasoning')}")
-
-    elif event_type == "COOLDOWN_STARTED":
-        logger.debug(f"Cooldown started for {data.get('ticker')}: {data.get('duration_hours')}h - {data.get('reason')}")
-
-    elif event_type == "COOLDOWN_ENDED":
-        logger.info(f"Cooldown ended for {data.get('ticker')}")
-
-    elif event_type == "CYCLE_COMPLETE":
-        logger.debug(f"Cycle complete: {data.get('entries_triggered')} entries, {data.get('exits_triggered')} exits, {data.get('positions_open')} positions in {data.get('duration_seconds'):.1f}s")
-
-    else:
-        logger.debug(f"Event emitted: {event_type} - {event.model_dump_json()}")
+    """Emit an event using the global emitter."""
+    EventEmitter.get_instance().emit(event)
