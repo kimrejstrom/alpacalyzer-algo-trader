@@ -11,6 +11,15 @@ from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.data.models import EntryType, TopTicker, TradingStrategy
+from alpacalyzer.events import (
+    CooldownEndedEvent,
+    EntryBlockedEvent,
+    EntryTriggeredEvent,
+    ExitTriggeredEvent,
+    OrderSubmittedEvent,
+    SignalGeneratedEvent,
+    emit_event,
+)
 from alpacalyzer.hedge_fund import call_hedge_fund_agents
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
@@ -194,6 +203,7 @@ class Trader:
             now = datetime.now(UTC)
             for ticker, exit_time in list(self.recently_exited_tickers.items()):
                 if now > exit_time + self.cooldown_period:
+                    emit_event(CooldownEndedEvent(timestamp=now, ticker=ticker))
                     logger.info(f"Ticker {ticker} cooldown finished.")
                     del self.recently_exited_tickers[ticker]
 
@@ -223,6 +233,17 @@ class Trader:
                         logger.info(f"Strategy already exists for {strategy.ticker} - Skipping")
                         continue
                     self.latest_strategies.append(strategy)
+                    emit_event(
+                        SignalGeneratedEvent(
+                            timestamp=datetime.now(UTC),
+                            ticker=strategy.ticker,
+                            action=strategy.trade_type,
+                            confidence=0.75,
+                            source="hedge_fund",
+                            strategy="momentum",
+                            reasoning=strategy.strategy_notes,
+                        )
+                    )
 
             self.opportunities = []
 
@@ -299,6 +320,21 @@ class Trader:
                     order_resp = trading_client.submit_order(bracket_order)
                     order = cast(Order, order_resp)
                     log_order(order)
+
+                    emit_event(
+                        OrderSubmittedEvent(
+                            timestamp=datetime.now(UTC),
+                            ticker=strategy.ticker,
+                            order_id=str(order.id),
+                            client_order_id=str(order.client_order_id),
+                            side=side.value,
+                            quantity=strategy.quantity,
+                            order_type="limit",
+                            limit_price=strategy.entry_point,
+                            stop_price=strategy.stop_loss,
+                            strategy="momentum",
+                        )
+                    )
 
                     # Mark strategy as executed
                     executed_tickers.append(strategy.ticker)
@@ -480,6 +516,32 @@ def check_entry_conditions(strategy: TradingStrategy, signals: TradingSignals) -
             logger.debug(f"Failed conditions: {', '.join(failed_conditions)}")
         logger.info(f"Entry conditions met for {strategy.ticker}: {conditions_met}")
 
+        if conditions_met:
+            emit_event(
+                EntryTriggeredEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=strategy.ticker,
+                    strategy="momentum",
+                    side=strategy.trade_type,
+                    quantity=strategy.quantity,
+                    entry_price=strategy.entry_point,
+                    stop_loss=strategy.stop_loss,
+                    target=strategy.target_price,
+                    reason=f"Entry conditions met ({conditions_met_count}/{total_conditions})",
+                )
+            )
+        else:
+            emit_event(
+                EntryBlockedEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=strategy.ticker,
+                    strategy="momentum",
+                    reason=f"Insufficient conditions met ({conditions_met_count}/{total_conditions})",
+                    conditions_met=conditions_met_count,
+                    conditions_total=total_conditions,
+                )
+            )
+
         return conditions_met
 
     except Exception as e:
@@ -570,6 +632,27 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
         else:
             logger.info(f"WIN: {unrealized_plpc:.2%} P&L on trade")
         logger.analyze(f"Ticker: {position.symbol}, Side: {position.side}, Exit Reason: {reason_str}, P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}")
+
+        # Calculate approximate P&L in dollars
+        pnl_dollars = unrealized_plpc * float(position.market_value or 0)
+
+        emit_event(
+            ExitTriggeredEvent(
+                timestamp=datetime.now(UTC),
+                ticker=position.symbol,
+                strategy="momentum",
+                side=position.side,
+                quantity=int(position.qty or 0),
+                entry_price=float(position.avg_entry_price or 0),
+                exit_price=float(position.current_price or 0),
+                pnl=pnl_dollars,
+                pnl_pct=unrealized_plpc,
+                hold_duration_hours=0,  # Unknown for dynamic exit
+                reason=reason_str,
+                urgency="immediate" if unrealized_plpc < -0.05 else "normal",
+            )
+        )
+
         return True
 
     return False
