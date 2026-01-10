@@ -238,6 +238,9 @@ class Trader:
 
         Returns:
             List of PendingSignal objects created from hedge fund strategies.
+
+        Note:
+            Clears latest_strategies after conversion to prevent stale signal accumulation.
         """
         from alpacalyzer.execution.signal_queue import PendingSignal
 
@@ -245,6 +248,9 @@ class Trader:
         for strategy in self.latest_strategies:
             signal = PendingSignal.from_strategy(strategy, source="hedge_fund")
             signals.append(signal)
+
+        # Clear strategies after conversion to prevent accumulation
+        self.latest_strategies.clear()
 
         return signals
 

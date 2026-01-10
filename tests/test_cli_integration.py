@@ -90,6 +90,9 @@ class TestHedgeFundToSignalBridge:
         assert signal.agent_recommendation is not None
         assert signal.agent_recommendation.ticker == "AAPL"
 
+        # Verify strategies were cleared after conversion
+        assert len(trader.latest_strategies) == 0
+
     def test_empty_strategies_returns_empty_signals(self):
         """Test that empty strategies list returns empty signals."""
         trader = Trader(analyze_mode=True, direct_tickers=[])

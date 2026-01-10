@@ -109,10 +109,6 @@ def main():  # pragma: no cover
             safe_execute(trader.scan_for_technical_opportunities)
             schedule.every(4).minutes.do(lambda: safe_execute(trader.scan_for_technical_opportunities))  # type: ignore
 
-        # Run hedge fund every 5 minutes
-        safe_execute(trader.run_hedge_fund)
-        schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))  # type: ignore
-
         # Choose between old Trader and new ExecutionEngine
         if args.new_engine:
             logger.info("Using new ExecutionEngine for trade execution")
@@ -132,21 +128,19 @@ def main():  # pragma: no cover
                 for signal in signals:
                     execution_engine.add_signal(signal)
 
-            # Override the hedge fund runner to include signal feeding
-            schedule.clear("hedge_fund")  # Clear previous hedge fund schedule
+            # Schedule hedge fund with signal feeding (only once)
             safe_execute(run_hedge_fund_with_signals)
-            schedule.every(5).minutes.do(lambda: safe_execute(run_hedge_fund_with_signals)).tag("hedge_fund")  # type: ignore
+            schedule.every(5).minutes.do(lambda: safe_execute(run_hedge_fund_with_signals))  # type: ignore
 
-            # Schedule engine cycles every 2 minutes instead of monitor_and_trade
-            if not args.analyze:
-                safe_execute(execution_engine.run_cycle)
-                schedule.every(2).minutes.do(lambda: safe_execute(execution_engine.run_cycle))  # type: ignore
-            else:
-                logger.info("Trading disabled in analyze mode - engine will run in analyze mode")
-                safe_execute(execution_engine.run_cycle)
-                schedule.every(2).minutes.do(lambda: safe_execute(execution_engine.run_cycle))  # type: ignore
+            # Schedule engine cycles every 2 minutes
+            safe_execute(execution_engine.run_cycle)
+            schedule.every(2).minutes.do(lambda: safe_execute(execution_engine.run_cycle))  # type: ignore
         else:
             # Original Trader behavior
+            # Run hedge fund every 5 minutes
+            safe_execute(trader.run_hedge_fund)
+            schedule.every(5).minutes.do(lambda: safe_execute(trader.run_hedge_fund))  # type: ignore
+
             # Monitor Trading strategies every 2 minutes (skip if analyze enabled)
             if not args.analyze:
                 safe_execute(trader.monitor_and_trade)
