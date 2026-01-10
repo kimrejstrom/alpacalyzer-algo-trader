@@ -371,20 +371,21 @@ async def trade_updates_handler(update: TradeUpdate):
         logger.analyze(line)
         logger.info(f"Order update for {symbol}: {cum_seg} ({event})")
 
-        # Emit OrderFilledEvent for analytics
-        emit_event(
-            OrderFilledEvent(
-                timestamp=datetime.now(UTC),
-                ticker=symbol,
-                order_id=str(order_id) if order_id != "N/A" else "",
-                client_order_id=str(client_order_id),
-                side=side_str.lower(),
-                quantity=ord_qty or 0,
-                filled_qty=filled_qty or 0,
-                avg_price=float(px if px is not None else 0),
-                strategy=strategy,
+        # Emit OrderFilledEvent for analytics (skip for invalid orders)
+        if order_id != "N/A" and ord_qty is not None and filled_qty is not None and px is not None:
+            emit_event(
+                OrderFilledEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=symbol,
+                    order_id=str(order_id),
+                    client_order_id=str(client_order_id),
+                    side=side_str.lower(),
+                    quantity=ord_qty,
+                    filled_qty=filled_qty,
+                    avg_price=float(px),
+                    strategy=strategy,
+                )
             )
-        )
 
     elif event in {"canceled", "rejected"}:
         reason_hint = ""
@@ -396,27 +397,28 @@ async def trade_updates_handler(update: TradeUpdate):
                 break
         logger.analyze(base + reason_hint)
 
-        # Emit appropriate event
-        if event == "canceled":
-            emit_event(
-                OrderCanceledEvent(
-                    timestamp=datetime.now(UTC),
-                    ticker=symbol,
-                    order_id=str(order_id) if order_id != "N/A" else "",
-                    client_order_id=str(client_order_id),
-                    reason=getattr(update, "reason", None),
+        # Emit appropriate event (skip for invalid orders)
+        if order_id != "N/A":
+            if event == "canceled":
+                emit_event(
+                    OrderCanceledEvent(
+                        timestamp=datetime.now(UTC),
+                        ticker=symbol,
+                        order_id=str(order_id),
+                        client_order_id=str(client_order_id),
+                        reason=getattr(update, "reason", None),
+                    )
                 )
-            )
-        elif event == "rejected":
-            emit_event(
-                OrderRejectedEvent(
-                    timestamp=datetime.now(UTC),
-                    ticker=symbol,
-                    order_id=str(order_id) if order_id != "N/A" else "",
-                    client_order_id=str(client_order_id),
-                    reason=getattr(update, "reason", None) or getattr(update, "message", None) or getattr(update, "status_message", None) or "Unknown reason",
+            elif event == "rejected":
+                emit_event(
+                    OrderRejectedEvent(
+                        timestamp=datetime.now(UTC),
+                        ticker=symbol,
+                        order_id=str(order_id),
+                        client_order_id=str(client_order_id),
+                        reason=getattr(update, "reason", None) or getattr(update, "message", None) or getattr(update, "status_message", None) or "Unknown reason",
+                    )
                 )
-            )
 
     else:
         # Still log unknown events in analytics for completeness

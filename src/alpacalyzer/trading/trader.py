@@ -633,7 +633,9 @@ def check_exit_conditions(position: Position, signals: TradingSignals) -> bool:
             logger.info(f"WIN: {unrealized_plpc:.2%} P&L on trade")
         logger.analyze(f"Ticker: {position.symbol}, Side: {position.side}, Exit Reason: {reason_str}, P/L: {unrealized_plpc:.2%}, Momentum: {momentum:.1f}%, Score: {score:.2f}")
 
-        # Calculate approximate P&L in dollars
+        # Calculate P&L in dollars
+        # unrealized_plpc from Alpaca is percentage of total position value
+        # Multiplying by market_value gives correct dollar P&L: (current_price - avg_entry_price) * qty
         pnl_dollars = unrealized_plpc * float(position.market_value or 0)
 
         emit_event(
