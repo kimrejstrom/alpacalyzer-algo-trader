@@ -1,5 +1,14 @@
 """Events module for structured logging."""
 
+from alpacalyzer.events.emitter import (
+    AnalyticsEventHandler,
+    CallbackEventHandler,
+    ConsoleEventHandler,
+    EventEmitter,
+    EventHandler,
+    FileEventHandler,
+    emit_event,
+)
 from alpacalyzer.events.models import (
     CooldownEndedEvent,
     CooldownStartedEvent,
@@ -20,6 +29,7 @@ from alpacalyzer.events.models import (
 )
 
 __all__ = [
+    # Event models
     "ScanCompleteEvent",
     "SignalGeneratedEvent",
     "SignalExpiredEvent",
@@ -36,4 +46,12 @@ __all__ = [
     "CooldownEndedEvent",
     "CycleCompleteEvent",
     "TradingEvent",
+    # Event emitter
+    "EventEmitter",
+    "EventHandler",
+    "ConsoleEventHandler",
+    "FileEventHandler",
+    "AnalyticsEventHandler",
+    "CallbackEventHandler",
+    "emit_event",
 ]
