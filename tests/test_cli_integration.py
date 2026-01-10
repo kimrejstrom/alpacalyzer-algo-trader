@@ -1,6 +1,7 @@
 """Tests for CLI integration with ExecutionEngine."""
 
 from alpacalyzer.trading.trader import Trader
+from tests.execution.mock_broker import mock_alpaca_client
 
 
 class TestHedgeFundToSignalBridge:
@@ -9,14 +10,11 @@ class TestHedgeFundToSignalBridge:
     def test_convert_hedge_fund_strategies_to_signals(self, monkeypatch):
         """Convert hedge fund TradingStrategy objects to PendingSignal objects."""
 
-        # Mock market status BEFORE creating trader
-        monkeypatch.setattr("alpacalyzer.trading.alpaca_client.get_market_status", lambda: "open")
+        # Mock Alpaca client
+        mock_alpaca_client(monkeypatch)
 
-        # Mock get_positions
-        monkeypatch.setattr(
-            "alpacalyzer.trading.alpaca_client.get_positions",
-            list,
-        )
+        # Mock get_market_status since Trader calls it in __init__
+        monkeypatch.setattr("alpacalyzer.trading.trader.get_market_status", lambda: "open")
 
         # Mock print_trading_output to avoid display issues
         monkeypatch.setattr(
@@ -93,9 +91,15 @@ class TestHedgeFundToSignalBridge:
         # Verify strategies were cleared after conversion
         assert len(trader.latest_strategies) == 0
 
-    def test_empty_strategies_returns_empty_signals(self):
+    def test_empty_strategies_returns_empty_signals(self, monkeypatch):
         """Test that empty strategies list returns empty signals."""
-        trader = Trader(analyze_mode=True, direct_tickers=[])
+        # Mock Alpaca client
+        mock_alpaca_client(monkeypatch)
+
+        # Mock get_market_status since Trader calls it in __init__
+        monkeypatch.setattr("alpacalyzer.trading.trader.get_market_status", lambda: "open")
+
+        trader = Trader(analyze_mode=True, direct_tickers=[], ignore_market_status=True)
 
         signals = trader.get_signals_from_strategies()
 
