@@ -74,11 +74,7 @@ def test_load_events_from_file(tmp_path, analyzer):
     """Test loading events from a JSONL file."""
     log_file = tmp_path / "events.jsonl"
 
-    event1_json = (
-        '{"event_type": "ORDER_FILLED", "timestamp": "2024-01-05T10:30:00Z", '
-        '"ticker": "NVDA", "side": "buy", "quantity": 27, '
-        '"filled_qty": 27, "avg_price": 179.87, "strategy": "momentum"}'
-    )
+    event1_json = '{"event_type": "ORDER_FILLED", "timestamp": "2024-01-05T10:30:00Z", "ticker": "NVDA", "side": "buy", "quantity": 27, "filled_qty": 27, "avg_price": 179.87, "strategy": "momentum"}'
     event2_json = (
         '{"event_type": "ENTRY_TRIGGERED", "timestamp": "2024-01-05T10:35:00Z", '
         '"ticker": "AAPL", "strategy": "momentum", "side": "long", '
