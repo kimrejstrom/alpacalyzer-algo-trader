@@ -1,6 +1,5 @@
 """Scanner adapters for existing scanner implementations."""
 
-
 import pandas as pd
 
 from alpacalyzer.pipeline.scanner_protocol import BaseScanner, TopTicker
@@ -72,7 +71,7 @@ class StocktwitsScannerAdapter(BaseScanner):
                 TopTicker(
                     ticker=ticker,
                     signal="neutral",
-                    confidence=min(0.7, 1.0),
+                    confidence=0.7,
                     reasoning=f"Watchers: {watchers} - {title[:50] if title else 'No description'}",
                 )
             )
@@ -103,14 +102,27 @@ class FinvizScannerAdapter(BaseScanner):
 
             rel_vol = row.get("Relative Volume") or row.get("rel_volume", 0)
             rsi = row.get("RSI", 50)
-            score = (float(rel_vol) / 10.0 + (100 - abs(float(rsi) - 50)) / 100.0) / 2.0
+
+            try:
+                rel_vol_float = float(rel_vol) if str(rel_vol) not in ["-", ""] else 0.0
+                rsi_float = float(rsi) if str(rsi) not in ["-", ""] else 50.0
+                score = (rel_vol_float / 10.0 + (100 - abs(rsi_float - 50)) / 100.0) / 2.0
+            except (ValueError, TypeError):
+                continue
+
+            if rsi_float < 30:
+                signal = "bullish"
+            elif rsi_float > 70:
+                signal = "bearish"
+            else:
+                signal = "neutral"
 
             tickers.append(
                 TopTicker(
                     ticker=ticker,
-                    signal="bullish" if float(rsi) < 70 else "neutral",
-                    confidence=min(max(float(score), 0.5), 1.0),
-                    reasoning=f"Rel Vol: {rel_vol}, RSI: {rsi:.1f}, Score: {score:.2f}",
+                    signal=signal,
+                    confidence=min(max(score, 0.5), 1.0),
+                    reasoning=f"Rel Vol: {rel_vol_float:.1f}, RSI: {rsi_float:.1f}, Score: {score:.2f}",
                 )
             )
         return tickers

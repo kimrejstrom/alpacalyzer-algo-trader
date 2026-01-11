@@ -35,6 +35,11 @@ class ScannerRegistry:
             cls._instance = cls()
         return cls._instance
 
+    @classmethod
+    def reset(cls) -> None:
+        """Reset singleton instance (primarily for testing)."""
+        cls._instance = None
+
     def register(self, scanner: BaseScanner) -> None:
         """Register a scanner."""
         if scanner.name in self._scanners:
@@ -85,5 +90,12 @@ class ScannerRegistry:
 
 
 def get_scanner_registry() -> ScannerRegistry:
-    """Get the global scanner registry."""
+    """
+    Get the global scanner registry singleton.
+
+    This is the preferred way to access the registry throughout the application.
+
+    Returns:
+        The global ScannerRegistry instance.
+    """
     return ScannerRegistry.get_instance()
