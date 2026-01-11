@@ -1,6 +1,5 @@
 """Tests for ScannerRegistry."""
 
-
 import pytest
 
 from alpacalyzer.pipeline.registry import ScannerRegistry, get_scanner_registry
