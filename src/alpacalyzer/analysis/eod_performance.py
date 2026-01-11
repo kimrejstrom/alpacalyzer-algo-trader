@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -151,12 +152,184 @@ class EODPerformanceAnalyzer:
     def _to_utc(self, t: datetime) -> datetime:
         return t.astimezone(UTC)
 
+    def parse_event_line(self, line: str) -> dict | None:
+        """Parse a JSON event line."""
+        if not line.strip().startswith("{"):
+            return None
+
+        try:
+            event_data = json.loads(line)
+            if not isinstance(event_data, dict):
+                return None
+            if "event_type" not in event_data:
+                return None
+            return event_data
+        except json.JSONDecodeError:
+            return None
+
+    def load_events(self, log_path: str) -> list[dict]:
+        """Load all events from a log file."""
+        events = []
+        if not os.path.exists(log_path):
+            return events
+
+        with open(log_path) as f:
+            for line in f:
+                event = self.parse_event_line(line)
+                if event:
+                    events.append(event)
+        return events
+
+    def _detect_log_format(self, log_path: str) -> str:
+        """Detect if log file uses JSON events or legacy format."""
+        if not os.path.exists(log_path):
+            return "legacy"
+
+        with open(log_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("{"):
+                    if '"event_type"' in line:
+                        return "json"
+                if " (DEBUG - " in line:
+                    return "legacy"
+        return "legacy"
+
+    def _parse_events_to_decision_records(self, events: list[dict], target_date_eet: date | None = None) -> tuple[list[DecisionRecord], list[ExecEvent]]:
+        """Convert JSON events to DecisionRecord and ExecEvent."""
+        decisions: list[DecisionRecord] = []
+        exec_events: list[ExecEvent] = []
+
+        for event in events:
+            event_type = event.get("event_type")
+            if not event_type:
+                continue
+
+            ts_str = event.get("timestamp", "")
+            ticker = event.get("ticker", "").upper()
+            side = event.get("side", "").upper()
+
+            try:
+                ts_utc = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                continue
+
+            ts_eet = ts_utc.astimezone(EET)
+            ts_et = ts_utc.astimezone(ET)
+
+            if target_date_eet and ts_eet.date() != target_date_eet:
+                continue
+
+            if event_type == "ENTRY_TRIGGERED":
+                action = "BUY" if side == "LONG" or side == "BUY" else "SHORT"
+                quantity = event.get("quantity", 0)
+                entry_price = event.get("entry_price", 0.0)
+                target_price = event.get("target", 0.0)
+                stop_loss = event.get("stop_loss", 0.0)
+                confidence = 0.8
+                plan = PlanInfo(
+                    side=action,
+                    entry_point=entry_price,
+                    target_price=target_price,
+                    stop_price=stop_loss if stop_loss > 0 else None,
+                    raw=json.dumps(event),
+                )
+                decisions.append(
+                    DecisionRecord(
+                        ticker=ticker,
+                        action=action,
+                        quantity=quantity,
+                        confidence=confidence,
+                        decision_time_eet=ts_eet,
+                        decision_time_et=ts_et,
+                        decision_time_utc=ts_utc,
+                        plan=plan,
+                        raw=json.dumps(event),
+                    )
+                )
+
+            elif event_type == "EXIT_TRIGGERED":
+                exit_side = side
+                action = f"EXIT_{exit_side}"
+                pnl_pct = event.get("pnl_pct", 0.0)
+                decisions.append(
+                    DecisionRecord(
+                        ticker=ticker,
+                        action=action,
+                        quantity=0,
+                        confidence=None,
+                        decision_time_eet=ts_eet,
+                        decision_time_et=ts_et,
+                        decision_time_utc=ts_utc,
+                        plan=None,
+                        exit_pl_pct=pnl_pct,
+                        raw=json.dumps(event),
+                    )
+                )
+
+            elif event_type == "ORDER_FILLED":
+                quantity = event.get("quantity", 0)
+                filled_qty = event.get("filled_qty", 0)
+                avg_price = event.get("avg_price", 0.0)
+                order_id = event.get("order_id", "")
+                client_order_id = event.get("client_order_id", "")
+                exec_events.append(
+                    ExecEvent(
+                        ticker=ticker,
+                        side=side,
+                        status="fill",
+                        filled=filled_qty,
+                        order_qty=quantity,
+                        price=avg_price,
+                        order_id=order_id,
+                        client_order_id=client_order_id,
+                        time_eet=ts_eet,
+                        time_et=ts_et,
+                        time_utc=ts_utc,
+                    )
+                )
+
+            elif event_type == "POSITION_CLOSED":
+                exit_side = side.upper()
+                action = f"EXIT_{exit_side}"
+                pnl_pct = event.get("pnl_pct", 0.0)
+                decisions.append(
+                    DecisionRecord(
+                        ticker=ticker,
+                        action=action,
+                        quantity=0,
+                        confidence=None,
+                        decision_time_eet=ts_eet,
+                        decision_time_et=ts_et,
+                        decision_time_utc=ts_utc,
+                        plan=None,
+                        exit_pl_pct=pnl_pct,
+                        raw=json.dumps(event),
+                    )
+                )
+
+        return decisions, exec_events
+
     def parse_log(self, target_date_eet: date | None = None) -> list[DecisionRecord]:
         """
         Parse analytics log into decision records for target_date (EET).
 
-        Combines wrapped lines until a ' (DEBUG - ' marker is encountered.
+        Supports both JSON event format and legacy regex-based parsing.
         """
+        if not os.path.exists(self.log_path):
+            return []
+
+        log_format = self._detect_log_format(self.log_path)
+
+        if log_format == "json":
+            events = self.load_events(self.log_path)
+            decisions, exec_events_out = self._parse_events_to_decision_records(events, target_date_eet)
+            self._last_exec_events = exec_events_out
+            decisions.sort(key=lambda d: d.decision_time_eet)
+            return decisions
+
         if not os.path.exists(self.log_path):
             return []
 
@@ -714,6 +887,80 @@ class EODPerformanceAnalyzer:
 
         return completed, open_positions, realized_total
 
+    def _build_position_timeline(self, events: list[dict]) -> list[tuple[str, list[str]]]:
+        """Build position timeline from events."""
+        timeline: dict[str, list[str]] = {}
+        for event in events:
+            ticker = event.get("ticker", "").upper()
+            if not ticker:
+                continue
+
+            event_type = event.get("event_type", "")
+            timestamp = event.get("timestamp", "")
+            quantity = event.get("quantity", 0)
+            price = event.get("entry_price") or event.get("exit_price") or event.get("avg_price", 0)
+            reason = event.get("reason", "")
+            strategy = event.get("strategy", "")
+
+            if ticker not in timeline:
+                timeline[ticker] = []
+
+            line_parts = [f"{timestamp}", f"{event_type}"]
+            if event_type == "ENTRY_TRIGGERED":
+                line_parts.extend([f"{quantity} shares @ ${price:.2f}", f"({strategy})"])
+            elif event_type == "EXIT_TRIGGERED":
+                pnl = event.get("pnl", 0)
+                pnl_pct = event.get("pnl_pct", 0)
+                line_parts.append(f"{quantity} shares @ ${price:.2f}, P/L: ${pnl:.2f} ({pnl_pct * 100:.2f}%)")
+            elif event_type == "ORDER_FILLED":
+                line_parts.extend([f"{quantity} shares @ ${price:.2f}"])
+
+            if reason:
+                line_parts.append(reason)
+
+            timeline[ticker].append(" | ".join(str(p) for p in line_parts))
+
+        return sorted(timeline.items(), key=lambda x: x[0])
+
+    def _build_strategy_performance(self, events: list[dict]) -> dict[str, dict]:
+        """Build strategy performance metrics."""
+        strategy_data: dict[str, dict] = {}
+
+        for event in events:
+            strategy = event.get("strategy", "unknown")
+            event_type = event.get("event_type", "")
+
+            if strategy not in strategy_data:
+                strategy_data[strategy] = {
+                    "entries": 0,
+                    "exits": 0,
+                    "wins": 0,
+                    "total_pnl": 0.0,
+                    "hold_times": [],
+                }
+
+            if event_type == "ENTRY_TRIGGERED":
+                strategy_data[strategy]["entries"] += 1
+            elif event_type == "EXIT_TRIGGERED":
+                strategy_data[strategy]["exits"] += 1
+                pnl = event.get("pnl", 0)
+                strategy_data[strategy]["total_pnl"] += pnl
+                if pnl > 0:
+                    strategy_data[strategy]["wins"] += 1
+                hold_duration = event.get("hold_duration_hours", 0)
+                if hold_duration > 0:
+                    strategy_data[strategy]["hold_times"].append(hold_duration)
+
+        return strategy_data
+
+    def _build_event_summary(self, events: list[dict]) -> dict[str, int]:
+        """Build event type summary."""
+        summary: dict[str, int] = {}
+        for event in events:
+            event_type = event.get("event_type", "UNKNOWN")
+            summary[event_type] = summary.get(event_type, 0) + 1
+        return summary
+
     def _score(self, action: str, pnl_long_close: float, pnl_short_close: float) -> tuple[str, str]:
         thr = self.threshold
 
@@ -828,6 +1075,41 @@ class EODPerformanceAnalyzer:
         lines.append(f"- Threshold: {self.threshold * 100:.2f}%")
         lines.append("- Timestamps: parsed from analytics log in Europe/Helsinki; converted to ET/UTC for market data")
         lines.append("")
+
+        # Add enhanced report sections for JSON event format
+        log_format = self._detect_log_format(self.log_path)
+        if log_format == "json":
+            events = self.load_events(self.log_path)
+            if events:
+                event_summary = self._build_event_summary(events)
+                if event_summary:
+                    lines.append("## Event Summary:")
+                    for event_type, count in sorted(event_summary.items()):
+                        lines.append(f"- {event_type}: {count}")
+                    lines.append("")
+
+                position_timeline = self._build_position_timeline(events)
+                if position_timeline:
+                    lines.append("## Position Timeline:")
+                    for ticker, timeline_lines in position_timeline:
+                        lines.append(f"### {ticker}")
+                        lines.extend(f"- {line}" for line in timeline_lines)
+                        lines.append("")
+
+                strategy_performance = self._build_strategy_performance(events)
+                if strategy_performance:
+                    lines.append("## Strategy Performance:")
+                    for strategy, metrics in sorted(strategy_performance.items()):
+                        lines.append(f"### {strategy}")
+                        lines.append(f"- Entries: {metrics['entries']}")
+                        lines.append(f"- Exits: {metrics['exits']}")
+                        lines.append(f"- Wins: {metrics['wins']}")
+                        lines.append(f"- Total PnL: ${metrics['total_pnl']:.2f}")
+                        if metrics["hold_times"]:
+                            avg_hold = sum(metrics["hold_times"]) / len(metrics["hold_times"])
+                            lines.append(f"- Avg Hold Time: {avg_hold:.2f} hours")
+                        lines.append("")
+
         lines.append("## Summary:")
         lines.append(f"- Decisions evaluated: {total}")
         lines.append(f"- Validated: {validated}")
