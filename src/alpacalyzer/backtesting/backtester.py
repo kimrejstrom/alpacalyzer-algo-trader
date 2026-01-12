@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -17,7 +17,7 @@ from alpacalyzer.strategies.base import (
 from alpacalyzer.utils.logger import get_logger
 
 if TYPE_CHECKING:
-    from alpaca.trading.models import Position
+    from alpacalyzer.strategies.base import Position
 
 logger = get_logger()
 
@@ -214,6 +214,8 @@ class Backtester:
         Returns:
             BacktestResult with trade history and metrics
         """
+        if initial_capital <= 0:
+            raise ValueError("initial_capital must be positive")
         df = get_price_data(
             ticker,
             start_date.strftime("%Y-%m-%d"),
@@ -242,7 +244,9 @@ class Backtester:
         position: BacktestTrade | None = None
 
         for i, row in df.iterrows():
-            timestamp = pd.Timestamp(row.name).to_pydatetime()  # type: ignore[arg-type]
+            index_val = row.name
+            assert index_val is not None, "DataFrame index should not be None"
+            timestamp: datetime = index_val if isinstance(index_val, datetime) else pd.Timestamp(index_val).to_pydatetime()  # type: ignore[arg-type]
             price = float(row["close"])
 
             if position and not position.closed:
@@ -258,7 +262,7 @@ class Backtester:
                 if entry_decision.should_enter:
                     quantity = int(initial_capital / price)
                     if quantity > 0:
-                        side = "long"
+                        side = entry_decision.side if entry_decision.side in ("long", "short") else "long"
                         if entry_decision.suggested_size > 0:
                             quantity = min(quantity, entry_decision.suggested_size)
                         position = BacktestTrade(
@@ -271,7 +275,7 @@ class Backtester:
                         )
 
         if position and not position.closed:
-            position.exit_time = df.index[-1].to_pydatetime()
+            position.exit_time = df.index[-1]  # type: ignore[assignment]
             position.exit_price = float(df.iloc[-1]["close"])
             result.trades.append(position)
 
@@ -375,18 +379,15 @@ class Backtester:
         unrealized_pl = (current_price - trade.entry_price) * trade.quantity if side == "long" else (trade.entry_price - current_price) * trade.quantity
         unrealized_plpc = unrealized_pl / market_value if market_value > 0 else 0
 
-        return cast(
-            "Position",
-            {
-                "symbol": trade.ticker,
-                "side": side,
-                "qty": trade.quantity,
-                "avg_entry_price": avg_entry_price,
-                "market_value": market_value,
-                "unrealized_pl": unrealized_pl,
-                "unrealized_plpc": unrealized_plpc,
-            },
-        )
+        return {  # type: ignore[return-value]
+            "symbol": trade.ticker,
+            "side": side,
+            "qty": trade.quantity,
+            "avg_entry_price": avg_entry_price,
+            "market_value": market_value,
+            "unrealized_pl": unrealized_pl,
+            "unrealized_plpc": unrealized_plpc,
+        }
 
     def run_multi(
         self,

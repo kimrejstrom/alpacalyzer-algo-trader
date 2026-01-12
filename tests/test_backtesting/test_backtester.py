@@ -364,6 +364,51 @@ class TestBacktester:
         backtester = Backtester(mock_strategy)
         assert backtester.strategy == mock_strategy
 
+    def test_run_with_short_entry(self):
+        """Test run method with a strategy that enters short positions."""
+        df = pd.DataFrame(
+            {
+                "open": [100, 101, 102],
+                "high": [105, 106, 107],
+                "low": [99, 100, 101],
+                "close": [101, 102, 103],
+                "volume": [1000000, 1000000, 1000000],
+            },
+            index=pd.date_range("2024-01-01", periods=3, freq="D"),
+        )
+
+        with patch("alpacalyzer.backtesting.backtester.get_price_data", return_value=df):
+            with patch("alpacalyzer.backtesting.backtester.TechnicalAnalyzer") as mock_ta_class:
+                mock_ta_instance = MagicMock()
+                mock_ta_instance.calculate_daily_indicators.return_value = df
+                mock_ta_class.return_value = mock_ta_instance
+
+                mock_strategy = MagicMock()
+                mock_strategy.name = "test_strategy"
+                mock_strategy.evaluate_entry.return_value = EntryDecision(
+                    should_enter=True,
+                    reason="Test short entry",
+                    suggested_size=10,
+                    side="short",
+                )
+                mock_strategy.evaluate_exit.return_value = ExitDecision(
+                    should_exit=False,
+                    reason="No exit",
+                )
+
+                backtester = Backtester(mock_strategy)
+
+                result = backtester.run(
+                    ticker="AAPL",
+                    start_date=datetime(2024, 1, 1),
+                    end_date=datetime(2024, 1, 3),
+                    initial_capital=10000.0,
+                )
+
+                assert result.total_trades >= 1
+                short_trades = [t for t in result.trades if t.side == "short"]
+                assert len(short_trades) > 0
+
     @patch("alpacalyzer.backtesting.backtester.get_price_data")
     @patch("alpacalyzer.backtesting.backtester.TechnicalAnalyzer")
     def test_run_no_data(self, mock_ta_class, mock_get_price_data):

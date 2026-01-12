@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from alpacalyzer.data.models import TradingStrategy
 
     # Type alias for Position - at runtime this is alpaca.trading.models.Position
-    # but we use any type in protocol to allow flexibility
+    # but we use any type in protocol to allow flexibility for backtesting
     Position = AlpacaPosition
 
 
@@ -32,6 +32,7 @@ class EntryDecision:
         entry_price: Suggested entry price (0 if not entering)
         stop_loss: Stop loss price level (0 if not entering)
         target: Target/profit-taking price level (0 if not entering)
+        side: Position side ("long" or "short")
     """
 
     should_enter: bool
@@ -40,6 +41,7 @@ class EntryDecision:
     entry_price: float = 0.0
     stop_loss: float = 0.0
     target: float = 0.0
+    side: str = "long"
 
 
 @dataclass
