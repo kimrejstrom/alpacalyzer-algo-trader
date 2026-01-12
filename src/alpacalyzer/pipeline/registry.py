@@ -54,11 +54,11 @@ class ScannerRegistry:
         """Get a scanner by name."""
         return self._scanners.get(name)
 
-    def list(self) -> list[str]:
+    def list_scanners(self) -> list[str]:
         """List all registered scanner names."""
         return list(self._scanners.keys())
 
-    def list_enabled(self) -> list[str]:
+    def list_enabled_scanners(self) -> list[str]:
         """List enabled scanner names."""
         return [name for name, scanner in self._scanners.items() if scanner.enabled]
 

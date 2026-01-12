@@ -6,16 +6,19 @@ in trader.py, implements fuzzy logic entry evaluation with
 technical confirmation.
 """
 
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pandas as pd
 from alpaca.trading.enums import OrderSide
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
-from alpacalyzer.data.models import Position, TradingStrategy
+from alpacalyzer.data.models import TradingStrategy
 from alpacalyzer.strategies.base import BaseStrategy, EntryDecision, ExitDecision, MarketContext
 from alpacalyzer.strategies.config import StrategyConfig
 from alpacalyzer.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from alpaca.trading.models import Position
 
 logger = get_logger()
 
@@ -231,7 +234,7 @@ class MomentumStrategy(BaseStrategy):
 
     def evaluate_exit(
         self,
-        position: Position,
+        position: "Position",
         signal: TradingSignals,
         context: MarketContext,
     ) -> ExitDecision:
@@ -243,8 +246,8 @@ class MomentumStrategy(BaseStrategy):
         """
         momentum = signal["momentum"]
         score = signal["score"]
-        is_long = position.side == "long"  # type: ignore[attr-defined]
-        unrealized_plpc = float(position.unrealized_plpc or 0.0)  # type: ignore[attr-defined]
+        is_long = position.side == "long"
+        unrealized_plpc = float(position.unrealized_plpc or 0.0)
         is_profitable = unrealized_plpc > 0
 
         exit_signals = []
@@ -290,7 +293,7 @@ class MomentumStrategy(BaseStrategy):
         if exit_signals:
             reason_str = ", ".join(exit_signals)
             urgency = self._determine_exit_urgency(exit_signals)
-            logger.info(f"\nDYNAMIC EXIT FOR {position.symbol} due to: {reason_str}")  # type: ignore[attr-defined]
+            logger.info(f"\nDYNAMIC EXIT FOR {position.symbol} due to: {reason_str}")
             logger.debug(f"Position details: {position}")
             if unrealized_plpc < 0:
                 logger.info(f"LOSS: {unrealized_plpc:.2%} P&L on trade")

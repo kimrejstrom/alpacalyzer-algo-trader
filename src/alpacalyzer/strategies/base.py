@@ -178,7 +178,7 @@ class BaseStrategy(ABC):
     @abstractmethod
     def evaluate_exit(
         self,
-        position: "Position",  # type: ignore[valid-type]
+        position: "Position",
         signal: "TradingSignals",
         context: MarketContext,
     ) -> ExitDecision:

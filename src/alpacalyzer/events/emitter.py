@@ -4,7 +4,7 @@ import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
-from alpacalyzer.events.models import TradingEvent
+from alpacalyzer.events.models import OrderFilledEvent, PositionClosedEvent, TradingEvent
 from alpacalyzer.utils.logger import get_logger
 
 logger = get_logger()
@@ -38,19 +38,26 @@ class ConsoleEventHandler(EventHandler):
         event_type = event.event_type
 
         if event_type == "ENTRY_TRIGGERED":
-            return f"📈 ENTRY: {event.ticker} {event.side.upper()} x{event.quantity} @ ${event.entry_price:.2f} (SL: ${event.stop_loss:.2f}, TP: ${event.target:.2f})"
+            ticker = getattr(event, "ticker", "?")
+            side = getattr(event, "side", "?").upper()
+            qty = getattr(event, "quantity", 0)
+            entry = getattr(event, "entry_price", 0)
+            sl = getattr(event, "stop_loss", 0)
+            tp = getattr(event, "target", 0)
+            return f"📈 ENTRY: {ticker} {side} x{qty} @ ${entry:.2f} (SL: ${sl:.2f}, TP: ${tp:.2f})"
         if event_type == "EXIT_TRIGGERED":
-            emoji = "✅" if event.pnl >= 0 else "❌"
-            return f"{emoji} EXIT: {event.ticker} P/L: ${event.pnl:.2f} ({event.pnl_pct:.2%}) - {event.reason}"
+            pnl = getattr(event, "pnl", 0)
+            emoji = "✅" if pnl >= 0 else "❌"
+            return f"{emoji} EXIT: {getattr(event, 'ticker', '?')} P/L: ${pnl:.2f} ({getattr(event, 'pnl_pct', 0):.2%}) - {getattr(event, 'reason', '?')}"
         if event_type == "SCAN_COMPLETE":
-            return f"🔍 Scan complete ({event.source}): {len(event.tickers_found)} tickers found"
+            return f"🔍 Scan complete ({getattr(event, 'source', '?')}): {len(getattr(event, 'tickers_found', []))} tickers found"
         if event_type == "SIGNAL_GENERATED":
-            return f"📊 Signal: {event.ticker} {event.action.upper()} (confidence: {event.confidence * 100:.0f}%)"
+            return f"📊 Signal: {getattr(event, 'ticker', '?')} {getattr(event, 'action', '?').upper()} (confidence: {getattr(event, 'confidence', 0) * 100:.0f}%)"
         if event_type == "ORDER_FILLED":
-            return f"💰 Filled: {event.ticker} {event.side.upper()} {event.filled_qty}x @ ${event.avg_price:.2f}"
+            return f"💰 Filled: {getattr(event, 'ticker', '?')} {getattr(event, 'side', '?').upper()} {getattr(event, 'filled_qty', 0)}x @ ${getattr(event, 'avg_price', 0):.2f}"
         if event_type == "CYCLE_COMPLETE":
-            return f"🔄 Cycle: {event.entries_triggered} entries, {event.exits_triggered} exits, {event.positions_open} positions"
-        return f"[{event_type}] {event.ticker if hasattr(event, 'ticker') else 'system'}"
+            return f"🔄 Cycle: {getattr(event, 'entries_triggered', 0)} entries, {getattr(event, 'exits_triggered', 0)} exits, {getattr(event, 'positions_open', 0)} positions"
+        return f"[{event_type}] {getattr(event, 'ticker', 'system')}"
 
 
 class FileEventHandler(EventHandler):
@@ -91,14 +98,14 @@ class AnalyticsEventHandler(EventHandler):
 
     def _format_analytics_line(self, event: TradingEvent) -> str:
         """Format event for analytics log (backwards compatible)."""
-        if event.event_type == "ORDER_FILLED":
+        if isinstance(event, OrderFilledEvent):
             return (
                 f"[EXECUTION] Ticker: {event.ticker}, Side: {event.side.upper()}, "
                 f"Cum: {event.filled_qty}/{event.quantity} @ {event.avg_price}, "
                 f"OrderType: limit, OrderId: {event.order_id}, "
                 f"ClientOrderId: {event.client_order_id}, Status: fill"
             )
-        if event.event_type == "POSITION_CLOSED":
+        if isinstance(event, PositionClosedEvent):
             return f"[EXIT] Ticker: {event.ticker}, Side: {event.side}, Entry: {event.entry_price}, Exit: {event.exit_price}, P/L: {event.pnl_pct:.2%}, Reason: {event.exit_reason}"
         return event.model_dump_json()
 
@@ -141,6 +148,7 @@ class EventEmitter:
                     cls._instance = cls()
                     cls._instance.add_handler(ConsoleEventHandler())
                     cls._instance.add_handler(AnalyticsEventHandler())
+        assert cls._instance is not None
         return cls._instance
 
     def add_handler(self, handler: EventHandler) -> None:
