@@ -4,12 +4,16 @@ mode: subagent
 temperature: 0.1
 tools:
   write: true
-  edit: false
+  edit: true
   bash: false
   read: true
   glob: true
   grep: true
   github_*: true
+permissions:
+  write: allow
+  edit: allow
+  bash: deny
 ---
 
 You are a code reviewer for Alpacalyzer Algo Trader - an AI-powered algorithmic trading platform (Python, LangGraph, Alpaca API, OpenAI, TA-Lib).
