@@ -20,30 +20,6 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential wget
-
-      - name: Cache TA-Lib
-        id: cache-talib
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/lib/libta-lib.*
-            /usr/include/ta-lib/
-          key: talib-${{ runner.os }}-0.6.4
-
-      - name: Install TA-Lib from source
-        if: steps.cache-talib.outputs.cache-hit != 'true'
-        run: |
-          wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz
-          tar -xzf ta-lib-0.6.4-src.tar.gz
-          cd ta-lib-0.6.4
-          ./configure --prefix=/usr
-          make
-          sudo make install
-
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v5
