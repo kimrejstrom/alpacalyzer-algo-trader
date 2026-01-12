@@ -515,15 +515,15 @@ class EODPerformanceAnalyzer:
     def _timeframe_to_tf(self) -> TimeFrame:
         tf = self.timeframe_str.lower()
         if tf in ("1min", "1m", "minute"):
-            return TimeFrame(1, TimeFrameUnit.Minute)
+            return TimeFrame(1, TimeFrameUnit.Minute)  # type: ignore[arg-type]
         if tf in ("5min", "5m"):
-            return TimeFrame(5, TimeFrameUnit.Minute)
+            return TimeFrame(5, TimeFrameUnit.Minute)  # type: ignore[arg-type]
         if tf in ("15min", "15m"):
-            return TimeFrame(15, TimeFrameUnit.Minute)
+            return TimeFrame(15, TimeFrameUnit.Minute)  # type: ignore[arg-type]
         if tf in ("1day", "1d", "day", "daily", "d"):
             return TimeFrame.Day
         # default to 5Min
-        return TimeFrame(5, TimeFrameUnit.Minute)
+        return TimeFrame(5, TimeFrameUnit.Minute)  # type: ignore[arg-type]
 
     def _get_session_close_utc_for_et_date(self, et_dt: datetime) -> datetime | None:
         # Use Alpaca calendar for the ET date

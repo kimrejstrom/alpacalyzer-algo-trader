@@ -48,7 +48,7 @@ class TechnicalAnalyzer:
                 start = end - timedelta(minutes=1440)  # Last 24 hours
                 request = StockBarsRequest(
                     symbol_or_symbols=symbol,
-                    timeframe=TimeFrame(5, TimeFrameUnit.Minute),
+                    timeframe=TimeFrame(5, TimeFrameUnit.Minute),  # type: ignore[arg-type]
                     start=start,
                     end=end,
                     adjustment=Adjustment.ALL,

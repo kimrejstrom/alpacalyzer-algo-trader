@@ -378,7 +378,7 @@ def test_required_field_validation():
             # Missing tickers_found and duration_seconds
         )
 
-    errors = exc_info.value.errors()
+    errors = exc_info.value.errors()  # type: ignore[union-attr]
     assert len(errors) == 2
     error_fields = {e["loc"][0] for e in errors}
     assert "tickers_found" in error_fields
@@ -393,12 +393,12 @@ def test_field_type_validation():
             timestamp=datetime(2024, 1, 1, 12, 0, 0),
             ticker="AAPL",
             action="buy",
-            confidence="not_a_float",  # Invalid type
+            confidence="not_a_float",  # type: ignore[arg-type]  # Invalid type
             source="hedge_fund",
             strategy="momentum",
         )
 
-    errors = exc_info.value.errors()
+    errors = exc_info.value.errors()  # type: ignore[union-attr]
     assert len(errors) > 0
 
 
