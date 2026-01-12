@@ -55,8 +55,14 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-vvv"
+# Reduced verbosity for faster test runs (use -v for more detail when needed)
+addopts = "-ra --strict-markers --strict-config"
 testpaths = "tests"
+# Enable parallel execution with: pytest -n auto
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
 
 [tool.pytest_asyncio]
 default_fixture_scope = "function"
