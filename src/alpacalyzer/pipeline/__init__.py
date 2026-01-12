@@ -1,3 +1,4 @@
+from alpacalyzer.pipeline.aggregator import Opportunity, OpportunityAggregator
 from alpacalyzer.pipeline.registry import ScannerRegistry, get_scanner_registry
 from alpacalyzer.pipeline.scanner_adapters import (
     FinvizScannerAdapter,
@@ -20,4 +21,6 @@ __all__ = [
     "SocialScannerAdapter",
     "PipelineScheduler",
     "PipelineStage",
+    "Opportunity",
+    "OpportunityAggregator",
 ]
