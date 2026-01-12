@@ -1,9 +1,10 @@
 """Tests for Strategy protocol compliance."""
 
 import pytest
+from alpaca.trading.models import Position
 
 from alpacalyzer.analysis.technical_analysis import TradingSignals
-from alpacalyzer.data.models import Position, TradingStrategy
+from alpacalyzer.data.models import TradingStrategy
 from alpacalyzer.strategies.base import BaseStrategy, EntryDecision, ExitDecision, MarketContext, Strategy
 
 
