@@ -10,6 +10,7 @@ from alpacalyzer.events.emitter import (
     CallbackEventHandler,
     ConsoleEventHandler,
     EventEmitter,
+    EventHandler,
     FileEventHandler,
     emit_event,
 )
@@ -394,7 +395,7 @@ def test_event_emitter_error_handling():
     emitter = EventEmitter()
     emitter.clear_handlers()
 
-    class BrokenHandler:
+    class BrokenHandler(EventHandler):
         def handle(self, event):
             raise RuntimeError("Handler error")
 

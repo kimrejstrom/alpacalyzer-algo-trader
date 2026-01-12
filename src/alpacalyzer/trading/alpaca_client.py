@@ -168,7 +168,7 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
             start = end - timedelta(minutes=1440)  # Last 24 hours
             request = StockBarsRequest(
                 symbol_or_symbols=symbol,
-                timeframe=TimeFrame(5, TimeFrameUnit.Minute),
+                timeframe=TimeFrame(5, TimeFrameUnit.Minute),  # type: ignore[arg-type]
                 start=start,
                 end=end,
                 adjustment=Adjustment.ALL,
@@ -372,7 +372,7 @@ async def trade_updates_handler(update: TradeUpdate):
         logger.info(f"Order update for {symbol}: {cum_seg} ({event})")
 
         # Emit OrderFilledEvent for analytics (skip for invalid orders)
-        if order_id != "N/A" and ord_qty is not None and filled_qty is not None and px is not None:
+        if order_id != "N/A" and ord_qty is not None and filled_qty is not None and px is not None and symbol is not None:
             emit_event(
                 OrderFilledEvent(
                     timestamp=datetime.now(UTC),
@@ -398,7 +398,7 @@ async def trade_updates_handler(update: TradeUpdate):
         logger.analyze(base + reason_hint)
 
         # Emit appropriate event (skip for invalid orders)
-        if order_id != "N/A":
+        if order_id != "N/A" and symbol is not None:
             if event == "canceled":
                 emit_event(
                     OrderCanceledEvent(

@@ -69,7 +69,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: uv run pytest tests --cov=src
+        entry: uv run pytest tests --cov=src --cov-report=term-missing:skip-covered -x
         language: system
         types: [python]
         pass_filenames: false
