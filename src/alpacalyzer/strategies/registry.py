@@ -139,13 +139,13 @@ def _register_builtins() -> None:
     This function is called when the registry module is imported.
     It imports and registers all built-in strategies.
     """
+    from alpacalyzer.strategies.breakout import BreakoutStrategy
     from alpacalyzer.strategies.mean_reversion import MeanReversionStrategy
     from alpacalyzer.strategies.momentum import MomentumStrategy
 
+    StrategyRegistry.register("breakout", BreakoutStrategy, BreakoutStrategy._default_config())
     StrategyRegistry.register("mean_reversion", MeanReversionStrategy, MeanReversionStrategy._default_config())
     StrategyRegistry.register("momentum", MomentumStrategy, MomentumStrategy._default_config())
-
-    # Future: breakout, scalping, etc.
 
 
 # Auto-register built-in strategies on import

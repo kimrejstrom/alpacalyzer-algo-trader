@@ -22,11 +22,14 @@ from alpacalyzer.strategies.base import (
     MarketContext,
     Strategy,
 )
+from alpacalyzer.strategies.breakout import BreakoutConfig, BreakoutStrategy
 from alpacalyzer.strategies.config import StrategyConfig
 from alpacalyzer.strategies.registry import StrategyRegistry
 
 __all__ = [
     "BaseStrategy",
+    "BreakoutConfig",
+    "BreakoutStrategy",
     "Strategy",
     "EntryDecision",
     "ExitDecision",
