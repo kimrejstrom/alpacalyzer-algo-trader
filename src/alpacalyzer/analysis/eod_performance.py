@@ -573,10 +573,10 @@ class EODPerformanceAnalyzer:
 
     def _select_ref_bar(self, df: pd.DataFrame, decision_ts_utc: datetime) -> pd.Timestamp | None:
         # First bar with index >= decision_ts_utc
-        idx: pd.Index = df.index  # type: ignore
+        idx: pd.Index = df.index
         pos = idx.searchsorted(pd.Timestamp(decision_ts_utc))
         if pos < len(idx):
-            return idx[pos]
+            return idx[pos]  # type: ignore[return-value]
         return None
 
     def evaluate_decision(self, d: DecisionRecord) -> DecisionOutcome:

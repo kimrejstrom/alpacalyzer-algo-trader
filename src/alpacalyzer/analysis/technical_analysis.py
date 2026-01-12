@@ -70,7 +70,7 @@ class TechnicalAnalyzer:
 
                 if get_market_status() == "open":
                     latest_bar_response = history_client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
-                    latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
+                    latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
                     candles.append(latest_bar if latest_bar else candles[-1])
                 else:
                     candles.append(candles[-1])

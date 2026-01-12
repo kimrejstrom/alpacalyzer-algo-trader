@@ -133,7 +133,6 @@ python-version = "3.13"
 "unresolved-import" = "ignore"
 "invalid-argument-type" = "warn"
 "possibly-unresolved-reference" = "error"
-"possibly-unbound-attribute" = "error"
 "unsupported-operator" = "error"
 
 [tool.uv.sources]

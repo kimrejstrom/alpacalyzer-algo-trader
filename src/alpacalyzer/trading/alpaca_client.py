@@ -192,7 +192,7 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
             if get_market_status() == "open":
                 # Fetch the latest bar for fresh data (only available during market hours)
                 latest_bar_response = history_client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
-                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
+                latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)
 
                 # Append the latest bar if available, otherwise duplicate the last candle
                 candles.append(latest_bar if latest_bar else candles[-1])
@@ -211,7 +211,7 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
         return None
 
 
-def bars_to_df(bars: list[Bar]) -> pd.DataFrame:  # type: ignore
+def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
     """Convert the list of Alpaca Bars to a DataFrame."""
     # Convert list of Bar objects to dictionaries
     df = pd.DataFrame([bar.model_dump() for bar in bars])

@@ -49,7 +49,7 @@ class TestScannerRegistry:
     def test_register_scanner(self, registry, mock_scanner):
         """Test registering a scanner."""
         registry.register(mock_scanner)
-        assert "test_scanner" in registry.list()
+        assert "test_scanner" in registry.list_scanners()
         assert registry.get("test_scanner") is mock_scanner
 
     def test_register_overwrites_existing(self, registry, mock_scanner):
@@ -68,7 +68,7 @@ class TestScannerRegistry:
         """Test unregistering a scanner."""
         registry.register(mock_scanner)
         registry.unregister("test_scanner")
-        assert "test_scanner" not in registry.list()
+        assert "test_scanner" not in registry.list_scanners()
         assert registry.get("test_scanner") is None
 
     def test_get_nonexistent_scanner(self, registry):
@@ -81,7 +81,7 @@ class TestScannerRegistry:
         registry.register(MockScanner("scanner2"))
         registry.register(MockScanner("scanner3"))
 
-        scanner_names = registry.list()
+        scanner_names = registry.list_scanners()
         assert set(scanner_names) == {"scanner1", "scanner2", "scanner3"}
 
     def test_list_enabled_scanners(self, registry):
@@ -90,7 +90,7 @@ class TestScannerRegistry:
         registry.register(MockScanner("scanner2", enabled=False))
         registry.register(MockScanner("scanner3", enabled=True))
 
-        enabled_names = registry.list_enabled()
+        enabled_names = registry.list_enabled_scanners()
         assert set(enabled_names) == {"scanner1", "scanner3"}
 
     def test_enable_scanner(self, registry):
