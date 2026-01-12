@@ -1,9 +1,8 @@
-"""Technical analysis using pandas-ta (pure Python alternative to TA-Lib)."""
-
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict, cast
 
 import pandas as pd
+import talib
 from alpaca.data.enums import Adjustment
 from alpaca.data.models import Bar, BarSet
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
@@ -41,11 +40,12 @@ class TechnicalAnalyzer:
     def get_historical_data(self, symbol, request_type="minute") -> pd.DataFrame | None:
         """Get historical data from Alpaca."""
         try:
-            now_utc = datetime.now(UTC)
-            end = now_utc - timedelta(seconds=930)
+            now_utc = datetime.now(UTC)  # Get the current UTC time
+            end = now_utc - timedelta(seconds=930)  # 15.5 minutes ago
 
+            # Determine the `start` time based on the `request_type`
             if request_type == "minute":
-                start = end - timedelta(minutes=1440)
+                start = end - timedelta(minutes=1440)  # Last 24 hours
                 request = StockBarsRequest(
                     symbol_or_symbols=symbol,
                     timeframe=TimeFrame(5, TimeFrameUnit.Minute),  # type: ignore[arg-type]
@@ -54,7 +54,7 @@ class TechnicalAnalyzer:
                     adjustment=Adjustment.ALL,
                 )
             else:
-                start = end - timedelta(days=100)
+                start = end - timedelta(days=100)  # Last 100 days
                 request = StockBarsRequest(
                     symbol_or_symbols=symbol,
                     timeframe=TimeFrame.Day,
@@ -68,11 +68,16 @@ class TechnicalAnalyzer:
                 if not candles or candles is None:
                     return None
 
+                # Check market status
                 if get_market_status() == "open":
+                    # Fetch the latest bar for fresh data (only available during market hours)
                     latest_bar_response = history_client.get_stock_latest_bar(StockLatestBarRequest(symbol_or_symbols=symbol))
                     latest_bar = cast(dict[str, Bar], latest_bar_response).get(symbol)  # type: ignore
+
+                    # Append the latest bar if available, otherwise duplicate the last candle
                     candles.append(latest_bar if latest_bar else candles[-1])
                 else:
+                    # Market is closed, duplicate the last candle
                     candles.append(candles[-1])
 
                 return pd.DataFrame(
@@ -100,72 +105,54 @@ class TechnicalAnalyzer:
             return None
 
     def calculate_intraday_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate intraday technical indicators using pandas-ta."""
-        # ATR
-        df.ta.atr(length=30, append=True)
-        df.rename(columns={"ATRr_30": "ATR"}, inplace=True)
+        """Calculate intraday technical indicators."""
+
+        df["ATR"] = talib.ATR(df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), timeperiod=30)
 
         # MACD
-        macd = df.ta.macd(append=False)
-        df["MACD"] = macd["MACD_12_26_9"]
-        df["MACD_Signal"] = macd["MACDs_12_26_9"]
+        macd, macd_signal, _ = talib.MACD(df["close"].to_numpy())
+        df["MACD"] = macd
+        df["MACD_Signal"] = macd_signal
 
         # Volume
-        df["Volume_MA"] = df.ta.sma(close="volume", length=30, append=False)
-        df["RVOL"] = df["volume"] / df["Volume_MA"]
-
+        df["Volume_MA"] = talib.SMA(df["volume"].to_numpy(), timeperiod=30)  # Average volume
+        df["RVOL"] = df["volume"] / df["Volume_MA"]  # Relative Volume
         # Bollinger Bands
-        bbands = df.ta.bbands(length=20, std=2, append=False)
-        df["BB_Upper"] = bbands["BBU_20_2.0"]
-        df["BB_Middle"] = bbands["BBM_20_2.0"]
-        df["BB_Lower"] = bbands["BBL_20_2.0"]
+        upper, middle, lower = talib.BBANDS(df["close"].to_numpy())
+        df["BB_Upper"] = upper
+        df["BB_Middle"] = middle
+        df["BB_Lower"] = lower
 
-        # Candlestick patterns using pandas-ta
-        df.ta.cdl_pattern(name="engulfing", append=True)
-        df.ta.cdl_pattern(name="shootingstar", append=True)
-        df.ta.cdl_pattern(name="hammer", append=True)
-        df.ta.cdl_pattern(name="doji", append=True)
-
-        # Rename to match TA-Lib naming
-        df["Bullish_Engulfing"] = df.get("CDL_ENGULFING", 0)
-        df["Bearish_Engulfing"] = df.get("CDL_ENGULFING", 0)  # Same pattern, sign indicates direction
-        df["Shooting_Star"] = df.get("CDL_SHOOTINGSTAR", 0)
-        df["Hammer"] = df.get("CDL_HAMMER", 0)
-        df["Doji"] = df.get("CDL_DOJI", 0)
+        # Candlestick patterns
+        df["Bullish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Bearish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Hammer"] = talib.CDLHAMMER(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Doji"] = talib.CDLDOJI(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
 
         return df
 
     def calculate_daily_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate daily technical indicators using pandas-ta."""
+        """Calculate daily technical indicators."""
+
         # Basic indicators
-        df["SMA_20"] = df.ta.sma(length=20, append=False)
-        df["SMA_50"] = df.ta.sma(length=50, append=False)
-        df["RSI"] = df.ta.rsi(length=14, append=False)
+        df["SMA_20"] = talib.SMA(df["close"].to_numpy(), timeperiod=20)
+        df["SMA_50"] = talib.SMA(df["close"].to_numpy(), timeperiod=50)
+        df["RSI"] = talib.RSI(df["close"].to_numpy(), timeperiod=14)
+        df["ATR"] = talib.ATR(df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), timeperiod=14)
 
-        # ATR
-        df.ta.atr(length=14, append=True)
-        df.rename(columns={"ATRr_14": "ATR"}, inplace=True)
-
-        # Volume
-        df["Volume_MA"] = df.ta.sma(close="volume", length=20, append=False)
-        df["RVOL"] = df["volume"] / df["Volume_MA"]
+        df["Volume_MA"] = talib.SMA(df["volume"].to_numpy(), timeperiod=20)  # Average volume
+        df["RVOL"] = df["volume"] / df["Volume_MA"]  # Relative Volume
 
         # ADX (Trend Strength)
-        adx = df.ta.adx(length=14, append=False)
-        df["ADX"] = adx["ADX_14"]
+        df["ADX"] = talib.ADX(df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), timeperiod=14)
 
         # Candlestick patterns
-        df.ta.cdl_pattern(name="engulfing", append=True)
-        df.ta.cdl_pattern(name="shootingstar", append=True)
-        df.ta.cdl_pattern(name="hammer", append=True)
-        df.ta.cdl_pattern(name="doji", append=True)
-
-        # Rename to match TA-Lib naming
-        df["Bullish_Engulfing"] = df.get("CDL_ENGULFING", 0)
-        df["Bearish_Engulfing"] = df.get("CDL_ENGULFING", 0)
-        df["Shooting_Star"] = df.get("CDL_SHOOTINGSTAR", 0)
-        df["Hammer"] = df.get("CDL_HAMMER", 0)
-        df["Doji"] = df.get("CDL_DOJI", 0)
+        df["Bullish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Bearish_Engulfing"] = talib.CDLENGULFING(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Shooting_Star"] = talib.CDLSHOOTINGSTAR(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Hammer"] = talib.CDLHAMMER(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
+        df["Doji"] = talib.CDLDOJI(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy())
 
         return df
 
@@ -190,6 +177,7 @@ class TechnicalAnalyzer:
         Incorporates RVOL, ATR, VWAP, and standard indicators like SMA, RSI, MACD, and
         Bollinger Bands.
         """
+
         latest_intraday = intraday_df.iloc[-2]
         latest_daily = daily_df.iloc[-2]
         prev_daily = daily_df.iloc[-2]
@@ -206,12 +194,12 @@ class TechnicalAnalyzer:
                 "price": price,
                 "atr": latest_daily["ATR"],
                 "rvol": latest_intraday["RVOL"],
-                "signals": [],
-                "raw_score": 0,
-                "score": 0,
-                "momentum": 0,
-                "raw_data_daily": daily_df,
-                "raw_data_intraday": intraday_df,
+                "signals": [],  # List of trading signals
+                "raw_score": 0,  # Raw technical analysis score
+                "score": 0,  # Normalized score (0-1)
+                "momentum": 0,  # 24h momentum
+                "raw_data_daily": daily_df,  # Raw data for debugging
+                "raw_data_intraday": intraday_df,  # Raw data for debugging
             }
         )
 
@@ -222,16 +210,16 @@ class TechnicalAnalyzer:
 
         if price > sma20_daily and price > sma50_daily:
             if sma20_daily > sma50_daily:
-                signals["raw_score"] += 40
+                signals["raw_score"] += 40  # Strong uptrend
                 signals["signals"].append(f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
             else:
-                signals["raw_score"] += 10
+                signals["raw_score"] += 10  # Weak uptrend
         else:
             if price < sma20_daily and price < sma50_daily:
-                signals["raw_score"] -= 30
+                signals["raw_score"] -= 30  # Strong downtrend
                 signals["signals"].append(f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
             else:
-                signals["raw_score"] -= 10
+                signals["raw_score"] -= 10  # Weak downtrend
 
         # 1. Momentum Analysis (24h change)
         prev_close = prev_daily["close"]
@@ -251,51 +239,52 @@ class TechnicalAnalyzer:
 
         # 2. Daily RSI Analysis
         rsi_daily = latest_daily["RSI"]
-        if rsi_daily < 30:
+        if rsi_daily < 30:  # Oversold
             signals["raw_score"] += 30
             signals["signals"].append(f"TA: Oversold RSI ({rsi_daily:.1f}) < 30")
-        elif rsi_daily > 70:
+
+        elif rsi_daily > 70:  # Overbought
             signals["raw_score"] -= 30
             signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
 
         # 3. Daily ATR (Volatility Assessment)
         atr = latest_daily["ATR"]
-        if (atr / price) * 100 > 3:
-            signals["raw_score"] += 10
+        if (atr / price) * 100 > 3:  #  Threshold for bullish ATR
+            signals["raw_score"] += 10  # High volatility = potential opportunities
 
         # 4. Relative Volume (RVOL)
         rvol_daily = latest_daily["RVOL"]
         if rvol_daily > 5:
             signals["raw_score"] += 40
         elif rvol_daily > 2:
-            signals["raw_score"] += 25
+            signals["raw_score"] += 25  # High relative volume = significant activity
         elif rvol_daily < 1.5:
             signals["raw_score"] -= 10
         elif rvol_daily < 0.7:
-            signals["raw_score"] -= 20
+            signals["raw_score"] -= 20  # Low relative volume = lack of interest
 
         # 5. ADX Analysis (Trend Strength)
         adx = latest_daily["ADX"]
         if adx > 30:
             signals["raw_score"] += 30
         elif adx > 25:
-            signals["raw_score"] += 20
+            signals["raw_score"] += 20  # Strong trend
         elif adx < 20:
-            signals["raw_score"] -= 20
+            signals["raw_score"] -= 20  # Weak trend
 
         # 6. Daily Candlestick Patterns
         if latest_daily["Bullish_Engulfing"] == 100 and adx > 25:
-            signals["raw_score"] += 40
+            signals["raw_score"] += 40  # Strong confirmation in a trending market
             signals["signals"].append("TA: Bullish Engulfing (Daily)")
         elif latest_daily["Bearish_Engulfing"] == -100 and adx > 25:
             signals["raw_score"] -= 30
             signals["signals"].append("TA: Bearish Engulfing (Daily)")
 
         if latest_daily["Hammer"] == 100 and rsi_daily < 30:
-            signals["raw_score"] += 25
+            signals["raw_score"] += 25  # Hammer confirmed by oversold RSI
             signals["signals"].append("TA: Hammer (Daily)")
         elif latest_daily["Shooting_Star"] == -100 and rsi_daily > 70:
-            signals["raw_score"] -= 25
+            signals["raw_score"] -= 25  # Shooting Star confirmed by overbought RSI
             signals["signals"].append("TA: Shooting Star (Daily)")
 
         ### --- INTRADAY INDICATORS --- ###
@@ -303,23 +292,23 @@ class TechnicalAnalyzer:
             # 1. Price vs. Intraday VWAP
             vwap = latest_intraday["vwap"]
             if price > vwap:
-                signals["raw_score"] += 20
+                signals["raw_score"] += 20  # Price above VWAP = bullish
                 signals["signals"].append(f"TA: Price above VWAP ({price} > {vwap:.2f})")
             else:
-                signals["raw_score"] -= 10
+                signals["raw_score"] -= 10  # Price below VWAP = bearish
 
             # 2. Intraday Candlestick Patterns
             if latest_intraday["Bullish_Engulfing"] == 100:
-                signals["raw_score"] += 40
+                signals["raw_score"] += 40  # Short-term bullish signal
                 signals["signals"].append("TA: Bullish Engulfing (Intraday)")
             elif latest_intraday["Bearish_Engulfing"] == -100:
-                signals["raw_score"] -= 15
+                signals["raw_score"] -= 15  # Short-term bearish signal
                 signals["signals"].append("TA: Bearish Engulfing (Intraday)")
             if latest_intraday["Hammer"] == 100 and rsi_daily < 30:
-                signals["raw_score"] += 25
+                signals["raw_score"] += 25  # Hammer confirmed by oversold RSI
                 signals["signals"].append("TA: Hammer (Intraday)")
             elif latest_intraday["Shooting_Star"] == -100 and rsi_daily > 70:
-                signals["raw_score"] -= 25
+                signals["raw_score"] -= 25  # Shooting Star confirmed by overbought RSI
                 signals["signals"].append("TA: Shooting Star (Intraday)")
 
             # 3. MACD Analysis (Intraday)
@@ -347,10 +336,10 @@ class TechnicalAnalyzer:
             bb_upper = latest_intraday["BB_Upper"]
 
             if price < bb_lower:
-                signals["raw_score"] += 30
+                signals["raw_score"] += 30  # Oversold (Buy signal)
                 signals["signals"].append(f"TA: Price below Lower BB ({price} < {bb_lower:.2f})")
             elif price > bb_upper:
-                signals["raw_score"] -= 30
+                signals["raw_score"] -= 30  # Overbought (Sell signal)
 
             # 5. Volume spike based breakout
             if price > latest_daily["SMA_50"] and latest_intraday["volume"] > 2 * latest_daily["Volume_MA"]:
@@ -362,17 +351,18 @@ class TechnicalAnalyzer:
             if rvol_intraday > 5:
                 signals["raw_score"] += 40
             elif rvol_intraday > 2:
-                signals["raw_score"] += 25
+                signals["raw_score"] += 25  # High relative volume = significant activity
             elif rvol_intraday < 1.5:
                 signals["raw_score"] -= 10
                 signals["signals"].append(f"TA: High RVOL missing ({rvol_intraday:.1f} < 1.5)")
             elif rvol_intraday < 0.7:
-                signals["raw_score"] -= 20
+                signals["raw_score"] -= 20  # Low relative volume = lack of interest
 
         ### --- NORMALIZATION --- ###
-        min_raw_score, max_raw_score = -130, 180
+        # Calculate min-max normalization
+        min_raw_score, max_raw_score = -130, 180  # Define expected range
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
-        signals["score"] = max(0, min(1, signals["score"]))
+        signals["score"] = max(0, min(1, signals["score"]))  # Clamp to [0, 1]
 
         logger.debug(
             f"\n{symbol} - Technical Analysis:\nATR: {signals['atr']:1f}, Score: {signals['score']}, Raw: {signals['raw_score']}, Momentum: {signals['momentum']:1f}, Signals: {signals['signals']}"
@@ -421,6 +411,7 @@ class TechnicalAnalyzer:
                 "Price below Lower BB",
             }
 
+        # Find signals that match any of the weak_signal_checks substrings
         weak_tech_signals = [signal for signal in signals if any(key in signal for key in weak_signal_checks)]
 
         if weak_tech_signals:
@@ -433,21 +424,22 @@ class TechnicalAnalyzer:
 
         Updated thresholds (reduced by 0.1-0.15 points) to increase entry conversion rate.
         """
+
         logger.debug(f"VIX: {vix_close:.1f}, Rel Vol: {rel_vol:.1f}, ATR %: {atr_pct:.2f}")
         if vix_close > 35:
-            if rel_vol >= 3 and atr_pct < 0.08:
-                return 0.65
-            return 0.75
+            if rel_vol >= 3 and atr_pct < 0.08:  # Slightly raised ATR limit
+                return 0.65  # Reduced from 0.8
+            return 0.75  # Reduced from 0.9
 
         if vix_close >= 30:
-            if rel_vol >= 2 and atr_pct < 0.10:
-                return 0.55
-            return 0.6
+            if rel_vol >= 2 and atr_pct < 0.10:  # Allow higher ATR in high VIX
+                return 0.55  # Reduced from 0.7
+            return 0.6  # Reduced from 0.75
 
         if vix_close >= 20:
-            if rel_vol >= 1.5 and atr_pct < 0.12:
-                return 0.45
-            return 0.5
+            if rel_vol >= 1.5 and atr_pct < 0.12:  # More flexibility in calm markets
+                return 0.45  # Reduced from 0.6
+            return 0.5  # Reduced from 0.65
 
         # VIX < 20 (Calm market)
-        return 0.35
+        return 0.35  # Reduced from 0.5
