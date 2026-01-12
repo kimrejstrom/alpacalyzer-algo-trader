@@ -6,6 +6,7 @@ from alpacalyzer.pipeline.scanner_adapters import (
     WSBScannerAdapter,
 )
 from alpacalyzer.pipeline.scanner_protocol import BaseScanner, Scanner, ScanResult
+from alpacalyzer.pipeline.scheduler import PipelineScheduler, PipelineStage
 
 __all__ = [
     "BaseScanner",
@@ -17,4 +18,6 @@ __all__ = [
     "StocktwitsScannerAdapter",
     "FinvizScannerAdapter",
     "SocialScannerAdapter",
+    "PipelineScheduler",
+    "PipelineStage",
 ]
