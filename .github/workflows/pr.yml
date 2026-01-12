@@ -7,82 +7,32 @@ on:
 
 env:
   UV_VERSION: "0.5.15"
+  UV_CACHE_DIR: /tmp/.uv-cache
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
+  # Single setup job that all other jobs depend on
+  setup:
+    name: Setup Dependencies
     runs-on: ubuntu-24.04
+    outputs:
+      python-version: ${{ steps.setup-python.outputs.python-version }}
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-      - name: Set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: ".python-version"
-      - name: Set up uv
-        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
-      - name: Install dependencies
-        run: uv sync --frozen
-      - name: Run ruff check
-        run: uv run ruff check .
-      - name: Run ruff format check
-        run: uv run ruff format --check .
 
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-      - name: Set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: ".python-version"
-      - name: Set up uv
-        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
-      - name: Install dependencies
-        run: uv sync --frozen
-      - name: Run type checking
-        run: uv run ty check src
-
-  test:
-    name: Test
-    env:
-      UV_CACHE_DIR: /tmp/.uv-cache
-    runs-on: ubuntu-24.04
-    needs: [lint, typecheck]
-    steps:
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential wget
-      - name: Cache TA-Lib
-        id: cache-talib
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/lib/libta-lib.*
-            /usr/include/ta-lib/
-          key: talib-${{ runner.os }}-0.4.0
-      - name: Install TA-Lib from source
-        if: steps.cache-talib.outputs.cache-hit != 'true'
-        run: |
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          tar -xvzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib && ./configure --prefix=/usr && make && sudo make install
-      - name: Checkout source code
-        uses: actions/checkout@v4
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version-file: ".python-version"
+
       - name: Set up uv
         run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
+
       - name: Restore uv cache
         uses: actions/cache@v4
         with:
@@ -91,9 +41,133 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
             uv-${{ runner.os }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Minimize uv cache
+        run: uv cache prune --ci
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    needs: setup
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
+
+      - name: Restore uv cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+            uv-${{ runner.os }}
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-install-project
+
+      - name: Run ruff check
+        run: uv run ruff check .
+
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-24.04
+    needs: setup
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
+
+      - name: Restore uv cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+            uv-${{ runner.os }}
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-install-project
+
+      - name: Run type checking
+        run: uv run ty check src
+
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    needs: [lint, typecheck]
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential wget
+
+      - name: Cache TA-Lib
+        id: cache-talib
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/lib/libta-lib.*
+            /usr/include/ta-lib/
+          key: talib-${{ runner.os }}-0.6.4
+
+      - name: Install TA-Lib from source
+        if: steps.cache-talib.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz
+          tar -xzf ta-lib-0.6.4-src.tar.gz
+          cd ta-lib-0.6.4
+          ./configure --prefix=/usr
+          make
+          sudo make install
+
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/${{ env.UV_VERSION }}/install.sh | sh
+
+      - name: Restore uv cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+            uv-${{ runner.os }}
+
       - name: Install dependencies
         run: uv sync --all-extras --dev --frozen
+
       - name: Test with pytest
         run: uv run pytest tests --cov=src
+
       - name: Minimize uv cache
         run: uv cache prune --ci
