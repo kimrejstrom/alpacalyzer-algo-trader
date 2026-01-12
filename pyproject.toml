@@ -58,6 +58,9 @@ dev = [
 addopts = "-vvv"
 testpaths = "tests"
 
+[tool.pytest_asyncio]
+default_fixture_scope = "function"
+
 [tool.ruff]
 extend-exclude = [
     "__pycache__",
