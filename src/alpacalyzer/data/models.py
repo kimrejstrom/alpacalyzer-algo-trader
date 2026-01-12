@@ -184,6 +184,9 @@ class TopTicker(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
     reasoning: str
+    mentions: int = 0
+    upvotes: int = 0
+    rank: int = 0
 
 
 # Pydantic model for top swing trade tickers
