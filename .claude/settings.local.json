@@ -1,37 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh issue list --limit 50)",
-      "Bash(gh issue view 28)",
-      "Bash(git remote get-url origin)",
-      "Bash(uv run pytest tests/analysis/test_dashboard.py -v)",
-      "Bash(uv run pytest tests/analysis/test_dashboard.py tests/test_cli_integration.py -v)",
-      "Bash(uv run pytest tests -v)",
-      "Bash(uv run ruff check .)",
-      "Bash(uv run ruff check . --fix)",
-      "Bash(uv run ruff format .)",
-      "Bash(uv run ty check src)",
-      "Bash(git add src/alpacalyzer/cli.py src/alpacalyzer/analysis/dashboard.py tests/analysis/__init__.py tests/analysis/test_dashboard.py)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat\\(dashboard\\): implement strategy performance dashboard for #28\n\n- Create StrategyDashboard class with overview, comparison, and market conditions views\n- Add dashboard CLI command with --dashboard, --ticker, --strategy, --days, and --conditions options\n- Implement strategy comparison tables using tabulate\n- Add market regime analysis with strategy recommendations\n- Add comprehensive tests for dashboard functionality\n\nCloses #28\nEOF\n\\)\")",
-      "Bash(gh pr create --title \"feat\\(dashboard\\): implement strategy performance dashboard for #28\" --body \"$\\(cat <<''EOF''\n## Summary\n\nImplements a CLI dashboard for comparing trading strategies, viewing backtest results, and analyzing market conditions.\n\n## Changes\n\n- **New module**: `src/alpacalyzer/analysis/dashboard.py` with `StrategyDashboard` class\n- **CLI integration**: Added `--dashboard` command with options:\n  - `--ticker` - Compare strategies on a specific ticker\n  - `--strategy` - Show detailed backtest for a strategy\n  - `--days` - Number of days of historical data \\(default: 30\\)\n  - `--conditions` - Show market conditions analysis\n\n## Features\n\n1. **Strategy Overview** - Display all registered strategies with risk/return config\n2. **Strategy Comparison** - Compare multiple strategies on a single ticker with metrics \\(Win Rate, P/L, Sharpe, etc.\\)\n3. **Detailed Backtest** - Show trade history and summary for a specific strategy\n4. **Market Conditions** - Analyze SPY for market regime \\(Uptrend, Downtrend, High Volatility, Sideways\\) and recommend appropriate strategies\n\n## Test Results\n\n- All 476 tests pass\n- 16 new dashboard-specific tests added\n\n## Test plan\n\n- [x] All tests pass\n- [x] Linting clean\n- [x] Type checking passes\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\" --head issue-28 --base main)",
-      "Bash(git push -u origin issue-28)",
-      "Bash(ls -la *.md)",
-      "Bash(find . -name *.md -newer src/alpacalyzer/cli.py)",
-      "Bash(ls -lt *.md)",
-      "Bash(gh pr view 59 --comments)",
-      "Bash(gh pr view 59)",
-      "Bash(gh pr diff 59)",
-      "Bash(git add src/alpacalyzer/analysis/dashboard.py)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix\\(dashboard\\): address code review findings for #28\n\n- Eliminate redundant ticker.upper\\(\\) calls by storing uppercase ticker once\n- Add documentation for the 2% volatility threshold rationale\n\nCloses #28\nEOF\n\\)\")",
-      "Bash(git push)",
-      "Bash(git add .claude/agents/code-reviewer.md .opencode/agent/code-reviewer.md)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix\\(agents\\): improve code-reviewer subagent configuration\n\n- Add explicit Write tool to Claude agent format\n- Fix duplicate header in code-reviewer.md\n- Add gh CLI fallback for GitHub MCP failures\n- Use explicit github_* tool names instead of wildcard\nEOF\n\\)\")",
-      "Bash(gh pr view 59 --repo kimrejstrom/alpacalyzer-algo-trader)",
-      "Bash(gh pr view 59 --jq '.state, .mergeable, .title' --repo kimrejstrom/alpacalyzer-algo-trader)",
-      "Bash(gh pr diff 59 --stat --repo kimrejstrom/alpacalyzer-algo-trader)",
-      "Bash(gh pr diff 59 --name-only --repo kimrejstrom/alpacalyzer-algo-trader)",
-      "Bash(gh pr merge 59 --repo kimrejstrom/alpacalyzer-algo-trader --admin --merge)",
-      "Bash(gh api repos/kimrejstrom/alpacalyzer-algo-trader/pulls/59 --jq '.merged, .state, .mergeable')"
+      "Bash(gh *)",
+      "Bash(git *)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run ty *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(gh pr create --title \"feat\\(orchestrator\\): create TradingOrchestrator class for #60\" --body \"## Summary\n\nCreated a new TradingOrchestrator class that handles scanning and hedge fund orchestration, delegating all execution to ExecutionEngine. This is a clean replacement for the monolithic Trader class without the execution logic.\n\n## Changes\n\n- New: Created src/alpacalyzer/orchestrator.py with:\n  - TradingOrchestrator class with clean separation of concerns\n  - scan\\(\\) method using OpportunityAggregator\n  - analyze\\(\\) method calling hedge fund agents\n  - execute\\(\\) method feeding signals to ExecutionEngine\n  - run_cycle\\(\\) for full pipeline execution\n  - Support for analyze_mode flag\n  - Support for direct_tickers for manual ticker input\n  - Support for agent selection \\(ALL, TRADE, INVEST\\)\n  - Cooldown management for exited tickers\n\n- Tests: Created tests/test_orchestrator.py with 22 tests covering:\n  - Initialization with various configurations\n  - Scan behavior \\(with/without direct tickers\\)\n  - Analysis with hedge fund agents\n  - Execution through ExecutionEngine\n  - Full pipeline cycle\n  - Cooldown management\n\n## Test Plan\n\n- All 22 orchestrator tests pass\n- Full test suite passes \\(498 passed, 3 skipped\\)\n- Linting passes \\(ruff check & format\\)\n- Type checking passes\")",
+      "Skill(pr-code-review)"
     ]
   }
 }
