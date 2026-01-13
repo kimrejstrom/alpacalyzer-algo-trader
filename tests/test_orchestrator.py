@@ -51,7 +51,11 @@ class TestTradingOrchestratorInit:
 
     def test_init_with_defaults(self, mock_aggregator, mock_execution_engine, mock_strategy):
         """Test initialization with default parameters."""
-        with patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator), patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine):
+        with (
+            patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+            patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine),
+            patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+        ):
             orchestrator = TradingOrchestrator(strategy=mock_strategy)
 
             assert orchestrator.analyze_mode is False
@@ -63,7 +67,11 @@ class TestTradingOrchestratorInit:
 
     def test_init_with_analyze_mode(self, mock_aggregator, mock_execution_engine, mock_strategy):
         """Test initialization with analyze_mode enabled."""
-        with patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator), patch("alpacalyzer.orchestrator.ExecutionEngine") as mock_engine_class:
+        with (
+            patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+            patch("alpacalyzer.orchestrator.ExecutionEngine") as mock_engine_class,
+            patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+        ):
             mock_engine_class.return_value = mock_execution_engine
             orchestrator = TradingOrchestrator(strategy=mock_strategy, analyze_mode=True)
 
@@ -77,21 +85,33 @@ class TestTradingOrchestratorInit:
     def test_init_with_direct_tickers(self, mock_aggregator, mock_execution_engine, mock_strategy):
         """Test initialization with direct tickers."""
         tickers = ["AAPL", "MSFT"]
-        with patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator), patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine):
+        with (
+            patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+            patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine),
+            patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+        ):
             orchestrator = TradingOrchestrator(strategy=mock_strategy, direct_tickers=tickers)
 
             assert orchestrator.direct_tickers == tickers
 
     def test_init_with_agent_selection(self, mock_aggregator, mock_execution_engine, mock_strategy):
         """Test initialization with agent selection."""
-        with patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator), patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine):
+        with (
+            patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+            patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine),
+            patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+        ):
             orchestrator = TradingOrchestrator(strategy=mock_strategy, agents="TRADE")
 
             assert orchestrator.agents == "TRADE"
 
     def test_init_with_ignore_market_status(self, mock_aggregator, mock_execution_engine, mock_strategy):
         """Test initialization with ignore_market_status enabled."""
-        with patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator), patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine):
+        with (
+            patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+            patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine),
+            patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+        ):
             orchestrator = TradingOrchestrator(strategy=mock_strategy, ignore_market_status=True)
 
             assert orchestrator.ignore_market_status is True
