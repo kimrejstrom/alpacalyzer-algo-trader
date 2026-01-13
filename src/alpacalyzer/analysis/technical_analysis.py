@@ -183,12 +183,18 @@ class TechnicalAnalyzer:
             return None
         return self.calculate_daily_indicators(df)
 
-    def calculate_technical_analysis_score(self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame) -> TradingSignals | None:
+    def calculate_technical_analysis_score(self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame, target_side: str = "long") -> TradingSignals | None:
         """
         Calculate a technical analysis score using daily and intraday indicators.
 
         Incorporates RVOL, ATR, VWAP, and standard indicators like SMA, RSI, MACD, and
         Bollinger Bands.
+
+        Args:
+            symbol: The stock ticker symbol
+            daily_df: DataFrame with daily candles and indicators
+            intraday_df: DataFrame with intraday candles and indicators
+            target_side: Either "long" or "short" - determines scoring direction
         """
         latest_intraday = intraday_df.iloc[-2]
         latest_daily = daily_df.iloc[-2]
@@ -220,18 +226,32 @@ class TechnicalAnalyzer:
         sma20_daily = latest_daily["SMA_20"]
         sma50_daily = latest_daily["SMA_50"]
 
-        if price > sma20_daily and price > sma50_daily:
-            if sma20_daily > sma50_daily:
-                signals["raw_score"] += 40
-                signals["signals"].append(f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
+        if target_side == "long":
+            if price > sma20_daily and price > sma50_daily:
+                if sma20_daily > sma50_daily:
+                    signals["raw_score"] += 40
+                    signals["signals"].append(f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
+                else:
+                    signals["raw_score"] += 10
             else:
-                signals["raw_score"] += 10
+                if price < sma20_daily and price < sma50_daily:
+                    signals["raw_score"] -= 30
+                    signals["signals"].append(f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
+                else:
+                    signals["raw_score"] -= 10
         else:
             if price < sma20_daily and price < sma50_daily:
-                signals["raw_score"] -= 30
-                signals["signals"].append(f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
+                if sma20_daily < sma50_daily:
+                    signals["raw_score"] += 40
+                    signals["signals"].append(f"TA: Price below both MAs ({price} < {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
+                else:
+                    signals["raw_score"] += 10
             else:
-                signals["raw_score"] -= 10
+                if price > sma20_daily and price > sma50_daily:
+                    signals["raw_score"] -= 30
+                    signals["signals"].append(f"TA: Price above both MAs ({price} > {round(sma20_daily, 2)} & {round(sma50_daily, 2)})")
+                else:
+                    signals["raw_score"] -= 10
 
         # 1. Momentum Analysis (24h change)
         prev_close = prev_daily["close"]
@@ -251,12 +271,20 @@ class TechnicalAnalyzer:
 
         # 2. Daily RSI Analysis
         rsi_daily = latest_daily["RSI"]
-        if rsi_daily < 30:
-            signals["raw_score"] += 30
-            signals["signals"].append(f"TA: Oversold RSI ({rsi_daily:.1f}) < 30")
-        elif rsi_daily > 70:
-            signals["raw_score"] -= 30
-            signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
+        if target_side == "long":
+            if rsi_daily < 30:
+                signals["raw_score"] += 30
+                signals["signals"].append(f"TA: Oversold RSI ({rsi_daily:.1f}) < 30")
+            elif rsi_daily > 70:
+                signals["raw_score"] -= 30
+                signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
+        else:
+            if rsi_daily > 70:
+                signals["raw_score"] += 30
+                signals["signals"].append(f"TA: Overbought RSI ({rsi_daily:.1f}) > 70")
+            elif rsi_daily < 30:
+                signals["raw_score"] -= 30
+                signals["signals"].append(f"TA: Oversold RSI ({rsi_daily:.1f}) < 30")
 
         # 3. Daily ATR (Volatility Assessment)
         atr = latest_daily["ATR"]
@@ -284,43 +312,79 @@ class TechnicalAnalyzer:
             signals["raw_score"] -= 20
 
         # 6. Daily Candlestick Patterns
-        if latest_daily["Bullish_Engulfing"] == 100 and adx > 25:
-            signals["raw_score"] += 40
-            signals["signals"].append("TA: Bullish Engulfing (Daily)")
-        elif latest_daily["Bearish_Engulfing"] == -100 and adx > 25:
-            signals["raw_score"] -= 30
-            signals["signals"].append("TA: Bearish Engulfing (Daily)")
+        if target_side == "long":
+            if latest_daily["Bullish_Engulfing"] == 100 and adx > 25:
+                signals["raw_score"] += 40
+                signals["signals"].append("TA: Bullish Engulfing (Daily)")
+            elif latest_daily["Bearish_Engulfing"] == -100 and adx > 25:
+                signals["raw_score"] -= 30
+                signals["signals"].append("TA: Bearish Engulfing (Daily)")
 
-        if latest_daily["Hammer"] == 100 and rsi_daily < 30:
-            signals["raw_score"] += 25
-            signals["signals"].append("TA: Hammer (Daily)")
-        elif latest_daily["Shooting_Star"] == -100 and rsi_daily > 70:
-            signals["raw_score"] -= 25
-            signals["signals"].append("TA: Shooting Star (Daily)")
+            if latest_daily["Hammer"] == 100 and rsi_daily < 30:
+                signals["raw_score"] += 25
+                signals["signals"].append("TA: Hammer (Daily)")
+            elif latest_daily["Shooting_Star"] == -100 and rsi_daily > 70:
+                signals["raw_score"] -= 25
+                signals["signals"].append("TA: Shooting Star (Daily)")
+        else:
+            if latest_daily["Bearish_Engulfing"] == -100 and adx > 25:
+                signals["raw_score"] += 40
+                signals["signals"].append("TA: Bearish Engulfing (Daily)")
+            elif latest_daily["Bullish_Engulfing"] == 100 and adx > 25:
+                signals["raw_score"] -= 30
+                signals["signals"].append("TA: Bullish Engulfing (Daily)")
+
+            if latest_daily["Shooting_Star"] == -100 and rsi_daily > 70:
+                signals["raw_score"] += 25
+                signals["signals"].append("TA: Shooting Star (Daily)")
+            elif latest_daily["Hammer"] == 100 and rsi_daily < 30:
+                signals["raw_score"] -= 25
+                signals["signals"].append("TA: Hammer (Daily)")
 
         ### --- INTRADAY INDICATORS --- ###
         if latest_intraday is not None:
             # 1. Price vs. Intraday VWAP
             vwap = latest_intraday["vwap"]
-            if price > vwap:
-                signals["raw_score"] += 20
-                signals["signals"].append(f"TA: Price above VWAP ({price} > {vwap:.2f})")
+            if target_side == "long":
+                if price > vwap:
+                    signals["raw_score"] += 20
+                    signals["signals"].append(f"TA: Price above VWAP ({price} > {vwap:.2f})")
+                else:
+                    signals["raw_score"] -= 10
             else:
-                signals["raw_score"] -= 10
+                if price < vwap:
+                    signals["raw_score"] += 20
+                    signals["signals"].append(f"TA: Price below VWAP ({price} < {vwap:.2f})")
+                else:
+                    signals["raw_score"] -= 10
 
             # 2. Intraday Candlestick Patterns
-            if latest_intraday["Bullish_Engulfing"] == 100:
-                signals["raw_score"] += 40
-                signals["signals"].append("TA: Bullish Engulfing (Intraday)")
-            elif latest_intraday["Bearish_Engulfing"] == -100:
-                signals["raw_score"] -= 15
-                signals["signals"].append("TA: Bearish Engulfing (Intraday)")
-            if latest_intraday["Hammer"] == 100 and rsi_daily < 30:
-                signals["raw_score"] += 25
-                signals["signals"].append("TA: Hammer (Intraday)")
-            elif latest_intraday["Shooting_Star"] == -100 and rsi_daily > 70:
-                signals["raw_score"] -= 25
-                signals["signals"].append("TA: Shooting Star (Intraday)")
+            if target_side == "long":
+                if latest_intraday["Bullish_Engulfing"] == 100:
+                    signals["raw_score"] += 40
+                    signals["signals"].append("TA: Bullish Engulfing (Intraday)")
+                elif latest_intraday["Bearish_Engulfing"] == -100:
+                    signals["raw_score"] -= 15
+                    signals["signals"].append("TA: Bearish Engulfing (Intraday)")
+                if latest_intraday["Hammer"] == 100 and rsi_daily < 30:
+                    signals["raw_score"] += 25
+                    signals["signals"].append("TA: Hammer (Intraday)")
+                elif latest_intraday["Shooting_Star"] == -100 and rsi_daily > 70:
+                    signals["raw_score"] -= 25
+                    signals["signals"].append("TA: Shooting Star (Intraday)")
+            else:
+                if latest_intraday["Bearish_Engulfing"] == -100:
+                    signals["raw_score"] += 40
+                    signals["signals"].append("TA: Bearish Engulfing (Intraday)")
+                elif latest_intraday["Bullish_Engulfing"] == 100:
+                    signals["raw_score"] -= 15
+                    signals["signals"].append("TA: Bullish Engulfing (Intraday)")
+                if latest_intraday["Shooting_Star"] == -100 and rsi_daily > 70:
+                    signals["raw_score"] += 25
+                    signals["signals"].append("TA: Shooting Star (Intraday)")
+                elif latest_intraday["Hammer"] == 100 and rsi_daily < 30:
+                    signals["raw_score"] -= 25
+                    signals["signals"].append("TA: Hammer (Intraday)")
 
             # 3. MACD Analysis (Intraday)
             macd = latest_intraday["MACD"]
@@ -329,33 +393,59 @@ class TechnicalAnalyzer:
 
             if abs(macd_diff) < 0.1:
                 signals["raw_score"] -= 10
-            elif macd > macd_signal:
-                if macd_diff > 0.5:
-                    signals["raw_score"] += 30
-                    signals["signals"].append(f"TA: Strong bullish MACD ({macd_diff:.2f} > 0.5)")
+            elif target_side == "long":
+                if macd > macd_signal:
+                    if macd_diff > 0.5:
+                        signals["raw_score"] += 30
+                        signals["signals"].append(f"TA: Strong bullish MACD ({macd_diff:.2f} > 0.5)")
+                    else:
+                        signals["raw_score"] += 10
                 else:
-                    signals["raw_score"] += 10
+                    if macd_diff < -0.2:
+                        signals["raw_score"] -= 30
+                        signals["signals"].append(f"TA: Strong bearish MACD ({macd_diff:.2f} < -0.2)")
+                    else:
+                        signals["raw_score"] -= 10
             else:
-                if macd_diff < -0.2:
-                    signals["raw_score"] -= 30
-                    signals["signals"].append(f"TA: Strong bearish MACD ({macd_diff:.2f} < -0.2)")
+                if macd < macd_signal:
+                    if macd_diff < -0.5:
+                        signals["raw_score"] += 30
+                        signals["signals"].append(f"TA: Strong bearish MACD ({macd_diff:.2f} < -0.5)")
+                    else:
+                        signals["raw_score"] += 10
                 else:
-                    signals["raw_score"] -= 10
+                    if macd_diff > 0.2:
+                        signals["raw_score"] -= 30
+                        signals["signals"].append(f"TA: Strong bullish MACD ({macd_diff:.2f} > 0.2)")
+                    else:
+                        signals["raw_score"] -= 10
 
             # 4. Bollinger Bands (Intraday)
             bb_lower = latest_intraday["BB_Lower"]
             bb_upper = latest_intraday["BB_Upper"]
 
-            if price < bb_lower:
-                signals["raw_score"] += 30
-                signals["signals"].append(f"TA: Price below Lower BB ({price} < {bb_lower:.2f})")
-            elif price > bb_upper:
-                signals["raw_score"] -= 30
+            if target_side == "long":
+                if price < bb_lower:
+                    signals["raw_score"] += 30
+                    signals["signals"].append(f"TA: Price below Lower BB ({price} < {bb_lower:.2f})")
+                elif price > bb_upper:
+                    signals["raw_score"] -= 30
+            else:
+                if price > bb_upper:
+                    signals["raw_score"] += 30
+                    signals["signals"].append(f"TA: Price above Upper BB ({price} > {bb_upper:.2f})")
+                elif price < bb_lower:
+                    signals["raw_score"] -= 30
 
-            # 5. Volume spike based breakout
-            if price > latest_daily["SMA_50"] and latest_intraday["volume"] > 2 * latest_daily["Volume_MA"]:
-                signals["raw_score"] += 40
-                signals["signals"].append(f"TA: Breakout (Volume spike {latest_intraday['volume']:.0f} > 2 * {latest_daily['Volume_MA']:.0f})")
+            # 5. Volume spike based breakout/breakdown
+            if target_side == "long":
+                if price > latest_daily["SMA_50"] and latest_intraday["volume"] > 2 * latest_daily["Volume_MA"]:
+                    signals["raw_score"] += 40
+                    signals["signals"].append(f"TA: Breakout (Volume spike {latest_intraday['volume']:.0f} > 2 * {latest_daily['Volume_MA']:.0f})")
+            else:
+                if price < latest_daily["SMA_50"] and latest_intraday["volume"] > 2 * latest_daily["Volume_MA"]:
+                    signals["raw_score"] += 40
+                    signals["signals"].append(f"TA: Breakdown (Volume spike {latest_intraday['volume']:.0f} > 2 * {latest_daily['Volume_MA']:.0f})")
 
             # 4. Relative Volume (RVOL)
             rvol_intraday = latest_intraday["RVOL"]
@@ -451,3 +541,12 @@ class TechnicalAnalyzer:
 
         # VIX < 20 (Calm market)
         return 0.35
+
+    def calculate_short_candidate_score(self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame) -> TradingSignals | None:
+        """
+        Calculate a technical analysis score specifically for short candidates.
+
+        This is a convenience method that calls calculate_technical_analysis_score
+        with target_side="short".
+        """
+        return self.calculate_technical_analysis_score(symbol, daily_df, intraday_df, target_side="short")

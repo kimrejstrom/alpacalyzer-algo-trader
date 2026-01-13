@@ -155,10 +155,16 @@ class Trader:
                 # Convert back to signal
                 if trading_signals["score"] > 0.8:
                     signal = "bullish"
-                elif trading_signals["score"] < 0.5:
-                    signal = "bearish"
                 else:
-                    signal = "neutral"
+                    short_score = self.technical_analyzer.calculate_short_candidate_score(
+                        trading_signals["symbol"],
+                        trading_signals["raw_data_daily"],
+                        trading_signals["raw_data_intraday"],
+                    )
+                    if short_score and short_score["score"] > 0.6:
+                        signal = "bearish"
+                    else:
+                        signal = "neutral"
 
                 opportunity = TopTicker(
                     ticker=stock["ticker"],
