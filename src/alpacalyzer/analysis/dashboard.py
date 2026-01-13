@@ -124,8 +124,9 @@ class StrategyDashboard:
         """
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
+        ticker_upper = ticker.upper()
 
-        print_header(f"Comparing strategies on {ticker.upper()}")
+        print_header(f"Comparing strategies on {ticker_upper}")
         print_info(f"Period: {start_date.date()} to {end_date.date()}")
 
         strategies = []
@@ -149,13 +150,13 @@ class StrategyDashboard:
         try:
             comparison = compare_strategies(
                 strategies=strategies,
-                ticker=ticker.upper(),
+                ticker=ticker_upper,
                 start_date=start_date,
                 end_date=end_date,
             )
 
             if comparison.empty:
-                print_warning(f"No backtest results available for {ticker.upper()}")
+                print_warning(f"No backtest results available for {ticker_upper}")
                 return
 
             # Convert DataFrame to list of lists for display
@@ -259,7 +260,8 @@ class StrategyDashboard:
             returns = close_prices.pct_change().dropna()
             volatility = returns.std() * 100 if len(returns) > 0 else 0
 
-            # Determine regime
+            # Determine regime based on price relative to SMAs and volatility
+            # Volatility threshold of 2% indicates elevated market uncertainty
             if current > sma_20 > sma_50:
                 regime = "Uptrend"
                 recommended = ["momentum", "breakout"]
@@ -267,6 +269,7 @@ class StrategyDashboard:
                 regime = "Downtrend"
                 recommended = ["mean_reversion"]
             elif volatility > 2:
+                # >2% daily std dev suggests choppy/uncertain market
                 regime = "High Volatility"
                 recommended = ["mean_reversion"]
             else:
