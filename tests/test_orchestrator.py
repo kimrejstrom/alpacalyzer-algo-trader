@@ -32,7 +32,11 @@ def mock_strategy():
 @pytest.fixture
 def orchestrator(mock_aggregator, mock_execution_engine, mock_strategy):
     """Create a TradingOrchestrator with mocked dependencies."""
-    with patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator), patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine):
+    with (
+        patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+        patch("alpacalyzer.orchestrator.ExecutionEngine", return_value=mock_execution_engine),
+        patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+    ):
         return TradingOrchestrator(
             strategy=mock_strategy,
             analyze_mode=False,
@@ -135,9 +139,31 @@ class TestTradingOrchestratorScan:
         assert result[1].ticker == "MSFT"
         orchestrator.aggregator.aggregate.assert_not_called()
 
+    def test_scan_returns_empty_when_market_closed(self, orchestrator):
+        """Test that scan returns empty list when market is closed."""
+        orchestrator.is_market_open = False
+
+        result = orchestrator.scan()
+
+        assert result == []
+        orchestrator.aggregator.aggregate.assert_not_called()
+
 
 class TestTradingOrchestratorAnalyze:
     """Tests for TradingOrchestrator.analyze() method."""
+
+    def test_analyze_returns_empty_when_market_closed(self, orchestrator):
+        """Test that analyze returns empty list when market is closed."""
+        orchestrator.is_market_open = False
+        opportunities = [
+            TopTicker(ticker="AAPL", confidence=75, signal="bullish", reasoning="Strong momentum"),
+        ]
+
+        with patch("alpacalyzer.orchestrator.call_hedge_fund_agents") as mock_hedge_fund:
+            result = orchestrator.analyze(opportunities)
+
+            assert result == []
+            mock_hedge_fund.assert_not_called()
 
     def test_analyze_calls_hedge_fund(self, orchestrator):
         """Test that analyze() calls hedge fund agents."""

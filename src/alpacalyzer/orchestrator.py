@@ -146,8 +146,12 @@ class TradingOrchestrator:
         self._cleanup_cooldowns()
 
         # Get active positions to filter out
-        positions = get_positions()
-        active_tickers = [p.symbol for p in positions]
+        try:
+            positions = get_positions()
+            active_tickers = [p.symbol for p in positions]
+        except Exception as e:
+            logger.error(f"Failed to fetch positions: {e}")
+            active_tickers = []
         cooldown_tickers = list(self.recently_exited_tickers.keys())
 
         # Filter out already active or in-cooldown tickers
@@ -160,13 +164,14 @@ class TradingOrchestrator:
         # Call hedge fund agents
         hedge_fund_response = call_hedge_fund_agents(filtered_opportunities, self.agents, show_reasoning=True)
 
-        if not hedge_fund_response["decisions"]:
+        decisions = hedge_fund_response.get("decisions") or {}
+        if not decisions:
             logger.info("No trade decisions from hedge fund.")
             return []
 
         # Convert to TradingStrategy objects
         strategies: list[TradingStrategy] = []
-        for data in hedge_fund_response["decisions"].values():
+        for data in decisions.values():
             strategy_dicts = data.get("strategies", [])
             for strategy_dict in strategy_dicts:
                 strategy = TradingStrategy.model_validate(strategy_dict)
