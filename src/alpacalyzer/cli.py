@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import schedule
 
+from alpacalyzer.analysis.dashboard import dashboard_command
 from alpacalyzer.analysis.eod_performance import EODPerformanceAnalyzer
 from alpacalyzer.trading.alpaca_client import consume_trade_updates, get_market_close_time, liquidate_all_positions
 from alpacalyzer.trading.trader import Trader
@@ -60,9 +61,26 @@ def main():  # pragma: no cover
     parser.add_argument("--eod-date", type=str, help="EET date (YYYY-MM-DD) to analyze; defaults to today")
     parser.add_argument("--eod-threshold", type=float, default=1.0, help="Threshold percent (default 1.0)")
     parser.add_argument("--eod-timeframe", type=str, default="5Min", help="Bar timeframe (e.g., 5Min)")
+    # Dashboard options
+    parser.add_argument("--dashboard", action="store_true", help="Display strategy performance dashboard")
+    parser.add_argument("--ticker", type=str, help="Ticker symbol to analyze with dashboard")
+    parser.add_argument("--strategy", type=str, help="Strategy name for detailed dashboard backtest")
+    parser.add_argument("--days", type=int, default=30, help="Number of days of historical data for dashboard")
+    parser.add_argument("--conditions", action="store_true", help="Show market conditions analysis in dashboard")
     args = parser.parse_args()
 
     try:
+        # Run the dashboard and exit if requested
+        if args.dashboard:
+            logger.info("Running Strategy Performance Dashboard")
+            dashboard_command(
+                ticker=args.ticker,
+                strategy=args.strategy,
+                days=args.days,
+                conditions=args.conditions,
+            )
+            return
+
         # Run the EOD analyzer and exit if requested
         if args.eod_analyze:
             logger.info("Running End-of-Day Performance Analyzer")
