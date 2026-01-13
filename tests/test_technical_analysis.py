@@ -87,3 +87,37 @@ def test_calculate_technical_analysis_score_with_side(analyzer, daily_df, intrad
     assert isinstance(result["raw_score"], int)
     assert 0 <= result["score"] <= 1
     assert isinstance(result["momentum"], float)
+
+
+def test_calculate_technical_analysis_score_short_side(analyzer, daily_df, intraday_df):
+    symbol = "AAPL"
+    bearish_daily_df = daily_df.copy()
+    bearish_daily_df.loc[:, "SMA_20"] = 120
+    bearish_daily_df.loc[:, "SMA_50"] = 125
+    bearish_daily_df.loc[:, "RSI"] = 75
+    bearish_daily_df.loc[:, "Bullish_Engulfing"] = 0
+    bearish_daily_df.loc[:, "Bearish_Engulfing"] = -100
+
+    bearish_intraday_df = intraday_df.copy()
+    bearish_intraday_df.loc[:, "Bullish_Engulfing"] = 0
+    bearish_intraday_df.loc[:, "Bearish_Engulfing"] = -100
+    bearish_intraday_df.loc[:, "vwap"] = 115
+
+    result_long = analyzer.calculate_technical_analysis_score(symbol, daily_df, intraday_df, target_side="long")
+    result_short = analyzer.calculate_technical_analysis_score(symbol, bearish_daily_df, bearish_intraday_df, target_side="short")
+
+    assert result_long is not None
+    assert result_short is not None
+    assert result_short["score"] > result_long["score"]
+    assert any("Price below both MAs" in s for s in result_short["signals"])
+    assert any("Overbought RSI" in s for s in result_short["signals"])
+
+
+def test_calculate_short_candidate_score(analyzer, daily_df, intraday_df):
+    symbol = "AAPL"
+    result = analyzer.calculate_short_candidate_score(symbol, daily_df, intraday_df)
+
+    assert result is not None
+    assert result["symbol"] == symbol
+    assert result["price"] == 110
+    assert 0 <= result["score"] <= 1

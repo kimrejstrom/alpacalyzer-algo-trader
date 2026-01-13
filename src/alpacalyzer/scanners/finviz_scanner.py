@@ -14,10 +14,9 @@ class FinvizScanner:
         self.filters = [
             "geo_usa",  # U.S.-based stocks
             "ind_stocksonly",  # Stocks only (no ETFs, etc.)
-            "sh_curvol_o20000",  # Current volume over 20,000
+            "sh_curvol_o100000",  # Current volume over 100,000
             "sh_price_u50",  # Price under $50
             "sh_relvol_o1.5",  # Relative volume over 1.5
-            "ta_change_u",  # Stocks with positive price change
         ]
         # Specify table as "Custom"
         self.table = "Custom"
@@ -138,47 +137,66 @@ class FinvizScanner:
         # Get top N stocks
         return stocks_df
 
-    def score_stock(self, row):
+    def score_stock(self, row, target_side: str = "long"):
         score = 0
-        # 1. Penalize large gaps
         if abs(row["gap"]) > 5.0:
-            score -= 10  # Large penalty for excessive gaps
+            score -= 10
 
-        # 2. Reward strong relative volume
         if row["rel volume"] > 10:
-            score += 15  # Reduce the gap between "high" and "moderate"
-        elif row["rel volume"] > 5:  # Smooth transition zone
+            score += 15
+        elif row["rel volume"] > 5:
             score += 10
         elif row["rel volume"] > 2:
             score += 5
         else:
             score -= 5
 
-        # 4. Penalize overextended RSI (overbought)
-        if row["rsi"] > 80:
-            score -= 10  # Strong penalty for extreme overbought
-        elif 70 < row["rsi"] <= 80:
-            score -= 5  # Mild penalty for overbought
-        elif 30 <= row["rsi"] <= 70:
-            score += 10  # Reward for neutral RSI
-        elif row["rsi"] < 30:
-            score += 5  # Reward for oversold but smaller
+        if target_side == "long":
+            if row["rsi"] > 80:
+                score -= 10
+            elif 70 < row["rsi"] <= 80:
+                score -= 5
+            elif 30 <= row["rsi"] <= 70:
+                score += 10
+            elif row["rsi"] < 30:
+                score += 5
+        else:
+            if row["rsi"] > 80:
+                score += 10
+            elif 70 < row["rsi"] <= 80:
+                score += 5
+            elif 30 <= row["rsi"] <= 70:
+                score += 10
+            elif row["rsi"] < 30:
+                score -= 5
 
-        # 5. Favor stocks with positive SMA trends
-        if row["sma20"] > 0:
-            score += 10
-        if row["sma50"] > 0:
-            score += 20
+        if target_side == "long":
+            if row["sma20"] > 0:
+                score += 10
+            if row["sma50"] > 0:
+                score += 20
+        else:
+            if row["sma20"] < 0:
+                score += 10
+            if row["sma50"] < 0:
+                score += 20
 
-        # 6. Penalize extreme performance in the last week
-        if abs(row["perf week"]) > 50:
-            score -= 10  # Strong penalty for extreme moves
-        elif 10 < abs(row["perf week"]) <= 50:
-            score += 5  # Reward moderate movement
-        elif -10 <= row["perf week"] <= 10:
-            score += 10  # Reward stable performance
+        if target_side == "long":
+            if abs(row["perf week"]) > 50:
+                score -= 10
+            elif 10 < abs(row["perf week"]) <= 50:
+                score += 5
+            elif -10 <= row["perf week"] <= 10:
+                score += 10
+        else:
+            if abs(row["perf week"]) > 50:
+                score += 5
+            elif 10 < abs(row["perf week"]) <= 50:
+                score += 10
+            elif -10 <= row["perf week"] <= 10:
+                score += 5
 
-        return (score + 100) / 200  # Normalize score to 0-1 range
+        return (score + 100) / 200
 
 
 def main():
