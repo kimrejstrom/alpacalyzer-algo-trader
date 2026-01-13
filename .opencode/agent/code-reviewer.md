@@ -9,12 +9,7 @@ tools:
   read: true
   glob: true
   grep: true
-  github_pull_request_read: true
-  github_pull_request_write: true
-  github_git_issue_read: true
-  github_git_issue_write: true
-  github_git_create_pull_request: true
-  github_git_merge_pull_request: true
+  github_*: true
 permissions:
   write: allow
   edit: allow

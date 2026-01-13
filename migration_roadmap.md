@@ -1,12 +1,137 @@
 # Alpacalyzer Migration Plan: Strategy-First Architecture
 
-> **Status**: Planning
+> **Status**: 90% Complete → Final Cutover In Progress
 > **Created**: January 2026
-> **Target Completion**: TBD
+> **Last Assessment**: January 13, 2026
+> **Target Completion**: Phase 6 (Clean Break) - See issues #60-#66
 
 ## Executive Summary
 
 This document outlines a strategic refactoring of the Alpacalyzer Algo Trader to address architectural issues in the trading loop, entry/exit logic, and strategy management. The goal is to create a robust, flexible system that preserves existing strengths (agents, technical analysis, scanners) while fixing fundamental design problems.
+
+---
+
+## Migration Assessment (January 13, 2026)
+
+### Current State
+
+All five original migration phases have been implemented with working code and comprehensive test coverage (~125+ tests). The new architecture currently runs **in parallel** with the old `Trader` class via the `--new-engine` CLI flag.
+
+**Decision**: Proceed with **clean break** - full cutover to `ExecutionEngine` with `trader.py` removal.
+
+### Phase Completion Status
+
+| Phase       | Description              | Status         | Issues           | Notes                                  |
+| ----------- | ------------------------ | -------------- | ---------------- | -------------------------------------- |
+| **Phase 1** | Strategy Abstraction     | ✅ Complete    | #4-#8 (closed)   | `strategies/` module with 3 strategies |
+| **Phase 2** | Execution Engine         | ✅ Complete    | #9-#15 (closed)  | `execution/` module ready              |
+| **Phase 3** | Structured Logging       | ✅ Complete    | #17-#20 (closed) | 15 event types, `emit_event()` wired   |
+| **Phase 4** | Pipeline                 | ✅ Complete    | #21-#24 (closed) | `pipeline/` module ready               |
+| **Phase 5** | Backtesting & Strategies | ✅ Complete    | #25-#28 (closed) | Backtester + 3 strategies              |
+| **Phase 6** | Clean Break Cutover      | 🔄 In Progress | #60-#66 (open)   | Remove `trader.py`, full integration   |
+
+### Phase 6: Clean Break Migration (NEW)
+
+**Goal**: Remove `trader.py` entirely and make `ExecutionEngine` + `TradingOrchestrator` the only execution path.
+
+| Issue                                                                   | Title                      | Status  | Depends On    |
+| ----------------------------------------------------------------------- | -------------------------- | ------- | ------------- |
+| [#60](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/60) | Create TradingOrchestrator | 🔲 Open | -             |
+| [#61](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/61) | Create Scanner Adapters    | 🔲 Open | -             |
+| [#62](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/62) | Enhance ExecutionEngine    | 🔲 Open | -             |
+| [#63](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/63) | Rewrite CLI                | 🔲 Open | #60, #61, #62 |
+| [#64](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/64) | Delete trader.py           | 🔲 Open | #63           |
+| [#65](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/65) | Update Tests               | 🔲 Open | #64           |
+| [#66](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/66) | Update Documentation       | 🔲 Open | #65           |
+
+### Target Architecture (Post-Phase 6)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     OPPORTUNITY PIPELINE                         │
+├─────────────────────────────────────────────────────────────────┤
+│  ScannerRegistry                                                 │
+│  ├── RedditScannerAdapter (wraps existing scanner)              │
+│  └── SocialScannerAdapter (wraps existing scanner)              │
+│              │                                                   │
+│              ▼                                                   │
+│  OpportunityAggregator                                           │
+│  ├── Deduplication + scoring                                    │
+│  └── Rate limiting                                               │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   TRADING ORCHESTRATOR (NEW)                     │
+├─────────────────────────────────────────────────────────────────┤
+│  TradingOrchestrator                                             │
+│  ├── scan() → OpportunityAggregator                             │
+│  ├── analyze() → Hedge Fund Agents (LangGraph)                  │
+│  └── execute() → ExecutionEngine                                │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     EXECUTION ENGINE                             │
+├─────────────────────────────────────────────────────────────────┤
+│  ExecutionEngine (single loop, clear state)                      │
+│  ├── SignalQueue: Pending signals from analysis                  │
+│  ├── PositionTracker: Current positions + metadata              │
+│  ├── CooldownManager: Per-ticker cooldowns                      │
+│  └── OrderManager: Order submission + cancellation              │
+│                                                                  │
+│  Strategy (via StrategyRegistry)                                │
+│  ├── MomentumStrategy                                            │
+│  ├── BreakoutStrategy                                            │
+│  └── MeanReversionStrategy                                       │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     EVENT SYSTEM                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  15 Structured JSON event types via EventEmitter                │
+│  Handlers: Console, File (JSONL), Analytics                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Changes in Phase 6
+
+1. **New `TradingOrchestrator`** (`src/alpacalyzer/orchestrator.py`)
+
+   - Replaces `Trader` class for pipeline coordination
+   - Delegates all execution to `ExecutionEngine`
+   - Clean separation: scanning → analysis → execution
+
+2. **Scanner Adapters** (`src/alpacalyzer/scanners/adapters.py`)
+
+   - Wrap existing scanners to implement `BaseScanner` protocol
+   - Enable use with `ScannerRegistry` and `OpportunityAggregator`
+
+3. **Enhanced `OrderManager`**
+
+   - Full order cancellation logic (from `trader.py`)
+   - Position closing with bracket order handling
+   - Cooldown integration
+
+4. **CLI Rewrite**
+
+   - Remove `--new-engine` flag (new engine becomes default)
+   - Remove `Trader` import entirely
+   - Use `TradingOrchestrator` + `ExecutionEngine`
+
+5. **Delete `trader.py`**
+   - 686-line monolith removed
+   - All functionality migrated to new modules
+
+### Files to Delete
+
+- `src/alpacalyzer/trading/trader.py` (686 lines)
+
+### Files to Create
+
+- `src/alpacalyzer/orchestrator.py` (~150 lines)
+- `src/alpacalyzer/scanners/adapters.py` (~200 lines)
 
 ---
 
@@ -782,64 +907,140 @@ See GitHub issues for detailed implementation specs.
 
 ---
 
+## Phase 6: Final Cutover (Proposed)
+
+The migration architecture is complete. This phase covers the final transition from parallel systems to new-engine-only operation.
+
+### 6.1 Production Validation (Weeks 1-3)
+
+**Week 1: Analyze Mode Comparison**
+
+- [ ] Run both engines in analyze mode simultaneously
+- [ ] Compare entry/exit decisions between old and new
+- [ ] Document any behavioral differences
+- [ ] Fix critical discrepancies
+
+**Week 2-3: Paper Trading Validation**
+
+- [ ] Run new engine in paper trading mode
+- [ ] Monitor for edge cases and errors
+- [ ] Validate P&L calculations match expectations
+- [ ] Test emergency rollback procedure
+
+### 6.2 Cutover Execution
+
+- [ ] Make `--new-engine` the default behavior
+- [ ] Add `--legacy-engine` flag for rollback
+- [ ] Update documentation and README.md
+- [ ] Announce deprecation timeline for legacy code
+
+### 6.3 Legacy Code Removal
+
+After 30 days of successful new-engine operation:
+
+- [ ] Remove `Trader.monitor_and_trade()` method
+- [ ] Remove `Trader.check_entry_conditions()`
+- [ ] Remove `Trader.check_exit_conditions()`
+- [ ] Rename `Trader` class to `Orchestrator` (scanning only)
+- [ ] Remove `--legacy-engine` flag
+- [ ] Archive migration documentation
+
+### 6.4 Documentation Updates
+
+- [ ] Update README.md with current architecture
+- [ ] Refresh docs/ folder with new module documentation
+- [ ] Add strategy customization guide
+- [ ] Document event schema for external integrations
+- [ ] Update AGENTS.md with new workflow
+
+---
+
 ## GitHub Issues
 
-Issues are organized by phase and tracked in the repository: [View all migration issues](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues)
+All migration issues are **CLOSED**. Issues are organized by phase and tracked in the repository: [View all migration issues](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues)
 
-### Phase 1: Strategy Abstraction
+### Phase 1: Strategy Abstraction ✅ COMPLETE
 
-- [ ] [#4: Implement StrategyConfig Dataclass](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/4)
-- [ ] [#5: Create Strategy Protocol and Base Class](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/5)
-- [ ] [#6: Create Strategy Registry](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/6)
-- [ ] [#7: Extract MomentumStrategy from Current Logic](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/7)
-- [ ] [#8: Add Strategy Unit Tests](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/8)
+- [x] [#4: Implement StrategyConfig Dataclass](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/4)
+- [x] [#5: Create Strategy Protocol and Base Class](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/5)
+- [x] [#7: Create Strategy Registry](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/7)
+- [x] [#8: Extract MomentumStrategy from Current Logic](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/8)
+- [x] [#6: Add Strategy Unit Tests](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/6)
 
-### Phase 2: Execution Engine
+### Phase 2: Execution Engine ✅ COMPLETE
 
-- [ ] [#9: Create ExecutionEngine Core](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/9)
-- [ ] [#10: Implement SignalQueue](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/10)
-- [ ] [#11: Implement PositionTracker](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/11)
-- [ ] [#12: Implement CooldownManager](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/12)
-- [ ] [#13: Implement OrderManager](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/13)
-- [ ] [#14: Migrate from Trader to ExecutionEngine](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/14)
-- [ ] [#15: Add Execution Integration Tests](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/15)
+- [x] [#13: Create ExecutionEngine Core](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/13)
+- [x] [#9: Implement SignalQueue](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/9)
+- [x] [#11: Implement PositionTracker](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/11)
+- [x] [#12: Implement CooldownManager](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/12)
+- [x] [#10: Implement OrderManager](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/10)
+- [x] [#15: Migrate from Trader to ExecutionEngine](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/15)
+- [x] [#14: Add Execution Integration Tests](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/14)
 
-### Phase 3: Structured Logging
+### Phase 3: Structured Logging ✅ COMPLETE
 
-- [ ] [#17: Define Event Models](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/17)
-- [ ] [#18: Migrate Existing Log Calls](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/18)
-- [ ] [#19: Create EventEmitter](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/19)
-- [ ] [#20: Update EOD Analyzer](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/20)
+- [x] [#17: Define Event Models](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/17)
+- [x] [#18: Migrate Existing Log Calls](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/18) (partial - hybrid approach)
+- [x] [#19: Create EventEmitter](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/19)
+- [x] [#20: Update EOD Analyzer](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/20)
 
-### Phase 4: Opportunity Pipeline
+### Phase 4: Opportunity Pipeline ✅ COMPLETE
 
-- [ ] [#21: Implement ScannerRegistry](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/21)
-- [ ] [#22: Unify Scheduling with PipelineScheduler](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/22)
-- [ ] [#23: Create OpportunityAggregator](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/23)
-- [ ] [#24: Create Scanner Protocol](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/24)
+- [x] [#21: Implement ScannerRegistry](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/21)
+- [x] [#22: Unify Scheduling with PipelineScheduler](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/22)
+- [x] [#23: Create OpportunityAggregator](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/23)
+- [x] [#24: Create Scanner Protocol](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/24)
 
-### Phase 5: Backtesting & New Strategies
+### Phase 5: Backtesting & New Strategies ✅ COMPLETE
 
-- [ ] [#25: Implement MeanReversionStrategy](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/25)
-- [ ] [#26: Implement BreakoutStrategy](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/26)
-- [ ] [#27: Create Backtesting Framework](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/27)
-- [ ] [#28: Add Strategy Performance Dashboard](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/28)
+- [x] [#25: Implement MeanReversionStrategy](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/25)
+- [x] [#26: Implement BreakoutStrategy](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/26)
+- [x] [#27: Create Backtesting Framework](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/27)
+- [x] [#28: Add Strategy Performance Dashboard](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/28)
 
 ---
 
 ## Appendix
 
-### A. Current Code Statistics
+### A. Current Code Statistics (Updated January 13, 2026)
 
 ```
 src/alpacalyzer/
-├── trading/trader.py        576 lines (needs refactor)
-├── hedge_fund.py            165 lines (preserve)
-├── cli.py                   138 lines (simplify)
-├── analysis/technical_analysis.py  446 lines (preserve)
-├── agents/                  ~1500 lines total (preserve)
-├── scanners/                ~800 lines total (minor refactor)
-└── data/models.py           247 lines (preserve)
+├── trading/trader.py        685 lines (hybrid - uses new events + old logic)
+├── hedge_fund.py            165 lines (preserved ✅)
+├── cli.py                   206 lines (expanded with --new-engine flag)
+├── analysis/technical_analysis.py  446 lines (preserved ✅)
+├── agents/                  ~1500 lines total (preserved ✅)
+├── scanners/                ~800 lines total (preserved + events ✅)
+└── data/models.py           247 lines (preserved ✅)
+
+NEW MODULES:
+├── strategies/
+│   ├── base.py              254 lines ✅
+│   ├── config.py            219 lines ✅
+│   ├── registry.py          153 lines ✅
+│   ├── momentum.py          314 lines ✅
+│   ├── breakout.py          393 lines ✅
+│   └── mean_reversion.py    367 lines ✅
+├── execution/
+│   ├── engine.py            ~210 lines ✅
+│   ├── signal_queue.py      154 lines ✅
+│   ├── position_tracker.py  326 lines ✅
+│   ├── cooldown.py          ~130 lines ✅
+│   └── order_manager.py     244 lines ✅
+├── events/
+│   ├── models.py            220 lines ✅
+│   └── emitter.py           178 lines ✅
+├── pipeline/
+│   ├── scanner_protocol.py  106 lines ✅
+│   ├── registry.py          ~100 lines ✅
+│   ├── aggregator.py        195 lines ✅
+│   └── scheduler.py         167 lines ✅
+└── backtesting/
+    └── backtester.py        462 lines ✅
+
+TOTAL NEW CODE: ~3,592 lines
+TEST COVERAGE: ~125+ tests across 16 files
 ```
 
 ### B. Dependencies

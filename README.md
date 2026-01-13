@@ -42,65 +42,82 @@ The system executes trades automatically with predefined risk management paramet
 
 ## Architecture
 
-### Analyze Phase
+### Pipeline Overview
 
 ```mermaid
-flowchart LR
-  subgraph Opportunity Scanners
-    day[day scanner]
-    swing[swing scanner]
+flowchart TB
+  subgraph Scanning
+    reddit[Reddit Scanner]
+    social[Social Scanner]
+    finviz[Finviz Scanner]
   end
 
-  subgraph Agents
-    ta[TA agent]
-    quant[Quant agent]
-    other[Other Agents]
+  subgraph Pipeline
+    agg[Opportunity Aggregator]
   end
 
-  day --> ta
-  day --> quant
-  day --> other
+  subgraph Analysis
+    ta[Technical Agent]
+    sentiment[Sentiment Agent]
+    quant[Quant Agent]
+    value[Value Investors]
+    rm[Risk Manager]
+    pm[Portfolio Manager]
+  end
 
-  swing --> ta
-  swing --> quant
-  swing --> other
+  subgraph Execution
+    engine[Execution Engine]
+    strategy[Strategy Registry]
+    orders[Order Manager]
+  end
 
-  ta --> rm[Risk manager]
+  reddit --> agg
+  social --> agg
+  finviz --> agg
+
+  agg --> ta
+  agg --> sentiment
+  agg --> quant
+  agg --> value
+
+  ta --> rm
+  sentiment --> rm
   quant --> rm
-  other --> rm
+  value --> rm
 
-  rm -->|sizing| pm[Portfolio manager]
-  pm -->|trading decision| strategist[Trading strategist]
-  strategist --> strategy[Trading strategy]
-```
+  rm --> pm
+  pm --> engine
 
-### Trade Phase
-
-```mermaid
-flowchart LR
-  strategy[Trading strategies] --> monitor[Monitor & trade]
-
-  monitor --> entry[Check entry conditions]
-  entry --> exec[Execute strategy]
-  exec -->|LONG/SHORT bracket order| alpaca[Alpaca client]
-  exec -->|Liquidate position| alpaca
-  monitor --> exit[Check exit conditions]
-  exit --> exec
+  strategy --> engine
+  engine --> orders
+  orders -->|Bracket Orders| alpaca[Alpaca API]
 ```
 
 ### Key Components
 
-| Component       | Tech            | Location                                         |
-| --------------- | --------------- | ------------------------------------------------ |
-| CLI Entry       | Click           | `src/alpacalyzer/cli.py`                         |
-| Hedge Fund      | LangGraph       | `src/alpacalyzer/hedge_fund.py`                  |
-| Agents          | LangGraph nodes | `src/alpacalyzer/agents/`                        |
-| Scanners        | Python classes  | `src/alpacalyzer/scanners/`                      |
-| Tech Analysis   | TA-Lib          | `src/alpacalyzer/analysis/technical_analysis.py` |
-| Trader          | Stateful class  | `src/alpacalyzer/trading/trader.py`              |
-| Alpaca Client   | alpaca-py       | `src/alpacalyzer/trading/alpaca_client.py`       |
-| Data Models     | Pydantic        | `src/alpacalyzer/data/models.py`                 |
-| GPT Integration | OpenAI API      | `src/alpacalyzer/gpt/call_gpt.py`                |
+| Component     | Tech      | Location                                   | Description                  |
+| ------------- | --------- | ------------------------------------------ | ---------------------------- |
+| CLI Entry     | argparse  | `src/alpacalyzer/cli.py`                   | Command-line interface       |
+| Orchestrator  | Python    | `src/alpacalyzer/orchestrator.py`          | Pipeline coordination (WIP)  |
+| Hedge Fund    | LangGraph | `src/alpacalyzer/hedge_fund.py`            | Agent workflow DAG           |
+| Agents        | LangGraph | `src/alpacalyzer/agents/`                  | AI decision agents           |
+| Strategies    | Protocol  | `src/alpacalyzer/strategies/`              | Pluggable trading strategies |
+| Execution     | Python    | `src/alpacalyzer/execution/`               | Trade execution engine       |
+| Pipeline      | Python    | `src/alpacalyzer/pipeline/`                | Scanner aggregation          |
+| Events        | Pydantic  | `src/alpacalyzer/events/`                  | Structured event logging     |
+| Scanners      | Python    | `src/alpacalyzer/scanners/`                | Multi-source scanning        |
+| Tech Analysis | TA-Lib    | `src/alpacalyzer/analysis/`                | Technical indicators         |
+| Alpaca Client | alpaca-py | `src/alpacalyzer/trading/alpaca_client.py` | Broker API                   |
+| Data Models   | Pydantic  | `src/alpacalyzer/data/models.py`           | Type-safe models             |
+| GPT           | OpenAI    | `src/alpacalyzer/gpt/call_gpt.py`          | LLM integration              |
+
+### Available Strategies
+
+| Strategy         | Description                           | Config                      |
+| ---------------- | ------------------------------------- | --------------------------- |
+| `momentum`       | Trend-following with TA confirmation  | Default                     |
+| `breakout`       | Price breakout detection              | `--strategy breakout`       |
+| `mean_reversion` | Mean reversion on oversold conditions | `--strategy mean_reversion` |
 
 ---
 
@@ -175,8 +192,67 @@ uv run alpacalyzer
 ### Focus on Specific Tickers
 
 ```bash
-uv run alpacalyzer --analyze --tickers=AAPL,MSFT,GOOG
+uv run alpacalyzer --analyze --tickers AAPL,MSFT,GOOG
 ```
+
+### Select Trading Strategy
+
+```bash
+# Use momentum strategy (default)
+uv run alpacalyzer --strategy momentum
+
+# Use breakout strategy
+uv run alpacalyzer --strategy breakout
+
+# Use mean reversion strategy
+uv run alpacalyzer --strategy mean_reversion
+```
+
+### Select Agent Mode
+
+```bash
+# All agents (default)
+uv run alpacalyzer --agents ALL
+
+# Trade-focused agents only
+uv run alpacalyzer --agents TRADE
+
+# Investment-focused agents only
+uv run alpacalyzer --agents INVEST
+```
+
+### End-of-Day Analysis
+
+```bash
+# Run EOD performance analyzer
+uv run alpacalyzer --eod-analyze
+
+# Analyze specific date
+uv run alpacalyzer --eod-analyze --eod-date 2026-01-13
+```
+
+### Strategy Performance Dashboard
+
+```bash
+# Show dashboard for all strategies
+uv run alpacalyzer --dashboard
+
+# Backtest specific ticker
+uv run alpacalyzer --dashboard --ticker AAPL --strategy momentum --days 30
+```
+
+### CLI Options Reference
+
+| Flag                          | Description                         |
+| ----------------------------- | ----------------------------------- |
+| `--analyze`                   | Dry run mode (no real trades)       |
+| `--tickers AAPL,MSFT`         | Focus on specific tickers           |
+| `--strategy NAME`             | Select trading strategy             |
+| `--agents ALL\|TRADE\|INVEST` | Select agent mode                   |
+| `--stream`                    | Enable websocket streaming          |
+| `--ignore-market-status`      | Trade outside market hours          |
+| `--eod-analyze`               | Run EOD performance analyzer        |
+| `--dashboard`                 | Show strategy performance dashboard |
 
 ---
 
@@ -243,8 +319,19 @@ uv run pytest tests/test_technical_analysis.py -v
 ## Documentation
 
 - [AGENTS.md](AGENTS.md) - AI agent development guidelines
-- [migration_roadmap.md](migration_roadmap.md) - Architecture refactoring roadmap
+- [migration_roadmap.md](migration_roadmap.md) - Architecture refactoring roadmap (Phase 6 in progress)
 - [docs/](docs/index.md) - In-depth technical documentation
+
+### Migration Status
+
+The codebase is undergoing a strategic migration from a monolithic `Trader` class to a modular architecture:
+
+| Phase     | Status         | Description                                                           |
+| --------- | -------------- | --------------------------------------------------------------------- |
+| Phase 1-5 | ✅ Complete    | Strategy abstraction, execution engine, events, pipeline, backtesting |
+| Phase 6   | 🔄 In Progress | Clean break - remove `trader.py`, full `ExecutionEngine` cutover      |
+
+See [migration_roadmap.md](migration_roadmap.md) for details and [issues #60-#66](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues) for Phase 6 tracking.
 
 ---
 
