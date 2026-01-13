@@ -95,6 +95,22 @@ class TestFinvizScannerScoreStock:
         score = scanner.score_stock(row, target_side="short")
         assert score > 0.5
 
+    def test_score_stock_short_side_sma_positive_penalty(self):
+        scanner = FinvizScanner()
+        row = pd.Series(
+            {
+                "gap": 0,
+                "rel volume": 2,
+                "rsi": 50,
+                "sma20": 1.5,
+                "sma50": 2.0,
+                "perf week": 5,
+            }
+        )
+        score_short = scanner.score_stock(row, target_side="short")
+        score_long = scanner.score_stock(row, target_side="long")
+        assert score_short < score_long
+
     def test_score_stock_gap_penalty(self):
         scanner = FinvizScanner()
         row_high_gap = pd.Series(

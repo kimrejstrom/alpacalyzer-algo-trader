@@ -84,8 +84,11 @@ def risk_management_agent(state: AgentState):
         # Use day trading buying power for short positions with a safety factor
         safety_factor = 0.9  # Use 90% of available buying power to account for price movements
 
+        ticker_data = data.get(ticker, {})
+        is_bearish = ticker_data.get("suggested_side") == "bearish" or ticker_data.get("signal") == "bearish"
+
         if remaining_position_limit > 0:  # Only if we have remaining limit
-            if data.get(ticker, {}).get("suggested_side") == "bearish":
+            if is_bearish:
                 # For short positions:
                 # 1. Use day trading buying power instead of regular buying power
                 # 2. Apply margin requirement as a restricting factor (multiply, not divide)
@@ -115,7 +118,7 @@ def risk_management_agent(state: AgentState):
                 "available_cash": float(account["buying_power"]),
                 "day_trading_buying_power": float(account.get("daytrading_buying_power", 0)),
                 "adjusted_buying_power": float(adjusted_buying_power),
-                "trade_type": data.get(ticker, {}).get("trade_type", "long"),
+                "trade_type": "short" if is_bearish else "long",
             },
         }
 

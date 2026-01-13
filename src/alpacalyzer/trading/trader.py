@@ -164,6 +164,8 @@ class Trader:
                     if short_score and short_score["score"] > 0.6:
                         signal = "bearish"
                     else:
+                        if short_score is None:
+                            logger.debug(f"Could not calculate short score for {trading_signals['symbol']}")
                         signal = "neutral"
 
                 opportunity = TopTicker(
