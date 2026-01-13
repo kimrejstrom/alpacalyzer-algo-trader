@@ -9,7 +9,12 @@ tools:
   read: true
   glob: true
   grep: true
-  github_*: true
+  github_pull_request_read: true
+  github_pull_request_write: true
+  github_git_issue_read: true
+  github_git_issue_write: true
+  github_git_create_pull_request: true
+  github_git_merge_pull_request: true
 permissions:
   write: allow
   edit: allow
@@ -34,12 +39,18 @@ From the invoking agent:
 
 ## Review Process
 
-1. **Get PR details** using GitHub MCP tools:
+1. **Get PR details** using GitHub MCP tools or `gh` CLI:
+
    ```
+   # Try GitHub MCP first
    github_pull_request_read(method: "get", owner, repo, pullNumber)
    github_pull_request_read(method: "get_diff", owner, repo, pullNumber)
    github_pull_request_read(method: "get_files", owner, repo, pullNumber)
+
+   # Fallback to gh CLI if MCP fails
+   gh pr diff {PR_NUMBER} --repo {OWNER}/{REPO}
    ```
+
 2. **Review** against checklist below
 3. **Write** findings to `CODE_REVIEW_{ISSUE_NUMBER}.md`
 

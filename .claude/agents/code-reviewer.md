@@ -1,8 +1,14 @@
 ---
 name: code-reviewer
-description: Reviews PR code changes for quality, tests, and Stockalyzer conventions. Use after creating a PR or when requesting code review.
-tools: Read, Glob, Grep, Write, Edit, github_*
-disallowedTools: Bash
+description: Reviews PR code changes for quality, tests, and Alpacalyzer conventions. Use after creating a PR or when requesting code review.
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Write
+  - Edit
+  - Bash
+disallowedTools:
 permissionMode: default
 ---
 
@@ -24,18 +30,25 @@ From the invoking agent:
 
 ## Review Process
 
-1. **Get PR details** using GitHub MCP tools:
+1. **Get PR details** using GitHub MCP tools or `gh` CLI:
+
    ```
+   # Try GitHub MCP first
    github_pull_request_read(method: "get", owner, repo, pullNumber)
    github_pull_request_read(method: "get_diff", owner, repo, pullNumber)
    github_pull_request_read(method: "get_files", owner, repo, pullNumber)
+
+   # Fallback to gh CLI if MCP fails
+   gh pr view {PR_NUMBER} --repo {OWNER}/{REPO}
+   gh pr diff {PR_NUMBER} --repo {OWNER}/{REPO}
    ```
+
 2. **Review** against checklist below
 3. **Write** findings to `CODE_REVIEW_{ISSUE_NUMBER}.md`
 
 ---
 
-## Review Checklist## Review Checklist
+## Review Checklist
 
 ### Golden Rules (from AGENTS.md)
 
