@@ -98,4 +98,19 @@ def get_scanner_registry() -> ScannerRegistry:
     Returns:
         The global ScannerRegistry instance.
     """
-    return ScannerRegistry.get_instance()
+    registry = ScannerRegistry.get_instance()
+    if not registry._scanners:
+        _register_scanner_adapters(registry)
+    return registry
+
+
+def _register_scanner_adapters(registry: ScannerRegistry | None = None) -> None:
+    """Register scanner adapters (lazy registration to avoid circular imports)."""
+    from alpacalyzer.scanners.adapters import RedditScannerAdapter, SocialScannerAdapter
+
+    if registry is None:
+        registry = ScannerRegistry.get_instance()
+    if "reddit" not in registry._scanners:
+        registry.register(RedditScannerAdapter())
+    if "social" not in registry._scanners:
+        registry.register(SocialScannerAdapter())
