@@ -146,7 +146,7 @@ class OrderManager:
                     )
                 )
             except Exception:
-                pass
+                pass  # Event emission should not block order return
 
             return order
 
@@ -198,7 +198,7 @@ class OrderManager:
                     )
                 )
             except Exception:
-                pass
+                pass  # Event emission should not block order return
 
             return order
 
