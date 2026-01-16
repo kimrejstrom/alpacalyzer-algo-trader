@@ -38,6 +38,7 @@ class TestCLITradingOrchestrator:
     def test_cli_uses_trading_orchestrator_instead_of_trader(self, monkeypatch, mock_dependencies):
         """Test that CLI creates TradingOrchestrator, not Trader."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
@@ -59,6 +60,7 @@ class TestCLITradingOrchestrator:
     def test_cli_analyze_mode_creates_orchestrator_with_analyze_true(self, monkeypatch, mock_dependencies):
         """Test --analyze flag creates orchestrator with analyze_mode=True."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
@@ -81,6 +83,7 @@ class TestCLITradingOrchestrator:
     def test_cli_tickers_creates_orchestrator_with_direct_tickers(self, monkeypatch, mock_dependencies):
         """Test --tickers flag creates orchestrator with direct_tickers list."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
@@ -103,6 +106,7 @@ class TestCLITradingOrchestrator:
     def test_cli_strategy_uses_strategy_registry(self, monkeypatch, mock_dependencies):
         """Test --strategy flag creates strategy from registry."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
@@ -127,6 +131,7 @@ class TestCLITradingOrchestrator:
     def test_cli_agents_passed_to_orchestrator(self, monkeypatch, mock_dependencies):
         """Test --agents flag value is passed to orchestrator."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
@@ -149,6 +154,7 @@ class TestCLITradingOrchestrator:
     def test_cli_ignore_market_status_passed_to_orchestrator(self, monkeypatch, mock_dependencies):
         """Test --ignore-market-status flag is passed to orchestrator."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
@@ -177,6 +183,7 @@ class TestCLITradingOrchestrator:
     def test_cli_no_new_engine_flag(self, monkeypatch, mock_dependencies):
         """Test that --new-engine flag is removed."""
         import importlib
+
         import alpacalyzer.cli as cli_module
 
         importlib.reload(cli_module)
