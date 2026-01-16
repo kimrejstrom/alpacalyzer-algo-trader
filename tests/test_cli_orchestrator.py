@@ -40,7 +40,7 @@ class TestCLITradingOrchestrator:
         """Test that CLI creates TradingOrchestrator, not Trader."""
         import importlib  # ruff: noqa: I001
 
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -62,7 +62,7 @@ class TestCLITradingOrchestrator:
         """Test --analyze flag creates orchestrator with analyze_mode=True."""
         import importlib  # ruff: noqa: I001
 
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -85,7 +85,7 @@ class TestCLITradingOrchestrator:
         """Test --tickers flag creates orchestrator with direct_tickers list."""
         import importlib  # ruff: noqa: I001
 
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -107,7 +107,7 @@ class TestCLITradingOrchestrator:
     def test_cli_strategy_uses_strategy_registry(self, monkeypatch, mock_dependencies):
         """Test --strategy flag creates strategy from registry."""
         import importlib  # ruff: noqa: I001
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -131,7 +131,7 @@ class TestCLITradingOrchestrator:
     def test_cli_agents_passed_to_orchestrator(self, monkeypatch, mock_dependencies):
         """Test --agents flag value is passed to orchestrator."""
         import importlib  # ruff: noqa: I001
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -153,7 +153,7 @@ class TestCLITradingOrchestrator:
     def test_cli_ignore_market_status_passed_to_orchestrator(self, monkeypatch, mock_dependencies):
         """Test --ignore-market-status flag is passed to orchestrator."""
         import importlib  # ruff: noqa: I001
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -174,14 +174,14 @@ class TestCLITradingOrchestrator:
 
     def test_cli_no_trader_import(self, monkeypatch):
         """Test that CLI no longer imports or uses Trader."""
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         assert not hasattr(cli_module, "Trader"), "cli.py should not import Trader"
 
     def test_cli_no_new_engine_flag(self, monkeypatch, mock_dependencies):
         """Test that --new-engine flag is removed."""
         import importlib  # ruff: noqa: I001
-        import alpacalyzer.cli as cli_module
+        import alpacalyzer.cli as cli_module  # ruff: noqa: I001
 
         importlib.reload(cli_module)
 
@@ -273,5 +273,6 @@ class TestCLIScheduling:
                     args = MockThread.call_args[1]
                     assert args["target"] == consume_trade_updates
                     assert args["daemon"] is True
+
 
 
