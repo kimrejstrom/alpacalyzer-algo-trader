@@ -325,12 +325,11 @@ class TestOrderManager:
 
     def test_close_position_success(self, order_manager, mock_trading_client):
         """Test successful position closing."""
-        # Mock order cancellation
         mock_trading_client.get_orders.return_value = []
 
-        # Mock position close
         mock_order = Mock(spec=Order)
         mock_order.id = "close_order123"
+        mock_order.filled_avg_price = 155.0
         mock_trading_client.close_position.return_value = mock_order
 
         with patch("alpacalyzer.execution.order_manager.log_order"):
@@ -341,16 +340,15 @@ class TestOrderManager:
 
     def test_close_position_without_cancel(self, order_manager, mock_trading_client):
         """Test position closing without canceling orders."""
-        # Mock position close
         mock_order = Mock(spec=Order)
         mock_order.id = "close_order123"
+        mock_order.filled_avg_price = 155.0
         mock_trading_client.close_position.return_value = mock_order
 
         with patch("alpacalyzer.execution.order_manager.log_order"):
             result = order_manager.close_position("AAPL", cancel_orders=False)
 
         assert result == mock_order
-        # Should not call get_orders if cancel_orders=False
         mock_trading_client.get_orders.assert_not_called()
 
     def test_close_position_api_error(self, order_manager, mock_trading_client):
@@ -464,3 +462,46 @@ class TestOrderManager:
         """Test price rounding for prices below $1."""
         assert order_manager._round_price(0.123456) == 0.1235
         assert order_manager._round_price(0.99999) == 1.0000
+
+    def test_close_position_emits_exit_event(self, order_manager, mock_trading_client):
+        """Test that close_position emits ExitTriggeredEvent on success."""
+        from unittest.mock import patch
+
+        mock_trading_client.get_orders.return_value = []
+
+        mock_order = Mock(spec=Order)
+        mock_order.id = "close_order123"
+        mock_order.filled_avg_price = 155.0
+        mock_trading_client.close_position.return_value = mock_order
+
+        with patch("alpacalyzer.execution.order_manager.log_order"):
+            with patch("alpacalyzer.execution.order_manager.emit_event") as mock_emit:
+                result = order_manager.close_position("AAPL", cancel_orders=True)
+
+        assert result == mock_order
+        mock_emit.assert_called_once()
+        call_args = mock_emit.call_args[0][0]
+        assert call_args.event_type == "EXIT_TRIGGERED"
+        assert call_args.ticker == "AAPL"
+        assert call_args.exit_price == 155.0
+        assert call_args.reason == "strategy_exit"
+
+    def test_close_position_with_custom_reason(self, order_manager, mock_trading_client):
+        """Test that close_position uses custom reason when provided."""
+        from unittest.mock import patch
+
+        mock_trading_client.get_orders.return_value = []
+
+        mock_order = Mock(spec=Order)
+        mock_order.id = "close_order123"
+        mock_order.filled_avg_price = 160.0
+        mock_trading_client.close_position.return_value = mock_order
+
+        with patch("alpacalyzer.execution.order_manager.log_order"):
+            with patch("alpacalyzer.execution.order_manager.emit_event") as mock_emit:
+                result = order_manager.close_position("AAPL", reason="stop_loss")
+
+        assert result == mock_order
+        mock_emit.assert_called_once()
+        call_args = mock_emit.call_args[0][0]
+        assert call_args.reason == "stop_loss"

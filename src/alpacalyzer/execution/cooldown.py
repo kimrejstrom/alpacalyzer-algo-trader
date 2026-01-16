@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from alpacalyzer.events import CooldownStartedEvent, emit_event
+
 
 @dataclass
 class CooldownEntry:
@@ -69,6 +71,17 @@ class CooldownManager:
             strategy_name=strategy_name,
         )
         self._cooldowns[ticker] = entry
+
+        emit_event(
+            CooldownStartedEvent(
+                timestamp=entry.exit_time,
+                ticker=ticker,
+                duration_hours=entry.cooldown_hours,
+                reason=reason,
+                strategy=strategy_name,
+            )
+        )
+
         return entry
 
     def is_in_cooldown(self, ticker: str) -> bool:

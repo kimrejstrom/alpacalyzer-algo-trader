@@ -147,8 +147,10 @@ class ExecutionEngine:
 
     def _execute_exit(self, position: TrackedPosition, decision: ExitDecision) -> None:
         """Execute exit order for a position."""
-        self.orders.close_position(position.ticker)
-        self.positions.remove_position(position.ticker)
+        result = self.orders.close_position(position.ticker, reason=decision.reason)
+        if result:
+            self.positions.remove_position(position.ticker)
+            self.cooldowns.add_cooldown(position.ticker, decision.reason, "execution_engine")
 
     def _execute_entry(self, signal: PendingSignal, decision: EntryDecision) -> None:
         """Execute entry order for a signal."""

@@ -172,3 +172,28 @@ class TestExecutionEngine:
         assert context.buying_power == 8000.0
         assert "AAPL" in context.existing_positions
         assert "MSFT" in context.cooldown_tickers
+
+    def test_execute_exit_adds_cooldown(self, monkeypatch):
+        """Test that _execute_exit adds cooldown after closing position."""
+        from unittest.mock import MagicMock
+
+        config = ExecutionConfig(analyze_mode=True)
+        strategy = MockStrategy()
+        engine = ExecutionEngine(strategy, config)
+
+        mock_position = MagicMock()
+        mock_position.ticker = "AAPL"
+        mock_position.side = "long"
+
+        mock_decision = ExitDecision(should_exit=True, reason="stop_loss_hit", urgency="urgent")
+
+        mock_order = MagicMock()
+        monkeypatch.setattr(engine.orders, "close_position", lambda ticker, **kwargs: mock_order)
+
+        engine._execute_exit(mock_position, mock_decision)
+
+        assert engine.cooldowns.is_in_cooldown("AAPL")
+        entry = engine.cooldowns.get_cooldown("AAPL")
+        assert entry is not None
+        assert entry.reason == "stop_loss_hit"
+        assert entry.strategy_name == "execution_engine"
