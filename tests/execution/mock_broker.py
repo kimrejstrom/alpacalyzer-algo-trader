@@ -5,10 +5,25 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import Any
 
 from alpaca.trading.models import Asset
-from alpaca.trading.requests import GetOrdersRequest
+from alpaca.trading.requests import GetCalendarRequest, GetOrdersRequest
+
+
+class MockClock:
+    def __init__(self):
+        self.is_open = True
+        self.timestamp = datetime(2024, 1, 1, 14, 30, tzinfo=UTC)
+        self.next_open = datetime(2024, 1, 2, 9, 30, tzinfo=UTC)
+
+
+class MockCalendarEntry:
+    def __init__(self):
+        self.date = date.today()
+        self.open = datetime(2024, 1, 1, 9, 30, tzinfo=UTC)
+        self.close = datetime(2024, 1, 1, 16, 0, tzinfo=UTC)
 
 
 @dataclass
@@ -57,6 +72,14 @@ class MockAlpacaClient:
         self.buying_power: float = 100000.0
         self.equity: float = 100000.0
         self.market_status: str = "open"
+
+    def get_clock(self) -> MockClock:
+        """Get market clock."""
+        return MockClock()
+
+    def get_calendar(self, request: GetCalendarRequest) -> list[MockCalendarEntry]:
+        """Get calendar."""
+        return [MockCalendarEntry()]
 
     def get_all_positions(self) -> list[MockPosition]:
         """Get all positions."""
@@ -139,4 +162,5 @@ def mock_alpaca_client(monkeypatch) -> MockAlpacaClient:
     """
     mock = create_mock_broker()
     monkeypatch.setattr("alpacalyzer.trading.alpaca_client.trading_client", mock)
+    monkeypatch.setattr("alpacalyzer.trading.alpaca_client.get_market_status", lambda: "open")
     return mock
