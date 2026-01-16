@@ -250,3 +250,7 @@ class TradingOrchestrator:
         # Remove expired entries
         for ticker in expired_tickers:
             del self.recently_exited_tickers[ticker]
+
+    def execute_cycles(self) -> None:
+        """Run execution cycles for the execution engine."""
+        self.execution_engine.run_cycle()
