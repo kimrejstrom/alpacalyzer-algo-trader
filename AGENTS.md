@@ -45,36 +45,40 @@ Alpacalyzer is an AI-powered algorithmic trading platform that combines technica
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     OPPORTUNITY SCANNERS                         │
+│                     OPPORTUNITY PIPELINE                         │
 ├─────────────────────────────────────────────────────────────────┤
-│  RedditScanner      - Analyzes r/wallstreetbets, r/stocks       │
-│  SocialScanner      - WSB + Stocktwits + Finviz trending        │
-│  FinvizScanner      - Fundamental + technical screening          │
+│  ScannerRegistry                                                 │
+│  ├── RedditScannerAdapter                                        │
+│  └── SocialScannerAdapter                                        │
+│              │                                                   │
+│              ▼                                                   │
+│  OpportunityAggregator                                           │
 └─────────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   HEDGE FUND AGENT WORKFLOW (LangGraph)          │
+│                   TRADING ORCHESTRATOR                           │
 ├─────────────────────────────────────────────────────────────────┤
-│  Technical Analyst  - RSI, MACD, moving averages, patterns      │
-│  Sentiment Agent    - Social media sentiment analysis           │
-│  Quant Agent        - Quantitative metrics analysis             │
-│  Value Investors    - Graham, Buffett, Munger, Ackman, Wood    │
-│           │                                                      │
-│           ▼                                                      │
-│  Risk Manager       - Position sizing, risk assessment          │
-│  Portfolio Manager  - Portfolio allocation decisions            │
-│  Trading Strategist - Final trading recommendation              │
+│  TradingOrchestrator                                             │
+│  ├── scan() → OpportunityAggregator                             │
+│  ├── analyze() → Hedge Fund Agents                              │
+│  └── execute() → ExecutionEngine                                │
 └─────────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                        TRADER (Execution)                        │
+│                     EXECUTION ENGINE                             │
 ├─────────────────────────────────────────────────────────────────┤
-│  Monitors positions and market conditions                        │
-│  Evaluates entry/exit conditions                                │
-│  Places bracket orders (LONG/SHORT with stop-loss + target)     │
-│  Executes liquidations when conditions met                       │
+│  ExecutionEngine                                                 │
+│  ├── SignalQueue                                                 │
+│  ├── PositionTracker                                            │
+│  ├── CooldownManager                                            │
+│  └── OrderManager                                                │
+│                                                                  │
+│  Strategy (via StrategyRegistry)                                │
+│  ├── MomentumStrategy                                            │
+│  ├── BreakoutStrategy                                            │
+│  └── MeanReversionStrategy                                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,11 +87,15 @@ Alpacalyzer is an AI-powered algorithmic trading platform that combines technica
 | Component       | Tech            | Location                                         | Key Pattern            |
 | --------------- | --------------- | ------------------------------------------------ | ---------------------- |
 | CLI Entry       | Click           | `src/alpacalyzer/cli.py`                         | Command + scheduling   |
+| Orchestrator    | Python          | `src/alpacalyzer/orchestrator.py`                | Pipeline coordination  |
+| Execution       | Python          | `src/alpacalyzer/execution/`                     | Single loop engine     |
+| Strategies      | Protocol        | `src/alpacalyzer/strategies/`                    | Pluggable strategies   |
+| Pipeline        | Python          | `src/alpacalyzer/pipeline/`                      | Scanner aggregation    |
+| Events          | Pydantic        | `src/alpacalyzer/events/`                        | Structured logging     |
 | Hedge Fund      | LangGraph       | `src/alpacalyzer/hedge_fund.py`                  | DAG workflow           |
 | Agents          | LangGraph nodes | `src/alpacalyzer/agents/`                        | Agent pattern          |
 | Scanners        | Python classes  | `src/alpacalyzer/scanners/`                      | Data collectors        |
 | Tech Analysis   | TA-Lib          | `src/alpacalyzer/analysis/technical_analysis.py` | Indicator calculations |
-| Trader          | Stateful class  | `src/alpacalyzer/trading/trader.py`              | Entry/exit logic       |
 | Alpaca Client   | alpaca-py       | `src/alpacalyzer/trading/alpaca_client.py`       | API wrapper            |
 | Data Models     | Pydantic        | `src/alpacalyzer/data/models.py`                 | Type-safe models       |
 | GPT Integration | OpenAI API      | `src/alpacalyzer/gpt/call_gpt.py`                | Structured output      |
@@ -540,22 +548,24 @@ Agents are implemented as LangGraph nodes. When modifying agent workflow:
 
 ### Migration Context
 
-**Active migration in progress** - see `migration_roadmap.md`.
+**Migration Complete** - see `migration_roadmap.md` for full details.
 
-When working on migration issues:
+All phases of the architecture migration are now complete:
 
-- **Phase 1**: Creating new `strategies/` module (issues #4-8)
-- **Phase 2**: Creating new `execution/` module (issues #9-15)
-- **Phase 3**: Creating new `events/` module (issues #17-20)
-- **Phase 4**: Refactoring `scanners/` and `pipeline/` (issues #21-24)
-- **Phase 5**: New strategies and backtesting (issues #25-28)
+- **Phase 1**: `strategies/` module with 3 strategies
+- **Phase 2**: `execution/` module (ExecutionEngine, SignalQueue, PositionTracker, CooldownManager, OrderManager)
+- **Phase 3**: `events/` module with structured JSON logging
+- **Phase 4**: `pipeline/` module (ScannerRegistry, OpportunityAggregator)
+- **Phase 5**: Backtesting framework and performance dashboard
+- **Phase 6**: Clean break - `Trader` class removed, `TradingOrchestrator` is the entry point
 
-**Preserve existing components** during migration:
+**Final Architecture Components**:
 
-- `agents/` - Keep as-is
-- `analysis/technical_analysis.py` - Keep as-is
-- `data/models.py` - Keep as-is
-- `gpt/call_gpt.py` - Keep as-is
+- `orchestrator.py` - TradingOrchestrator (replaces Trader)
+- `strategies/` - Momentum, Breakout, MeanReversion strategies
+- `execution/` - Single loop execution engine
+- `pipeline/` - Scanner aggregation
+- `events/` - Structured event logging
 
 ---
 
