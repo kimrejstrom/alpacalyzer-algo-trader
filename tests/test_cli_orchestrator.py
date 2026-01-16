@@ -32,10 +32,20 @@ class TestCLIArgumentParsing:
     """Test CLI argument parsing for TradingOrchestrator."""
 
     def test_cli_no_new_engine_flag(self):
-        """Test that --new-engine flag is removed."""
+        """Test that --new-engine flag is removed and returns error."""
         from alpacalyzer.cli import main
 
         with patch.object(sys, "argv", ["alpacalyzer", "--new-engine"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+
+            assert exc_info.value.code == 2
+
+    def test_cli_no_legacy_engine_flag(self):
+        """Test that --legacy-engine flag is removed and returns error."""
+        from alpacalyzer.cli import main
+
+        with patch.object(sys, "argv", ["alpacalyzer", "--legacy-engine"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 

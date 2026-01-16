@@ -98,7 +98,7 @@ flowchart TB
 | Component     | Tech      | Location                                   | Description                  |
 | ------------- | --------- | ------------------------------------------ | ---------------------------- |
 | CLI Entry     | argparse  | `src/alpacalyzer/cli.py`                   | Command-line interface       |
-| Orchestrator  | Python    | `src/alpacalyzer/orchestrator.py`          | Pipeline coordination (WIP)  |
+| Orchestrator  | Python    | `src/alpacalyzer/orchestrator.py`          | Pipeline coordination        |
 | Hedge Fund    | LangGraph | `src/alpacalyzer/hedge_fund.py`            | Agent workflow DAG           |
 | Agents        | LangGraph | `src/alpacalyzer/agents/`                  | AI decision agents           |
 | Strategies    | Protocol  | `src/alpacalyzer/strategies/`              | Pluggable trading strategies |
@@ -324,14 +324,14 @@ uv run pytest tests/test_technical_analysis.py -v
 
 ### Migration Status
 
-The codebase is undergoing a strategic migration from a monolithic `Trader` class to a modular architecture:
+The codebase has completed a strategic migration from a monolithic `Trader` class to a modular architecture:
 
-| Phase     | Status         | Description                                                           |
-| --------- | -------------- | --------------------------------------------------------------------- |
-| Phase 1-5 | ✅ Complete    | Strategy abstraction, execution engine, events, pipeline, backtesting |
-| Phase 6   | 🔄 In Progress | Clean break - remove `trader.py`, full `ExecutionEngine` cutover      |
+| Phase     | Status      | Description                                                           |
+| --------- | ----------- | --------------------------------------------------------------------- |
+| Phase 1-5 | ✅ Complete | Strategy abstraction, execution engine, events, pipeline, backtesting |
+| Phase 6   | ✅ Complete | Clean break - removed `trader.py`, full `ExecutionEngine` integration |
 
-See [migration_roadmap.md](migration_roadmap.md) for details and [issues #60-#66](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues) for Phase 6 tracking.
+See [migration_roadmap.md](migration_roadmap.md) for details and completed [issues #60-#66](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues).
 
 ---
 
