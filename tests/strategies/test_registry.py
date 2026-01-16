@@ -58,6 +58,16 @@ class TestStrategyRegistry:
         StrategyRegistry._instances.clear()
         StrategyRegistry._default_configs.clear()
 
+    def teardown_method(self):
+        """Restore built-in strategies after each test."""
+        from alpacalyzer.strategies.breakout import BreakoutStrategy
+        from alpacalyzer.strategies.mean_reversion import MeanReversionStrategy
+        from alpacalyzer.strategies.momentum import MomentumStrategy
+
+        StrategyRegistry.register("breakout", BreakoutStrategy, BreakoutStrategy._default_config())
+        StrategyRegistry.register("mean_reversion", MeanReversionStrategy, MeanReversionStrategy._default_config())
+        StrategyRegistry.register("momentum", MomentumStrategy, MomentumStrategy._default_config())
+
     def test_register_strategy(self):
         """Test registering a strategy class."""
         StrategyRegistry.register("test", MockStrategy)
