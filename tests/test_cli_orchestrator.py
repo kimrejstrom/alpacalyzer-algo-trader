@@ -1,5 +1,6 @@
 """Tests for CLI integration with TradingOrchestrator."""
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -43,7 +44,7 @@ class TestCLITradingOrchestrator:
 
         importlib.reload(cli_module)
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--analyze"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--analyze"]):
             with patch.object(cli_module, "TradingOrchestrator") as MockOrchestrator:
                 mock_instance = MagicMock()
                 MockOrchestrator.return_value = mock_instance
@@ -65,7 +66,7 @@ class TestCLITradingOrchestrator:
 
         importlib.reload(cli_module)
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--analyze"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--analyze"]):
             with patch.object(cli_module, "TradingOrchestrator") as MockOrchestrator:
                 mock_instance = MagicMock()
                 MockOrchestrator.return_value = mock_instance
@@ -88,7 +89,7 @@ class TestCLITradingOrchestrator:
 
         importlib.reload(cli_module)
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--tickers", "AAPL,MSFT,GOOG"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--tickers", "AAPL,MSFT,GOOG"]):
             with patch.object(cli_module, "TradingOrchestrator") as MockOrchestrator:
                 mock_instance = MagicMock()
                 MockOrchestrator.return_value = mock_instance
@@ -106,14 +107,12 @@ class TestCLITradingOrchestrator:
     def test_cli_strategy_uses_strategy_registry(self, monkeypatch, mock_dependencies):
         """Test --strategy flag creates strategy from registry."""
         import importlib
-
         import alpacalyzer.cli as cli_module
-
         importlib.reload(cli_module)
 
         mock_strategy = MagicMock()
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--strategy", "momentum"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--strategy", "momentum"]):
             with patch.object(cli_module, "StrategyRegistry") as MockRegistry:
                 MockRegistry.get.return_value = mock_strategy
                 with patch.object(cli_module, "TradingOrchestrator") as MockOrchestrator:
@@ -131,12 +130,10 @@ class TestCLITradingOrchestrator:
     def test_cli_agents_passed_to_orchestrator(self, monkeypatch, mock_dependencies):
         """Test --agents flag value is passed to orchestrator."""
         import importlib
-
         import alpacalyzer.cli as cli_module
-
         importlib.reload(cli_module)
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--agents", "TRADE"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--agents", "TRADE"]):
             with patch.object(cli_module, "TradingOrchestrator") as MockOrchestrator:
                 mock_instance = MagicMock()
                 MockOrchestrator.return_value = mock_instance
@@ -154,12 +151,10 @@ class TestCLITradingOrchestrator:
     def test_cli_ignore_market_status_passed_to_orchestrator(self, monkeypatch, mock_dependencies):
         """Test --ignore-market-status flag is passed to orchestrator."""
         import importlib
-
         import alpacalyzer.cli as cli_module
-
         importlib.reload(cli_module)
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--ignore-market-status"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--ignore-market-status"]):
             with patch.object(cli_module, "TradingOrchestrator") as MockOrchestrator:
                 mock_instance = MagicMock()
                 MockOrchestrator.return_value = mock_instance
@@ -183,12 +178,10 @@ class TestCLITradingOrchestrator:
     def test_cli_no_new_engine_flag(self, monkeypatch, mock_dependencies):
         """Test that --new-engine flag is removed."""
         import importlib
-
         import alpacalyzer.cli as cli_module
-
         importlib.reload(cli_module)
 
-        with patch.object(cli_module.sys, "argv", ["alpacalyzer", "--new-engine"]):
+        with patch.object(sys, "argv", ["alpacalyzer", "--new-engine"]):
             with pytest.raises(SystemExit) as exc_info:
                 cli_module.main()
 
@@ -276,3 +269,4 @@ class TestCLIScheduling:
                     args = MockThread.call_args[1]
                     assert args["target"] == consume_trade_updates
                     assert args["daemon"] is True
+
