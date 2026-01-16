@@ -340,7 +340,6 @@ async def trade_updates_handler(update: TradeUpdate):
             return None
 
     side_str = getattr(side, "value", str(side)).upper()
-    order_type = getattr(order, "order_type", None) or "N/A"
     order_id = getattr(order, "id", None) or "N/A"
     ord_qty = _to_int(getattr(order, "qty", None))
     filled_qty = _to_int(getattr(order, "filled_qty", None))
@@ -351,9 +350,6 @@ async def trade_updates_handler(update: TradeUpdate):
     last_px = _to_float(getattr(update, "price", None))
 
     logger.info(f"\nTrade Update: {event} for ticker: {symbol} - Strategy: {strategy} ({side_str})")
-
-    # Build a standardized analytics line
-    base = f"[EXECUTION] Ticker: {symbol}, Side: {side_str}, OrderType: {order_type}, OrderId: {order_id}, ClientOrderId: {client_order_id}, Status: {event}"
 
     # Include cumulative fill snapshot for fill/partial_fill
     if event in {"fill", "partial_fill"}:
@@ -367,8 +363,6 @@ async def trade_updates_handler(update: TradeUpdate):
         elif px is not None:
             cum_seg = f"Px: {px}"
 
-        line = f"[EXECUTION] Ticker: {symbol}, Side: {side_str}, {cum_seg}, OrderType: {order_type}, OrderId: {order_id}, ClientOrderId: {client_order_id}, Status: {event}"
-        logger.analyze(line)
         logger.info(f"Order update for {symbol}: {cum_seg} ({event})")
 
         # Emit OrderFilledEvent for analytics (skip for invalid orders)
@@ -388,15 +382,6 @@ async def trade_updates_handler(update: TradeUpdate):
             )
 
     elif event in {"canceled", "rejected"}:
-        reason_hint = ""
-        # Try to include any message/reason in the update payload if present
-        for attr in ("reason", "message", "status_message"):
-            val = getattr(update, attr, None)
-            if val:
-                reason_hint = f", Reason: {val}"
-                break
-        logger.analyze(base + reason_hint)
-
         # Emit appropriate event (skip for invalid orders)
         if order_id != "N/A" and symbol is not None:
             if event == "canceled":
@@ -421,8 +406,7 @@ async def trade_updates_handler(update: TradeUpdate):
                 )
 
     else:
-        # Still log unknown events in analytics for completeness
-        logger.analyze(base)
+        pass
 
 
 def consume_trade_updates():

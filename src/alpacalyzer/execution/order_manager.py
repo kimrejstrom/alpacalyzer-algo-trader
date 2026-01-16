@@ -3,6 +3,7 @@
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import cast
 
 from alpaca.common.exceptions import APIError
@@ -10,6 +11,7 @@ from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.models import Asset, Order
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest
 
+from alpacalyzer.events import OrderSubmittedEvent, PositionClosedEvent, emit_event
 from alpacalyzer.trading.alpaca_client import log_order, trading_client
 from alpacalyzer.utils.logger import get_logger
 
@@ -128,6 +130,24 @@ class OrderManager:
             log_order(order)
             self._pending_orders[order.client_order_id] = order
 
+            try:
+                emit_event(
+                    OrderSubmittedEvent(
+                        timestamp=datetime.now(UTC),
+                        ticker=str(order.symbol) if order.symbol else params.ticker,
+                        order_id=str(order.id),
+                        client_order_id=str(order.client_order_id),
+                        side=params.side,
+                        quantity=int(order.qty) if order.qty else 0,
+                        order_type="limit",
+                        limit_price=float(order.limit_price) if order.limit_price else None,
+                        stop_price=float(order.stop_price) if order.stop_price else None,
+                        strategy=params.strategy_name,
+                    )
+                )
+            except Exception:
+                pass
+
             return order
 
         except Exception as e:
@@ -158,6 +178,27 @@ class OrderManager:
             order = cast(Order, order_response)
 
             log_order(order)
+
+            exit_price = float(order.filled_avg_price) if order.filled_avg_price else 0.0
+
+            try:
+                emit_event(
+                    PositionClosedEvent(
+                        timestamp=datetime.now(UTC),
+                        ticker=ticker,
+                        side="long",
+                        quantity=int(order.filled_qty) if order.filled_qty else 0,
+                        entry_price=0.0,
+                        exit_price=exit_price,
+                        pnl=0.0,
+                        pnl_pct=0.0,
+                        hold_duration_hours=0.0,
+                        strategy="order_manager",
+                        exit_reason="manual_close",
+                    )
+                )
+            except Exception:
+                pass
 
             return order
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from alpacalyzer.events import CooldownStartedEvent, emit_event
+from alpacalyzer.events import CooldownEndedEvent, CooldownStartedEvent, emit_event
 
 
 @dataclass
@@ -134,6 +134,12 @@ class CooldownManager:
         expired = [ticker for ticker, entry in self._cooldowns.items() if entry.is_expired()]
         for ticker in expired:
             del self._cooldowns[ticker]
+            emit_event(
+                CooldownEndedEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=ticker,
+                )
+            )
         return len(expired)
 
     def count(self) -> int:
