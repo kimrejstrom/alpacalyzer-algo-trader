@@ -436,3 +436,46 @@ class TestCreateCooldownManagerFromConfig:
 
         assert isinstance(manager, CooldownManager)
         assert manager.default_hours == 5
+
+
+class TestCooldownEventEmission:
+    """Tests for CooldownManager event emission."""
+
+    def test_add_cooldown_emits_event(self):
+        """Test add_cooldown emits CooldownStartedEvent."""
+        from unittest.mock import patch
+
+        manager = CooldownManager(default_hours=3)
+
+        with patch("alpacalyzer.execution.cooldown.emit_event") as mock_emit:
+            manager.add_cooldown(
+                ticker="AAPL",
+                reason="stop_loss_hit",
+                strategy_name="momentum",
+            )
+
+        mock_emit.assert_called_once()
+        call_args = mock_emit.call_args[0][0]
+        assert call_args.event_type == "COOLDOWN_STARTED"
+        assert call_args.ticker == "AAPL"
+        assert call_args.duration_hours == 3
+        assert call_args.reason == "stop_loss_hit"
+        assert call_args.strategy == "momentum"
+
+    def test_add_cooldown_with_custom_hours_emits_event(self):
+        """Test add_cooldown with custom hours emits correct event."""
+        from unittest.mock import patch
+
+        manager = CooldownManager(default_hours=3)
+
+        with patch("alpacalyzer.execution.cooldown.emit_event") as mock_emit:
+            manager.add_cooldown(
+                ticker="AAPL",
+                reason="target_hit",
+                strategy_name="momentum",
+                cooldown_hours=6,
+            )
+
+        mock_emit.assert_called_once()
+        call_args = mock_emit.call_args[0][0]
+        assert call_args.duration_hours == 6

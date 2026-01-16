@@ -325,12 +325,11 @@ class TestOrderManager:
 
     def test_close_position_success(self, order_manager, mock_trading_client):
         """Test successful position closing."""
-        # Mock order cancellation
         mock_trading_client.get_orders.return_value = []
 
-        # Mock position close
         mock_order = Mock(spec=Order)
         mock_order.id = "close_order123"
+        mock_order.filled_avg_price = 155.0
         mock_trading_client.close_position.return_value = mock_order
 
         with patch("alpacalyzer.execution.order_manager.log_order"):
@@ -341,16 +340,15 @@ class TestOrderManager:
 
     def test_close_position_without_cancel(self, order_manager, mock_trading_client):
         """Test position closing without canceling orders."""
-        # Mock position close
         mock_order = Mock(spec=Order)
         mock_order.id = "close_order123"
+        mock_order.filled_avg_price = 155.0
         mock_trading_client.close_position.return_value = mock_order
 
         with patch("alpacalyzer.execution.order_manager.log_order"):
             result = order_manager.close_position("AAPL", cancel_orders=False)
 
         assert result == mock_order
-        # Should not call get_orders if cancel_orders=False
         mock_trading_client.get_orders.assert_not_called()
 
     def test_close_position_api_error(self, order_manager, mock_trading_client):

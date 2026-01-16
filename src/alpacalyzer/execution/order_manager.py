@@ -150,16 +150,15 @@ class OrderManager:
             return None
 
         try:
-            # Cancel open orders first to avoid race conditions
             if cancel_orders:
                 self._cancel_orders_for_ticker(ticker, timeout_seconds)
 
-            # Close the position
             logger.info(f"Closing position for {ticker}")
             order_response = trading_client.close_position(ticker)
             order = cast(Order, order_response)
 
             log_order(order)
+
             return order
 
         except Exception as e:

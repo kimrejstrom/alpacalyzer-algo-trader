@@ -1,8 +1,10 @@
 """Execution engine for trade management."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from alpacalyzer.events import ExitTriggeredEvent, emit_event
 from alpacalyzer.execution.cooldown import CooldownManager
 from alpacalyzer.execution.order_manager import OrderManager, OrderParams
 from alpacalyzer.execution.position_tracker import PositionTracker, TrackedPosition
@@ -147,8 +149,28 @@ class ExecutionEngine:
 
     def _execute_exit(self, position: TrackedPosition, decision: ExitDecision) -> None:
         """Execute exit order for a position."""
-        self.orders.close_position(position.ticker)
-        self.positions.remove_position(position.ticker)
+        result = self.orders.close_position(position.ticker)
+        if result:
+            exit_price = float(result.filled_avg_price) if result.filled_avg_price else 0.0
+
+            emit_event(
+                ExitTriggeredEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=position.ticker,
+                    strategy="execution_engine",
+                    side=position.side,
+                    quantity=position.quantity,
+                    entry_price=position.avg_entry_price,
+                    exit_price=exit_price,
+                    pnl=position.unrealized_pnl,
+                    pnl_pct=position.unrealized_pnl_pct,
+                    hold_duration_hours=0.0,
+                    reason=decision.reason,
+                    urgency=decision.urgency,
+                )
+            )
+            self.positions.remove_position(position.ticker)
+            self.cooldowns.add_cooldown(position.ticker, decision.reason, "execution_engine")
 
     def _execute_entry(self, signal: PendingSignal, decision: EntryDecision) -> None:
         """Execute entry order for a signal."""
