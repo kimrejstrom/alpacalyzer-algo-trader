@@ -108,6 +108,7 @@ class TestCLITradingOrchestrator:
         """Test --strategy flag creates strategy from registry."""
         import importlib
         import alpacalyzer.cli as cli_module
+
         importlib.reload(cli_module)
 
         mock_strategy = MagicMock()
@@ -131,6 +132,7 @@ class TestCLITradingOrchestrator:
         """Test --agents flag value is passed to orchestrator."""
         import importlib
         import alpacalyzer.cli as cli_module
+
         importlib.reload(cli_module)
 
         with patch.object(sys, "argv", ["alpacalyzer", "--agents", "TRADE"]):
@@ -152,6 +154,7 @@ class TestCLITradingOrchestrator:
         """Test --ignore-market-status flag is passed to orchestrator."""
         import importlib
         import alpacalyzer.cli as cli_module
+
         importlib.reload(cli_module)
 
         with patch.object(sys, "argv", ["alpacalyzer", "--ignore-market-status"]):
@@ -179,6 +182,7 @@ class TestCLITradingOrchestrator:
         """Test that --new-engine flag is removed."""
         import importlib
         import alpacalyzer.cli as cli_module
+
         importlib.reload(cli_module)
 
         with patch.object(sys, "argv", ["alpacalyzer", "--new-engine"]):
