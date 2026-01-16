@@ -3,7 +3,6 @@
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import cast
 
 from alpaca.common.exceptions import APIError
@@ -11,7 +10,6 @@ from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.models import Asset, Order
 from alpaca.trading.requests import GetOrdersRequest, LimitOrderRequest
 
-from alpacalyzer.events import ExitTriggeredEvent, emit_event
 from alpacalyzer.trading.alpaca_client import log_order, trading_client
 from alpacalyzer.utils.logger import get_logger
 
@@ -141,7 +139,6 @@ class OrderManager:
         ticker: str,
         cancel_orders: bool = True,
         timeout_seconds: int = 30,
-        reason: str = "strategy_exit",
     ) -> Order | None:
         """
         Close a position, optionally canceling open orders first.
@@ -161,23 +158,6 @@ class OrderManager:
             order = cast(Order, order_response)
 
             log_order(order)
-
-            emit_event(
-                ExitTriggeredEvent(
-                    timestamp=datetime.now(UTC),
-                    ticker=ticker,
-                    strategy="execution_engine",
-                    side="unknown",
-                    quantity=0,
-                    entry_price=0.0,
-                    exit_price=float(order.filled_avg_price or 0),
-                    pnl=0.0,
-                    pnl_pct=0.0,
-                    hold_duration_hours=0.0,
-                    reason=reason,
-                    urgency="normal",
-                )
-            )
 
             return order
 

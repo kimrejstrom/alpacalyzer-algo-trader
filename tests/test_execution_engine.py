@@ -175,7 +175,7 @@ class TestExecutionEngine:
 
     def test_execute_exit_adds_cooldown(self, monkeypatch):
         """Test that _execute_exit adds cooldown after closing position."""
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         config = ExecutionConfig(analyze_mode=True)
         strategy = MockStrategy()
@@ -184,13 +184,32 @@ class TestExecutionEngine:
         mock_position = MagicMock()
         mock_position.ticker = "AAPL"
         mock_position.side = "long"
+        mock_position.quantity = 10
+        mock_position.avg_entry_price = 150.0
+        mock_position.unrealized_pnl = 50.0
+        mock_position.unrealized_pnl_pct = 0.033
 
         mock_decision = ExitDecision(should_exit=True, reason="stop_loss_hit", urgency="urgent")
 
         mock_order = MagicMock()
-        monkeypatch.setattr(engine.orders, "close_position", lambda ticker, **kwargs: mock_order)
+        mock_order.filled_avg_price = 155.0
+        monkeypatch.setattr(engine.orders, "close_position", lambda ticker: mock_order)
 
-        engine._execute_exit(mock_position, mock_decision)
+        with patch("alpacalyzer.execution.engine.emit_event") as mock_emit:
+            engine._execute_exit(mock_position, mock_decision)
+
+        mock_emit.assert_called_once()
+        call_args = mock_emit.call_args[0][0]
+        assert call_args.event_type == "EXIT_TRIGGERED"
+        assert call_args.ticker == "AAPL"
+        assert call_args.side == "long"
+        assert call_args.quantity == 10
+        assert call_args.entry_price == 150.0
+        assert call_args.exit_price == 155.0
+        assert call_args.pnl == 50.0
+        assert call_args.pnl_pct == 0.033
+        assert call_args.reason == "stop_loss_hit"
+        assert call_args.urgency == "urgent"
 
         assert engine.cooldowns.is_in_cooldown("AAPL")
         entry = engine.cooldowns.get_cooldown("AAPL")
