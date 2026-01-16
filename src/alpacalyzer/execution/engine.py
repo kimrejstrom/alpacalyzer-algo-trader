@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from alpacalyzer.events import ExitTriggeredEvent, emit_event
+from alpacalyzer.events import CycleCompleteEvent, EntryTriggeredEvent, ExitTriggeredEvent, emit_event
 from alpacalyzer.execution.cooldown import CooldownManager
 from alpacalyzer.execution.order_manager import OrderManager, OrderParams
 from alpacalyzer.execution.position_tracker import PositionTracker, TrackedPosition
@@ -184,6 +184,20 @@ class ExecutionEngine:
             strategy_name="execution_engine",
         )
 
+        emit_event(
+            EntryTriggeredEvent(
+                timestamp=datetime.now(UTC),
+                ticker=signal.ticker,
+                strategy="execution_engine",
+                side=signal.action,
+                quantity=decision.suggested_size,
+                entry_price=decision.entry_price,
+                stop_loss=decision.stop_loss,
+                target=decision.target,
+                reason=decision.reason,
+            )
+        )
+
         self.orders.submit_bracket_order(params)
         self.cooldowns.add_cooldown(signal.ticker, "entry_filled", "execution_engine")
 
@@ -228,9 +242,26 @@ class ExecutionEngine:
         self._emit_cycle_complete()
 
     def _emit_cycle_complete(self) -> None:
-        """Emit cycle complete event (would go to event logger)."""
-        # Placeholder for event emission
-        pass
+        """Emit cycle complete event."""
+        entries_evaluated = len(self.signal_queue)
+        entries_triggered = sum(1 for pos in self.positions.get_all())
+        exits_evaluated = len(self.positions.get_all())
+        exits_triggered = exits_evaluated
+        signals_pending = self.signal_queue.size()
+        positions_open = self.positions.count()
+
+        emit_event(
+            CycleCompleteEvent(
+                timestamp=datetime.now(UTC),
+                entries_evaluated=entries_evaluated,
+                entries_triggered=entries_triggered,
+                exits_evaluated=exits_evaluated,
+                exits_triggered=exits_triggered,
+                signals_pending=signals_pending,
+                positions_open=positions_open,
+                duration_seconds=0.0,
+            )
+        )
 
     def add_signal(self, signal: PendingSignal) -> None:
         """Add a signal to the queue for processing."""

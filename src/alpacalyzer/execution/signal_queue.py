@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from heapq import heapify, heappop, heappush
 
 from alpacalyzer.data.models import TradingStrategy
+from alpacalyzer.events import SignalExpiredEvent, emit_event
 
 
 @dataclass(order=True)
@@ -140,6 +141,14 @@ class SignalQueue:
 
         for signal in expired:
             self._tickers.discard(signal.ticker)
+            emit_event(
+                SignalExpiredEvent(
+                    timestamp=now,
+                    ticker=signal.ticker,
+                    created_at=signal.created_at,
+                    reason="signal_expired",
+                )
+            )
 
         self._heap = [s for s in self._heap if s not in expired]
         heapify(self._heap)
