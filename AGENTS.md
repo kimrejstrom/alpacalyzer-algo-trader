@@ -339,16 +339,15 @@ from alpacalyzer.strategies.base import BaseStrategy
 
 For detailed step-by-step procedures, see skill files in `.claude/skills/`:
 
-| Task                        | Skill File                        | When to Use                              |
-| --------------------------- | --------------------------------- | ---------------------------------------- |
-| Create new hedge fund agent | `new-agent/SKILL.md`              | Adding Warren Buffett, Ray Dalio, etc.   |
-| Create new data scanner     | `new-scanner/SKILL.md`            | Adding Twitter, StockTwits scanner       |
-| Create trading strategy     | `new-strategy/SKILL.md`           | Adding breakout, mean reversion strategy |
-| Add technical indicator     | `technical-indicator/SKILL.md`    | Adding Bollinger Bands, ATR, etc.        |
-| Work with GPT/prompts       | `gpt-integration/SKILL.md`        | Modifying agent prompts, GPT calls       |
-| Create Pydantic models      | `pydantic-model/SKILL.md`         | Event types, configs, data models        |
-| PR code review              | `pr-code-review/SKILL.md`         | After creating PR, invoke @code-reviewer |
-| Address code review         | `addressing-code-review/SKILL.md` | Fix issues from CODE*REVIEW*\*.md        |
+| Task                        | Skill File                     | When to Use                                                   |
+| --------------------------- | ------------------------------ | ------------------------------------------------------------- |
+| Create new hedge fund agent | `new-agent/SKILL.md`           | Adding Warren Buffett, Ray Dalio, etc.                        |
+| Create new data scanner     | `new-scanner/SKILL.md`         | Adding Twitter, StockTwits scanner                            |
+| Create trading strategy     | `new-strategy/SKILL.md`        | Adding breakout, mean reversion strategy                      |
+| Add technical indicator     | `technical-indicator/SKILL.md` | Adding Bollinger Bands, ATR, etc.                             |
+| Work with GPT/prompts       | `gpt-integration/SKILL.md`     | Modifying agent prompts, GPT calls                            |
+| Create Pydantic models      | `pydantic-model/SKILL.md`      | Event types, configs, data models                             |
+| Modify execution engine     | `execution/SKILL.md`           | Modifying execution loop, position tracking, order management |
 
 **Always reference skill files when performing these tasks.**
 
