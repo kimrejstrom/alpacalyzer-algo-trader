@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -606,6 +607,49 @@ def get_price_data(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
     """Get price data as a DataFrame."""
     prices = get_prices(ticker, start_date, end_date)
     return prices_to_df(prices)
+
+
+# VIX caching
+VIX_TTL = 3600
+_vix_cache: dict[str, tuple[float, float]] = {}
+
+
+def get_vix(use_cache: bool = True) -> float | None:
+    """
+    Fetch current VIX (CBOE Volatility Index) value.
+
+    Args:
+        use_cache: If True, returns cached value if within TTL
+
+    Returns:
+        VIX value or None if fetch fails
+
+    Caching:
+        VIX is cached for 1 hour to avoid repeated API calls.
+    """
+    from alpacalyzer.trading.yfinance_client import YFinanceClient
+
+    current_time = time.time()
+
+    if use_cache and "vix" in _vix_cache:
+        cached_value, cached_time = _vix_cache["vix"]
+        cache_age = current_time - cached_time
+
+        if cache_age < VIX_TTL:
+            return cached_value
+
+    try:
+        client = YFinanceClient()
+        vix_value = client.get_vix()
+
+        if vix_value is not None:
+            _vix_cache["vix"] = (vix_value, current_time)
+            return vix_value
+
+        return None
+    except Exception as e:
+        logger.error(f"Failed to fetch VIX: {e}")
+        return None
 
 
 # Helper functions

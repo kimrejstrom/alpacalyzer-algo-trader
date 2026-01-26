@@ -1,7 +1,7 @@
 """Tests for ExecutionEngine."""
 
 from dataclasses import dataclass
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from alpacalyzer.analysis.technical_analysis import TradingSignals
 from alpacalyzer.data.models import TradingStrategy
@@ -216,3 +216,99 @@ class TestExecutionEngine:
         assert entry is not None
         assert entry.reason == "stop_loss_hit"
         assert entry.strategy_name == "execution_engine"
+
+    def test_build_market_context_uses_real_vix(self, monkeypatch):
+        """Test that MarketContext contains actual VIX value from API."""
+
+        from alpacalyzer.data.api import _vix_cache
+        from alpacalyzer.execution.engine import ExecutionEngine
+
+        strategy = MockStrategy()
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_market_status",
+            lambda: "open",
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_account_info",
+            lambda: {"equity": 10000.0, "buying_power": 8000.0},
+        )
+
+        def mock_sync():
+            pass
+
+        _vix_cache.clear()
+        monkeypatch.setattr(
+            "alpacalyzer.data.api.get_vix",
+            lambda use_cache=True: 28.5,
+        )
+
+        engine = ExecutionEngine(strategy)
+        monkeypatch.setattr(engine.positions, "sync_from_broker", mock_sync)
+
+        context = engine._build_market_context()
+
+        assert context.vix == 28.5
+        assert 10.0 < context.vix < 50.0
+
+    def test_build_market_context_logs_elevated_vix(self, monkeypatch):
+        """Test that warning is logged when VIX > 30."""
+        from alpacalyzer.execution.engine import ExecutionEngine
+        from alpacalyzer.utils.logger import get_logger
+
+        strategy = MockStrategy()
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_market_status",
+            lambda: "open",
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_account_info",
+            lambda: {"equity": 10000.0, "buying_power": 8000.0},
+        )
+
+        def mock_sync():
+            pass
+
+        monkeypatch.setattr(
+            "alpacalyzer.data.api.get_vix",
+            lambda use_cache=True: 35.0,
+        )
+
+        engine = ExecutionEngine(strategy)
+        monkeypatch.setattr(engine.positions, "sync_from_broker", mock_sync)
+
+        logger = get_logger()
+        with patch.object(logger, "warning") as mock_warning:
+            engine._build_market_context()
+
+            assert mock_warning.called
+            call_args = str(mock_warning.call_args)
+            assert "Elevated VIX" in call_args
+
+    def test_build_market_context_fallback_vix_on_error(self, monkeypatch):
+        """Test that fallback VIX (25.0) is used when API returns default."""
+        from alpacalyzer.execution.engine import ExecutionEngine
+
+        strategy = MockStrategy()
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_market_status",
+            lambda: "open",
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.alpaca_client.get_account_info",
+            lambda: {"equity": 10000.0, "buying_power": 8000.0},
+        )
+
+        def mock_sync():
+            pass
+
+        monkeypatch.setattr(
+            "alpacalyzer.data.api.get_vix",
+            lambda use_cache=True: 25.0,
+        )
+
+        engine = ExecutionEngine(strategy)
+        monkeypatch.setattr(engine.positions, "sync_from_broker", mock_sync)
+
+        context = engine._build_market_context()
+
+        assert context.vix == 25.0
