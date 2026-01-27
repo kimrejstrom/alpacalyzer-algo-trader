@@ -211,10 +211,12 @@ class BreakoutStrategy(BaseStrategy):
                 side="long",
             )
 
+            size = self.calculate_position_size(signal, context, context.buying_power)
+
             return EntryDecision(
                 should_enter=True,
                 reason=f"Bullish breakout above {resistance:.2f} with {volume_ratio:.1f}x volume",
-                suggested_size=0,
+                suggested_size=size,
                 entry_price=price,
                 stop_loss=stop_loss,
                 target=target,
@@ -232,10 +234,12 @@ class BreakoutStrategy(BaseStrategy):
                 side="short",
             )
 
+            size = self.calculate_position_size(signal, context, context.buying_power)
+
             return EntryDecision(
                 should_enter=True,
                 reason=f"Bearish breakout below {support:.2f} with {volume_ratio:.1f}x volume",
-                suggested_size=0,
+                suggested_size=size,
                 entry_price=price,
                 stop_loss=stop_loss,
                 target=target,

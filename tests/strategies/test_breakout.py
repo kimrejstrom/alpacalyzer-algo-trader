@@ -1032,3 +1032,102 @@ class TestBreakoutStrategyProperties:
         strategy = BreakoutStrategy()
 
         assert strategy.name == "breakout"
+
+
+class TestBreakoutStrategyPositionSizing:
+    """Tests for BreakoutStrategy position sizing."""
+
+    def test_bullish_breakout_position_sizing(self):
+        """Test that bullish breakout calculates non-zero position size."""
+        config = BreakoutConfig(consolidation_periods=10, min_volume_ratio=1.5)
+        strategy = BreakoutStrategy(config)
+
+        pre_consolidation_prices = [100.0] * 20
+        pre_consolidation_highs = [100.5] * 20
+        pre_consolidation_lows = [99.5] * 20
+        pre_consolidation_volumes = [1_000_000] * 20
+
+        consolidation_prices = [100.0] * 10
+        consolidation_highs = [100.5] * 10
+        consolidation_lows = [99.5] * 10
+        consolidation_volumes = [1_000_000] * 10
+
+        pre_breakout_prices = [100.0] * 1
+        pre_breakout_highs = [100.5] * 1
+        pre_breakout_lows = [99.5] * 1
+        pre_breakout_volumes = [1_000_000] * 1
+
+        breakout_prices = [101.5]
+        breakout_highs = [102.0]
+        breakout_lows = [100.8]
+        breakout_volumes = [2_000_000]
+
+        prices = pre_consolidation_prices + consolidation_prices + pre_breakout_prices + breakout_prices
+        highs = pre_consolidation_highs + consolidation_highs + pre_breakout_highs + breakout_highs
+        lows = pre_consolidation_lows + consolidation_lows + pre_breakout_lows + breakout_lows
+        volumes = pre_consolidation_volumes + consolidation_volumes + pre_breakout_volumes + breakout_volumes
+
+        df = create_mock_data(prices, highs, lows, volumes)
+        signal = create_trading_signals("TEST", 101.5, df)
+
+        context = MarketContext(
+            vix=15.0,
+            market_status="open",
+            account_equity=100000.0,
+            buying_power=50000.0,
+            existing_positions=[],
+            cooldown_tickers=[],
+        )
+
+        decision = strategy.evaluate_entry(signal, context)
+
+        assert decision.should_enter is True
+        assert decision.suggested_size > 0, f"Position size should be > 0, got {decision.suggested_size}"
+        assert decision.entry_price == 101.5
+        assert decision.stop_loss < 101.5
+        assert decision.target > 101.5
+
+    def test_bearish_breakout_position_sizing(self):
+        """Test that bearish breakout calculates non-zero position size."""
+        config = BreakoutConfig(consolidation_periods=10, min_volume_ratio=1.5)
+        strategy = BreakoutStrategy(config)
+
+        pre_consolidation_prices = [100.0] * 20
+        pre_consolidation_highs = [100.5] * 20
+        pre_consolidation_lows = [99.5] * 20
+        pre_consolidation_volumes = [1_000_000] * 20
+
+        consolidation_prices = [100.0] * 10
+        consolidation_highs = [100.5] * 10
+        consolidation_lows = [99.5] * 10
+        consolidation_volumes = [1_000_000] * 10
+
+        breakout_prices = [98.5]
+        breakout_highs = [99.0]
+        breakout_lows = [97.0]
+        breakout_volumes = [2_000_000]
+
+        prices = pre_consolidation_prices + consolidation_prices + breakout_prices
+        highs = pre_consolidation_highs + consolidation_highs + breakout_highs
+        lows = pre_consolidation_lows + consolidation_lows + breakout_lows
+        volumes = pre_consolidation_volumes + consolidation_volumes + breakout_volumes
+
+        df = create_mock_data(prices, highs, lows, volumes)
+        signal = create_trading_signals("TEST", 98.5, df)
+
+        context = MarketContext(
+            vix=15.0,
+            market_status="open",
+            account_equity=100000.0,
+            buying_power=50000.0,
+            existing_positions=[],
+            cooldown_tickers=[],
+        )
+
+        decision = strategy.evaluate_entry(signal, context)
+
+        assert decision.should_enter is True
+        assert decision.suggested_size > 0, f"Position size should be > 0, got {decision.suggested_size}"
+        assert decision.entry_price == 98.5
+        assert decision.stop_loss > 98.5
+        assert decision.target < 98.5
