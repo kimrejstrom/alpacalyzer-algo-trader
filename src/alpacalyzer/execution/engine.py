@@ -10,6 +10,9 @@ from alpacalyzer.execution.order_manager import OrderManager, OrderParams
 from alpacalyzer.execution.position_tracker import PositionTracker, TrackedPosition
 from alpacalyzer.execution.signal_queue import PendingSignal, SignalQueue
 from alpacalyzer.strategies.base import EntryDecision, ExitDecision, MarketContext
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger()
 
 if TYPE_CHECKING:
     from alpacalyzer.strategies.base import Strategy
@@ -203,14 +206,18 @@ class ExecutionEngine:
 
     def _build_market_context(self) -> MarketContext:
         """Build market and account context."""
+        from alpacalyzer.data.api import get_vix
         from alpacalyzer.trading.alpaca_client import get_account_info, get_market_status
 
         account_info = get_account_info()
-        vix = 20.0  # TODO: Fetch VIX from market data API
+        vix = get_vix(use_cache=True)
         market_status = get_market_status()
 
+        if vix and vix > 30.0:
+            logger.warning(f"Elevated VIX detected: {vix:.2f}")
+
         return MarketContext(
-            vix=vix,
+            vix=vix if vix is not None else 20.0,
             market_status=market_status,
             account_equity=account_info["equity"],
             buying_power=account_info["buying_power"],
