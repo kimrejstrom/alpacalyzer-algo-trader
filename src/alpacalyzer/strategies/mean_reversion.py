@@ -88,6 +88,15 @@ class MeanReversionStrategy(BaseStrategy):
         """
         Evaluate whether to enter a mean reversion position.
 
+        NOTE: MeanReversionStrategy currently detects opportunities independently.
+        If agent_recommendation is provided, strategy should validate conditions
+        and use agent's entry/stop/target/quantity values.
+
+        Decision Flow:
+        - Strategy validates RSI oversold/overbought + Bollinger Band conditions
+        - If agent_recommendation provided: validate mean reversion fit, use agent values
+        - Reject if not in mean reversion range (RSI neutral, price within bands)
+
         Entry conditions (Long):
         - RSI below oversold threshold (< 30)
         - Price below lower Bollinger Band

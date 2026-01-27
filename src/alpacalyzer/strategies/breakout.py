@@ -133,10 +133,19 @@ class BreakoutStrategy(BaseStrategy):
         """
         Evaluate entry conditions for breakout.
 
+        NOTE: BreakoutStrategy detects opportunities independently through
+        technical analysis (consolidation + breakout pattern). The
+        agent_recommendation parameter is reserved for future use.
+
+        Decision Flow:
+        - Strategy validates consolidation pattern exists
+        - If agent_recommendation provided in future: use agent's values
+        - Reject if no clear consolidation pattern detected
+
         Args:
             signal: TradingSignals with technical analysis data
             context: Market and account context
-            agent_recommendation: Not used in breakout strategy
+            agent_recommendation: Reserved for future agent integration
 
         Returns:
             EntryDecision with entry details or rejection reason

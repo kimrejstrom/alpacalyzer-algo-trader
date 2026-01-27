@@ -100,6 +100,53 @@ Alpacalyzer is an AI-powered algorithmic trading platform that combines technica
 | Data Models     | Pydantic        | `src/alpacalyzer/data/models.py`                 | Type-safe models       |
 | GPT Integration | OpenAI API      | `src/alpacalyzer/gpt/call_gpt.py`                | Structured output      |
 
+### Agent vs. Strategy Decision Authority
+
+The trading system uses a two-tier decision model:
+
+**Tier 1: Agent (GPT-4 via TradingStrategist)**
+
+- Analyzes ticker from multiple perspectives
+- Proposes optimal trade setup:
+  - Entry point (price)
+  - Stop loss
+  - Take profit target
+  - Position size (quantity)
+  - Trade direction (long/short)
+- Provides reasoning
+
+**Tier 2: Trading Strategy**
+
+- Validates that agent's setup fits strategy's philosophy
+- Can REJECT if conditions don't match:
+  - MomentumStrategy: Rejects negative momentum, weak technicals
+  - BreakoutStrategy: Rejects no consolidation pattern
+  - MeanReversionStrategy: Rejects not-oversold/overbought conditions
+- MUST USE agent values for entry/stop/target/size (no recalculation)
+
+**Key Principle**
+
+> Agents propose, strategies validate. Strategies never override agent's calculated trade parameters.
+
+**Example Valid Flow:**
+
+1. Agent: "Buy AAPL @ $150, stop $145.5, target $163.5, 100 shares"
+2. MomentumStrategy: Validates momentum positive, technicals strong ✓
+3. ExecutionEngine: Submits order using agent's values
+
+**Example Valid Rejection:**
+
+1. Agent: "Buy AAPL @ $150, stop $145.5, target $163.5, 100 shares"
+2. MomentumStrategy: "Momentum -5% (negative), rejects" ✗
+3. ExecutionEngine: Discards signal
+
+**What Strategies Don't Do:**
+
+- Don't recalculate entry price
+- Don't change stop loss level
+- Don't modify take profit target
+- Don't adjust quantity based on their own logic
+
 ### Migration in Progress
 
 **See `migration_roadmap.md` for the target architecture**. We are refactoring from a monolithic trader to:
