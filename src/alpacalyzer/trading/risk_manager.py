@@ -6,10 +6,32 @@ from langchain_core.messages import HumanMessage
 
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.trading.alpaca_client import get_account_info, get_current_price, trading_client
+from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
 
+logger = get_logger()
 
-##### Risk Management Agent #####
+
+"""Risk Management Agent.
+
+Calculates position limits and buying power adjustments for trading decisions.
+
+Position Sizing Rules:
+- Base limit: 5% of portfolio equity per position
+- Long positions: Use regular buying power * 0.9 safety factor
+- Short positions: Use day trading buying power / margin_requirement * 0.9 safety factor
+
+Margin Calculation:
+- Margin requirement = 50% (typical for short positions)
+- Short capacity = day_trading_BP / margin_requirement
+- Example: $10k / 0.5 = $20k short capacity
+
+Safety Factor:
+- 90% of available buying power used
+- Accounts for price movements between analysis and execution
+"""
+
+
 def risk_management_agent(state: AgentState):
     """Controls position sizing based on real-world risk factors for multiple tickers."""
     data = state["data"]
@@ -91,9 +113,10 @@ def risk_management_agent(state: AgentState):
             if is_bearish:
                 # For short positions:
                 # 1. Use day trading buying power instead of regular buying power
-                # 2. Apply margin requirement as a restricting factor (multiply, not divide)
+                # 2. Divide by margin requirement (0.5 = 50%) to get actual short capacity
+                #    Margin requirement is what we must hold back, so we can control 2x
                 # 3. Apply safety factor
-                adjusted_buying_power = day_trading_buying_power * short_margin_requirement * safety_factor
+                adjusted_buying_power = day_trading_buying_power / short_margin_requirement * safety_factor
             else:
                 # For long positions, use regular buying power with safety factor
                 adjusted_buying_power = regular_buying_power * safety_factor
@@ -106,6 +129,12 @@ def risk_management_agent(state: AgentState):
         # Prevent negative position sizes
         if max_position_size < 0:
             max_position_size = 0
+
+        # Warn when approaching position limit threshold (80%)
+        if position_limit > 0:
+            position_usage_pct = abs(current_position_value) / position_limit
+            if position_usage_pct > 0.8:
+                logger.warning(f"{ticker}: Position limit usage at {position_usage_pct:.1%} (${abs(current_position_value):,.2f} / ${position_limit:,.2f})")
 
         risk_analysis[ticker] = {
             "remaining_position_limit": float(max_position_size),
