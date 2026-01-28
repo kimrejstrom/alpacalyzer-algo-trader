@@ -92,6 +92,34 @@ class Strategy(Protocol):
 
     The @runtime_checkable decorator allows isinstance() checks
     to verify protocol compliance at runtime.
+
+    DECISION FLOW:
+
+    1. Agent (GPT-4 via TradingStrategist) provides:
+       - entry_point: Suggested entry price
+       - stop_loss: Suggested stop loss price
+       - target_price: Suggested take profit price
+       - quantity: Suggested number of shares
+       - trade_type: 'long' or 'short'
+
+    2. Strategy validates setup against its philosophy:
+       - MomentumStrategy: Checks positive momentum trend
+       - BreakoutStrategy: Checks for consolidation pattern
+       - MeanReversionStrategy: Checks oversold/overbought conditions
+
+    3. If conditions don't match, STRATEGY REJECTS:
+       - Return EntryDecision(should_enter=False, reason="...")
+       - Agent's setup is discarded
+
+    4. If conditions match, STRATEGY USES AGENT VALUES:
+       - Use agent's entry_point, stop_loss, target_price, quantity
+       - DO NOT recalculate these values
+       - Return EntryDecision(should_enter=True, ...)
+
+    AUTHORITY:
+    - Agents have authority to propose trade setups
+    - Strategies have authority to reject if setup doesn't fit their style
+    - Strategies MUST NOT override agent's calculated values
     """
 
     def evaluate_entry(

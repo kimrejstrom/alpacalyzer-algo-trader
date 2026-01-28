@@ -104,7 +104,10 @@ class MomentumStrategy(BaseStrategy):
                 reason=f"Entry conditions not met ({conditions_met_count}/{total_conditions} conditions satisfied)",
             )
 
-        # Use agent recommendation values for trade setup
+        # Use agent recommendation values directly for trade setup
+        # Strategy's role: Validate technical conditions, not recalculate prices
+        # Agent provides: entry_point, stop_loss, target_price, quantity
+        # Strategy validates: Momentum trend, technical signals
         return EntryDecision(
             should_enter=True,
             reason=f"Entry conditions met ({conditions_met_count}/{total_conditions}), trade_type={trade_type}",

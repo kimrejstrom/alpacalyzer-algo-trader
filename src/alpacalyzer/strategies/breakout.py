@@ -18,6 +18,8 @@ from alpacalyzer.utils.logger import get_logger
 if TYPE_CHECKING:
     from alpaca.trading.models import Position
 
+    from alpacalyzer.data.models import TradingStrategy
+
 logger = get_logger()
 
 
@@ -128,15 +130,24 @@ class BreakoutStrategy(BaseStrategy):
         self,
         signal: TradingSignals,
         context: MarketContext,
-        agent_recommendation=None,
+        agent_recommendation: "TradingStrategy | None" = None,
     ) -> EntryDecision:
         """
         Evaluate entry conditions for breakout.
 
+        NOTE: BreakoutStrategy detects opportunities independently through
+        technical analysis (consolidation + breakout pattern). The
+        agent_recommendation parameter is reserved for future use.
+
+        Decision Flow:
+        - Strategy validates consolidation pattern exists
+        - If agent_recommendation provided in future: use agent's values
+        - Reject if no clear consolidation pattern detected
+
         Args:
             signal: TradingSignals with technical analysis data
             context: Market and account context
-            agent_recommendation: Not used in breakout strategy
+            agent_recommendation: Reserved for future agent integration
 
         Returns:
             EntryDecision with entry details or rejection reason
