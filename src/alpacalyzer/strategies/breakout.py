@@ -18,6 +18,8 @@ from alpacalyzer.utils.logger import get_logger
 if TYPE_CHECKING:
     from alpaca.trading.models import Position
 
+    from alpacalyzer.data.models import TradingStrategy
+
 logger = get_logger()
 
 
@@ -128,7 +130,7 @@ class BreakoutStrategy(BaseStrategy):
         self,
         signal: TradingSignals,
         context: MarketContext,
-        agent_recommendation=None,
+        agent_recommendation: "TradingStrategy | None" = None,
     ) -> EntryDecision:
         """
         Evaluate entry conditions for breakout.

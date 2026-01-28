@@ -124,6 +124,8 @@ The trading system uses a two-tier decision model:
   - MeanReversionStrategy: Rejects not-oversold/overbought conditions
 - MUST USE agent values for entry/stop/target/size (no recalculation)
 
+> **Note**: Not all strategies currently accept agent recommendations. BreakoutStrategy and MeanReversionStrategy currently detect opportunities independently through technical analysis. Agent integration for these strategies is planned for a future enhancement. MomentumStrategy is the primary strategy that follows the agent-propose/validate model.
+
 **Key Principle**
 
 > Agents propose, strategies validate. Strategies never override agent's calculated trade parameters.
