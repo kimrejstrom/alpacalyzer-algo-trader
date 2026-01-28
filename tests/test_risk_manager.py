@@ -1,9 +1,13 @@
 """Tests for Risk Management Agent."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from alpacalyzer.graph.state import AgentState
-from alpacalyzer.trading.risk_manager import risk_management_agent
+from alpacalyzer.trading.risk_manager import (
+    calculate_dynamic_position_size,
+    get_stock_atr,
+    risk_management_agent,
+)
 
 
 class TestShortPositionMarginCalculation:
@@ -78,3 +82,133 @@ class TestShortPositionMarginCalculation:
         assert actual_adjusted_buying_power == expected_adjusted_buying_power, (
             f"Expected adjusted_buying_power {expected_adjusted_buying_power}, got {actual_adjusted_buying_power}. Short positions should DIVIDE by margin requirement, not multiply."
         )
+
+
+class TestDynamicPositionSizing:
+    """Tests for dynamic position sizing based on ATR and VIX."""
+
+    def test_dynamic_sizing_with_atr(self):
+        """Test that position size scales with ATR."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=2.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=None,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+        risk_amount = 10000.0 * 0.002  # $20
+        risk_per_share = 2 * 2.0  # $4
+        expected_shares = int(risk_amount / risk_per_share)
+        expected_size = expected_shares * 100.0
+        assert size == expected_size
+
+    def test_dynamic_sizing_with_high_atr(self):
+        """Test that high ATR reduces position size."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=5.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=None,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+        assert size < 500.0
+        assert size > 0
+
+    def test_dynamic_sizing_with_low_atr(self):
+        """Test that low ATR increases position size, but capped at max."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=0.5):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=None,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+        risk_amount = 10000.0 * 0.002  # $20
+        risk_per_share = 2 * 0.5  # $1
+        expected_shares = int(risk_amount / risk_per_share)
+        uncapped_size = expected_shares * 100.0
+        max_size = 10000.0 * 0.05
+        expected_size = min(uncapped_size, max_size)
+        assert size == expected_size
+
+    def test_dynamic_sizing_with_vix(self):
+        """Test that VIX reduces position size."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=2.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size_no_vix = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=None,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+                size_with_vix = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=30.0,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+        assert size_with_vix < size_no_vix
+
+    def test_dynamic_sizing_atr_unavailable(self):
+        """Test fallback to fixed sizing when ATR unavailable."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=None):
+            size = calculate_dynamic_position_size(
+                ticker="AAPL",
+                portfolio_equity=10000.0,
+                vix=None,
+                base_risk_pct=0.002,
+                max_position_pct=0.05,
+            )
+        assert size == 500.0
+
+    def test_dynamic_sizing_zero_atr(self):
+        """Test fallback when ATR is zero."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=0.0):
+            size = calculate_dynamic_position_size(
+                ticker="AAPL",
+                portfolio_equity=10000.0,
+                vix=None,
+                base_risk_pct=0.002,
+                max_position_pct=0.05,
+            )
+        assert size == 500.0
+
+
+class TestGetStockAtr:
+    """Tests for get_stock_atr function."""
+
+    def test_get_stock_atr_returns_value(self):
+        """Test that ATR is returned when available."""
+        mock_signals = {"atr": 2.5}
+        with patch("alpacalyzer.analysis.technical_analysis.TechnicalAnalyzer") as mock_ta_class:
+            mock_ta = MagicMock()
+            mock_ta.analyze_stock.return_value = mock_signals
+            mock_ta_class.return_value = mock_ta
+            result = get_stock_atr("AAPL")
+        assert result == 2.5
+
+    def test_get_stock_atr_returns_none_when_unavailable(self):
+        """Test that None is returned when ATR unavailable."""
+        with patch("alpacalyzer.analysis.technical_analysis.TechnicalAnalyzer") as mock_ta_class:
+            mock_ta = MagicMock()
+            mock_ta.analyze_stock.return_value = None
+            mock_ta_class.return_value = mock_ta
+            result = get_stock_atr("AAPL")
+        assert result is None
+
+    def test_get_stock_atr_returns_none_when_key_missing(self):
+        """Test that None is returned when atr key missing."""
+        with patch("alpacalyzer.analysis.technical_analysis.TechnicalAnalyzer") as mock_ta_class:
+            mock_ta = MagicMock()
+            mock_ta.analyze_stock.return_value = {"price": 150.0}
+            mock_ta_class.return_value = mock_ta
+            result = get_stock_atr("AAPL")
+        assert result is None
