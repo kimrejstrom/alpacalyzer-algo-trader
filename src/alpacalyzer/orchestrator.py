@@ -47,6 +47,7 @@ class TradingOrchestrator:
         direct_tickers: list[str] | None = None,
         agents: Literal["ALL", "TRADE", "INVEST"] = "ALL",
         ignore_market_status: bool = False,
+        reset_state: bool = False,
     ):
         """
         Initialize the TradingOrchestrator.
@@ -57,6 +58,7 @@ class TradingOrchestrator:
             direct_tickers: Optional list of tickers to analyze directly
             agents: Which hedge fund agents to run
             ignore_market_status: If True, run regardless of market status
+            reset_state: If True, reset execution engine state on startup
         """
         self.analyze_mode = analyze_mode
         self.direct_tickers = direct_tickers or []
@@ -65,7 +67,11 @@ class TradingOrchestrator:
 
         # Initialize components
         self.aggregator = OpportunityAggregator()
-        self.execution_engine = ExecutionEngine(strategy=strategy, config=ExecutionConfig(analyze_mode=analyze_mode))
+        self.execution_engine = ExecutionEngine(
+            strategy=strategy,
+            config=ExecutionConfig(analyze_mode=analyze_mode),
+            reset_state=reset_state,
+        )
 
         # Track market status
         self.market_status = get_market_status()

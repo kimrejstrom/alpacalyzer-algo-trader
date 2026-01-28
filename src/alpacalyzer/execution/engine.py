@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from alpacalyzer.events import CycleCompleteEvent, EntryTriggeredEvent, ExitTriggeredEvent, emit_event
@@ -9,10 +10,13 @@ from alpacalyzer.execution.cooldown import CooldownManager
 from alpacalyzer.execution.order_manager import OrderManager, OrderParams
 from alpacalyzer.execution.position_tracker import PositionTracker, TrackedPosition
 from alpacalyzer.execution.signal_queue import PendingSignal, SignalQueue
+from alpacalyzer.execution.state import STATE_VERSION, EngineState
 from alpacalyzer.strategies.base import EntryDecision, ExitDecision, MarketContext
 from alpacalyzer.utils.logger import get_logger
 
 logger = get_logger()
+
+STATE_FILE = Path(".alpacalyzer-state.json")
 
 if TYPE_CHECKING:
     from alpacalyzer.strategies.base import Strategy
@@ -55,6 +59,7 @@ class ExecutionEngine:
         position_tracker: PositionTracker | None = None,
         cooldown_manager: CooldownManager | None = None,
         order_manager: OrderManager | None = None,
+        reset_state: bool = False,
     ):
         self.strategy = strategy
         self.config = config or ExecutionConfig()
@@ -64,6 +69,8 @@ class ExecutionEngine:
         self.orders = order_manager or OrderManager(analyze_mode=self.config.analyze_mode)
 
         self._running = False
+
+        self.load_state(reset=reset_state)
 
     def run_cycle(self) -> None:
         """
@@ -105,6 +112,9 @@ class ExecutionEngine:
 
         # 5. Emit cycle complete event
         self._emit_cycle_complete()
+
+        # 6. Save state
+        self.save_state()
 
     def _process_exit(self, position: TrackedPosition) -> None:
         """Evaluate and execute exit for a position."""
@@ -248,6 +258,9 @@ class ExecutionEngine:
         self.cooldowns.cleanup_expired()
         self._emit_cycle_complete()
 
+        # Save state after cycle completes
+        self.save_state()
+
     def _emit_cycle_complete(self) -> None:
         """Emit cycle complete event."""
         entries_evaluated = len(self.signal_queue)
@@ -281,3 +294,50 @@ class ExecutionEngine:
     def stop(self) -> None:
         """Stop the execution loop."""
         self._running = False
+
+    def save_state(self) -> None:
+        """Save current engine state to disk."""
+        try:
+            state = EngineState(
+                version=STATE_VERSION,
+                timestamp=datetime.now(UTC),
+                signal_queue=self.signal_queue.to_dict(),
+                positions=self.positions.to_dict(),
+                cooldowns=self.cooldowns.to_dict(),
+                orders=self.orders.to_dict(),
+            )
+
+            STATE_FILE.write_text(state.to_json(), encoding="utf-8")
+            logger.debug(f"State saved to {STATE_FILE}")
+        except Exception as e:
+            logger.error(f"Failed to save state: {e}")
+
+    def load_state(self, reset: bool = False) -> None:
+        """
+        Load engine state from disk.
+
+        Args:
+            reset: If True, ignore saved state and start fresh
+        """
+        if reset or not STATE_FILE.exists():
+            logger.info("Starting with fresh state")
+            return
+
+        try:
+            state_json = STATE_FILE.read_text(encoding="utf-8")
+            state = EngineState.from_json(state_json)
+
+            if state.version != STATE_VERSION:
+                logger.warning(f"State version mismatch: {state.version} != {STATE_VERSION}. Starting with fresh state.")
+                return
+
+            logger.info(f"Loading state from {state.timestamp}")
+
+            self.signal_queue = SignalQueue.from_dict(state.signal_queue)
+            self.positions = PositionTracker.from_dict(state.positions)
+            self.cooldowns = CooldownManager.from_dict(state.cooldowns)
+            self.orders = OrderManager.from_dict(state.orders)
+
+            logger.info(f"State loaded: {len(self.signal_queue._heap)} signals, {len(self.positions._positions)} positions, {len(self.cooldowns._cooldowns)} cooldowns")
+        except Exception as e:
+            logger.error(f"Failed to load state: {e}. Starting fresh.")

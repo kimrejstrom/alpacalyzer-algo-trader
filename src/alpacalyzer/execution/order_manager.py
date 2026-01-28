@@ -4,7 +4,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from alpaca.common.exceptions import APIError
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
@@ -281,3 +281,47 @@ class OrderManager:
         if price > 1:
             return round(price, 2)
         return round(price, 4)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize orders to dictionary."""
+        pending_orders = []
+        for client_order_id, order in self._pending_orders.items():
+            order_data = {
+                "client_order_id": client_order_id,
+                "order_id": str(order.id),
+                "symbol": order.symbol,
+                "side": str(order.side) if order.side else None,
+                "qty": order.qty,
+                "filled_qty": order.filled_qty,
+                "status": str(order.status) if order.status else None,
+            }
+            pending_orders.append(order_data)
+
+        return {
+            "analyze_mode": self.analyze_mode,
+            "pending_orders": pending_orders,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OrderManager":
+        """Deserialize orders from dictionary."""
+        manager = cls(analyze_mode=data.get("analyze_mode", False))
+
+        for order_data in data.get("pending_orders", []):
+            from alpaca.trading.models import Order
+
+            order_id = order_data.get("order_id", "")
+            client_order_id = order_data.get("client_order_id", "")
+
+            fake_order = Order(
+                id=order_id,
+                client_order_id=client_order_id,
+                symbol=order_data.get("symbol"),
+                side=order_data.get("side"),
+                qty=order_data.get("qty"),
+                filled_qty=order_data.get("filled_qty"),
+                status=order_data.get("status"),
+            )
+            manager._pending_orders[client_order_id] = fake_order
+
+        return manager
