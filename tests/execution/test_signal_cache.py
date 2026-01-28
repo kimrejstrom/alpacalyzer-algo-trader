@@ -97,6 +97,7 @@ class TestCacheMiss:
         mock_position.ticker = "AAPL"
         mock_position.side = "long"
         mock_position.quantity = 100
+        mock_position.has_bracket_order = False
 
         engine._process_exit(mock_position)
 
@@ -220,6 +221,7 @@ class TestTechnicalAnalyzerReuse:
         mock_position.ticker = "AAPL"
         mock_position.side = "long"
         mock_position.quantity = 100
+        mock_position.has_bracket_order = False
 
         engine._process_exit(mock_position)
 
@@ -255,6 +257,7 @@ class TestPerformanceBenchmark:
         mock_position.ticker = "AAPL"
         mock_position.side = "long"
         mock_position.quantity = 100
+        mock_position.has_bracket_order = False
 
         engine._process_exit(mock_position)
 

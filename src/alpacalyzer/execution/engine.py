@@ -1,4 +1,24 @@
-"""Execution engine for trade management."""
+"""
+Execution engine for trade management.
+
+EXIT MECHANISM PRECEDENCE:
+
+1. BRACKET ORDERS (Primary)
+   - Automatic stop loss and take profit orders
+   - Managed by Alpaca broker
+   - Triggered by price movement
+   - Most reliable and fast
+   - Used for: Normal exit conditions
+
+2. DYNAMIC EXITS (Secondary)
+   - strategy.evaluate_exit() called each cycle
+   - Manual position close via ExecutionEngine
+   - Used for: Emergency conditions only
+   - Examples: Catastrophic momentum drop, technical score collapse
+
+RULE: If position has active bracket order, dynamic exit is SKIPPED.
+This prevents race conditions and redundant closing attempts.
+"""
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -169,6 +189,10 @@ class ExecutionEngine:
 
     def _process_exit(self, position: TrackedPosition) -> None:
         """Evaluate and execute exit for a position."""
+        if position.has_bracket_order:
+            logger.debug(f"Skipping dynamic exit for {position.ticker}: has active bracket order (will be managed by broker)")
+            return
+
         signals = self._get_cached_signal(position.ticker)
 
         if signals is None:
@@ -245,6 +269,7 @@ class ExecutionEngine:
                     hold_duration_hours=0.0,
                     reason=decision.reason,
                     urgency=decision.urgency,
+                    exit_mechanism="dynamic_exit",
                 )
             )
             self.positions.remove_position(position.ticker)
