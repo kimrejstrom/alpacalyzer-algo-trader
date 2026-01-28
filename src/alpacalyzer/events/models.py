@@ -81,6 +81,10 @@ class ExitTriggeredEvent(BaseModel):
     hold_duration_hours: float = Field(description="How long position was held")
     reason: str = Field(description="Reason for exit")
     urgency: str = Field(description="Exit urgency (normal, urgent, immediate)")
+    exit_mechanism: str = Field(
+        default="dynamic_exit",
+        description="Exit mechanism that triggered (dynamic_exit, bracket_order)",
+    )
 
 
 class OrderSubmittedEvent(BaseModel):

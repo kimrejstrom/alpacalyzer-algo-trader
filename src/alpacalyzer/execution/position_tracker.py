@@ -38,6 +38,9 @@ class TrackedPosition:
     stop_loss: float | None = None
     target: float | None = None
 
+    # Bracket order tracking
+    has_bracket_order: bool = True
+
     # State tracking
     exit_attempts: int = 0
     last_exit_attempt: datetime | None = None
@@ -134,6 +137,7 @@ class TrackedPosition:
             "entry_order_id": self.entry_order_id,
             "stop_loss": self.stop_loss,
             "target": self.target,
+            "has_bracket_order": self.has_bracket_order,
             "exit_attempts": self.exit_attempts,
             "last_exit_attempt": self.last_exit_attempt.isoformat() if self.last_exit_attempt else None,
             "notes": self.notes,
@@ -164,6 +168,7 @@ class TrackedPosition:
             entry_order_id=data.get("entry_order_id"),
             stop_loss=data.get("stop_loss"),
             target=data.get("target"),
+            has_bracket_order=data.get("has_bracket_order", True),
             exit_attempts=data.get("exit_attempts", 0),
             last_exit_attempt=last_exit_attempt,
             notes=data.get("notes", []),
@@ -238,6 +243,7 @@ class PositionTracker:
         order_id: str | None = None,
         stop_loss: float | None = None,
         target: float | None = None,
+        has_bracket_order: bool = True,
     ) -> TrackedPosition:
         """
         Add a new position (called after order fill).
@@ -269,6 +275,7 @@ class PositionTracker:
             entry_order_id=order_id,
             stop_loss=stop_loss,
             target=target,
+            has_bracket_order=has_bracket_order,
         )
         self._positions[ticker] = position
         return position
