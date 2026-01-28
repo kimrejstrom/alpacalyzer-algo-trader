@@ -1,7 +1,7 @@
 """Tests for technical signal caching in ExecutionEngine."""
 
 from time import time as time_func
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
