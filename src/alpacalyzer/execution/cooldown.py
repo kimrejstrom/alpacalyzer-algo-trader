@@ -31,6 +31,27 @@ class CooldownEntry:
         remaining = self.expires_at - datetime.now(UTC)
         return remaining if remaining > timedelta(0) else timedelta(0)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize cooldown entry to dictionary."""
+        return {
+            "ticker": self.ticker,
+            "exit_time": self.exit_time.isoformat(),
+            "cooldown_hours": self.cooldown_hours,
+            "reason": self.reason,
+            "strategy_name": self.strategy_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CooldownEntry":
+        """Deserialize cooldown entry from dictionary."""
+        return cls(
+            ticker=data["ticker"],
+            exit_time=datetime.fromisoformat(data["exit_time"]),
+            cooldown_hours=data["cooldown_hours"],
+            reason=data["reason"],
+            strategy_name=data["strategy_name"],
+        )
+
 
 class CooldownManager:
     """
@@ -150,6 +171,23 @@ class CooldownManager:
     def clear(self) -> None:
         """Clear all cooldowns."""
         self._cooldowns.clear()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize cooldowns to dictionary."""
+        return {
+            "cooldowns": {ticker: entry.to_dict() for ticker, entry in self._cooldowns.items()},
+            "default_hours": self.default_hours,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CooldownManager":
+        """Deserialize cooldowns from dictionary."""
+        manager = cls(default_hours=data.get("default_hours", 3))
+
+        for ticker, entry_data in data.get("cooldowns", {}).items():
+            manager._cooldowns[ticker] = CooldownEntry.from_dict(entry_data)
+
+        return manager
 
 
 def create_cooldown_manager_from_config(strategy_config: Any) -> CooldownManager:

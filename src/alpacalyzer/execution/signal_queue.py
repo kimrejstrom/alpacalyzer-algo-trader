@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from heapq import heapify, heappop, heappush
+from typing import Any
 
 from alpacalyzer.data.models import TradingStrategy
 from alpacalyzer.events import SignalExpiredEvent, emit_event
@@ -160,3 +161,53 @@ class SignalQueue:
 
     def __len__(self) -> int:
         return self.size()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize queue to dictionary."""
+        return {
+            "signals": [
+                {
+                    "priority": s.priority,
+                    "ticker": s.ticker,
+                    "action": s.action,
+                    "confidence": s.confidence,
+                    "source": s.source,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                    "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+                    "agent_recommendation": s.agent_recommendation.model_dump() if s.agent_recommendation else None,
+                }
+                for s in self._heap
+            ]
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SignalQueue":
+        """Deserialize queue from dictionary."""
+        queue = cls()
+        for signal_data in data.get("signals", []):
+            rec_data = signal_data.get("agent_recommendation")
+            agent_rec = TradingStrategy(**rec_data) if rec_data else None
+
+            created_at = None
+            if signal_data.get("created_at"):
+                created_at = datetime.fromisoformat(signal_data["created_at"])
+
+            expires_at = None
+            if signal_data.get("expires_at"):
+                expires_at = datetime.fromisoformat(signal_data["expires_at"])
+
+            signal = PendingSignal(
+                priority=signal_data["priority"],
+                ticker=signal_data["ticker"],
+                action=signal_data["action"],
+                confidence=signal_data["confidence"],
+                source=signal_data["source"],
+                created_at=created_at or datetime.now(UTC),
+                expires_at=expires_at,
+                agent_recommendation=agent_rec,
+            )
+            queue._heap.append(signal)
+            queue._tickers.add(signal.ticker)
+
+        heapify(queue._heap)
+        return queue

@@ -66,6 +66,7 @@ def main():  # pragma: no cover
     parser.add_argument("--strategy-dashboard", type=str, help="Strategy name for detailed dashboard backtest")
     parser.add_argument("--days", type=int, default=30, help="Number of days of historical data for dashboard")
     parser.add_argument("--conditions", action="store_true", help="Show market conditions analysis in dashboard")
+    parser.add_argument("--reset-state", action="store_true", help="Reset execution engine state and start fresh")
     args = parser.parse_args()
 
     try:
@@ -116,6 +117,7 @@ def main():  # pragma: no cover
             direct_tickers=direct_tickers,
             agents=args.agents,
             ignore_market_status=args.ignore_market_status,
+            reset_state=args.reset_state,
         )
 
         schedule_daily_liquidation()

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from alpaca.trading.models import Position
 
@@ -117,6 +117,57 @@ class TrackedPosition:
         self.exit_attempts += 1
         self.last_exit_attempt = datetime.now(UTC)
         self.notes.append(f"Exit attempt {self.exit_attempts}: {reason}")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize position to dictionary."""
+        return {
+            "ticker": self.ticker,
+            "side": self.side,
+            "quantity": self.quantity,
+            "avg_entry_price": self.avg_entry_price,
+            "current_price": self.current_price,
+            "market_value": self.market_value,
+            "unrealized_pnl": self.unrealized_pnl,
+            "unrealized_pnl_pct": self.unrealized_pnl_pct,
+            "strategy_name": self.strategy_name,
+            "opened_at": self.opened_at.isoformat() if self.opened_at else None,
+            "entry_order_id": self.entry_order_id,
+            "stop_loss": self.stop_loss,
+            "target": self.target,
+            "exit_attempts": self.exit_attempts,
+            "last_exit_attempt": self.last_exit_attempt.isoformat() if self.last_exit_attempt else None,
+            "notes": self.notes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TrackedPosition":
+        """Deserialize position from dictionary."""
+        opened_at = None
+        if data.get("opened_at"):
+            opened_at = datetime.fromisoformat(data["opened_at"])
+
+        last_exit_attempt = None
+        if data.get("last_exit_attempt"):
+            last_exit_attempt = datetime.fromisoformat(data["last_exit_attempt"])
+
+        return cls(
+            ticker=data["ticker"],
+            side=data["side"],
+            quantity=data["quantity"],
+            avg_entry_price=data["avg_entry_price"],
+            current_price=data["current_price"],
+            market_value=data["market_value"],
+            unrealized_pnl=data["unrealized_pnl"],
+            unrealized_pnl_pct=data["unrealized_pnl_pct"],
+            strategy_name=data["strategy_name"],
+            opened_at=opened_at or datetime.now(UTC),
+            entry_order_id=data.get("entry_order_id"),
+            stop_loss=data.get("stop_loss"),
+            target=data.get("target"),
+            exit_attempts=data.get("exit_attempts", 0),
+            last_exit_attempt=last_exit_attempt,
+            notes=data.get("notes", []),
+        )
 
 
 class PositionTracker:
@@ -323,3 +374,27 @@ class PositionTracker:
             List of recently closed positions
         """
         return self._closed_positions[-limit:]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize positions to dictionary."""
+        return {
+            "positions": {ticker: pos.to_dict() for ticker, pos in self._positions.items()},
+            "closed_positions": [pos.to_dict() for pos in self._closed_positions],
+            "last_sync": self._last_sync.isoformat() if self._last_sync else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PositionTracker":
+        """Deserialize positions from dictionary."""
+        tracker = cls()
+
+        for ticker, pos_data in data.get("positions", {}).items():
+            tracker._positions[ticker] = TrackedPosition.from_dict(pos_data)
+
+        for pos_data in data.get("closed_positions", []):
+            tracker._closed_positions.append(TrackedPosition.from_dict(pos_data))
+
+        if data.get("last_sync"):
+            tracker._last_sync = datetime.fromisoformat(data["last_sync"])
+
+        return tracker

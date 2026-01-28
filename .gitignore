@@ -297,3 +297,6 @@ test-output.txt
 position_times.txt
 logs/
 trading_positions.db
+
+# Execution engine state
+.alpacalyzer-state.json

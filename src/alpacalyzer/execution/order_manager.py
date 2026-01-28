@@ -4,7 +4,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from alpaca.common.exceptions import APIError
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
@@ -281,3 +281,15 @@ class OrderManager:
         if price > 1:
             return round(price, 2)
         return round(price, 4)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize orders to dictionary."""
+        return {
+            "analyze_mode": self.analyze_mode,
+            "pending_orders_count": len(self._pending_orders),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OrderManager":
+        """Deserialize orders from dictionary."""
+        return cls(analyze_mode=data.get("analyze_mode", False))
