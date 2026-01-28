@@ -1,7 +1,7 @@
 """Tests for technical signal caching in ExecutionEngine."""
 
 from time import time as time_func
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -33,7 +33,7 @@ def strategy():
 
 
 @pytest.fixture
-def engine(strategy):
+def engine(strategy, mock_broker):
     """Create an execution engine for testing."""
     config = ExecutionConfig(analyze_mode=True, signal_cache_ttl=300.0)
     return ExecutionEngine(strategy=strategy, config=config)
@@ -51,6 +51,7 @@ class TestCacheHit:
         assert cached is not None
         assert cached["symbol"] == "AAPL"
         assert cached["price"] == 150.0
+        assert cached["atr"] == 2.5
 
     def test_cache_hit_within_ttl(self, engine):
         """Test that cache returns signal within TTL."""
@@ -60,6 +61,7 @@ class TestCacheHit:
 
         assert cached is not None
         assert cached["symbol"] == "AAPL"
+        assert cached["price"] == 150.0
 
 
 class TestCacheMiss:
@@ -88,6 +90,8 @@ class TestCacheMiss:
         """Test that cache miss in _process_exit triggers analyzer call."""
         mock_signal = create_mock_signal()
         engine._ta.analyze_stock = MagicMock(return_value=mock_signal)
+        engine.strategy.evaluate_exit = MagicMock(return_value=MagicMock(should_exit=False))
+        engine._build_market_context = MagicMock(return_value=MagicMock())
 
         mock_position = MagicMock()
         mock_position.ticker = "AAPL"
@@ -192,6 +196,7 @@ class TestCacheInAnalyzeMode:
 
         assert cached is not None
         assert cached["symbol"] == "AAPL"
+        assert cached["price"] == 150.0
 
 
 class TestTechnicalAnalyzerReuse:
@@ -208,6 +213,8 @@ class TestTechnicalAnalyzerReuse:
         """Test that the same TA instance is used in processing."""
         mock_signal = create_mock_signal()
         engine._ta.analyze_stock = MagicMock(return_value=mock_signal)
+        engine.strategy.evaluate_exit = MagicMock(return_value=MagicMock(should_exit=False))
+        engine._build_market_context = MagicMock(return_value=MagicMock())
 
         mock_position = MagicMock()
         mock_position.ticker = "AAPL"
@@ -239,6 +246,8 @@ class TestPerformanceBenchmark:
         """Test that cache hit in _process_exit avoids analyzer call."""
         mock_signal = create_mock_signal()
         engine._ta.analyze_stock = MagicMock(return_value=mock_signal)
+        engine.strategy.evaluate_exit = MagicMock(return_value=MagicMock(should_exit=False))
+        engine._build_market_context = MagicMock(return_value=MagicMock())
 
         engine._cache_signal("AAPL", mock_signal)
 
@@ -259,6 +268,7 @@ class TestCacheIntegration:
         """Test that cache is cleared at start of run_cycle."""
         engine.config.analyze_mode = False
         engine.positions.sync_from_broker = MagicMock()
+        engine._build_market_context = MagicMock(return_value=MagicMock())
 
         aapl_signal = create_mock_signal("AAPL")
         engine._signal_cache["AAPL"] = CachedSignal(
@@ -273,6 +283,9 @@ class TestCacheIntegration:
 
     def test_cache_cleared_in_analyze_cycle(self, engine):
         """Test that cache is cleared at start of analyze cycle."""
+        engine.positions.sync_from_broker = MagicMock()
+        engine._build_market_context = MagicMock(return_value=MagicMock())
+
         aapl_signal = create_mock_signal("AAPL")
         engine._signal_cache["AAPL"] = CachedSignal(
             signal=aapl_signal,
@@ -283,3 +296,41 @@ class TestCacheIntegration:
         engine._run_analyze_cycle()
 
         assert len(engine._signal_cache) == 0
+
+
+class TestCacheEntryBehavior:
+    """Tests for specific cache entry behaviors."""
+
+    def test_cache_signal_stores_correct_ttl(self, engine):
+        """Test that _cache_signal stores the correct TTL."""
+        mock_signal = create_mock_signal()
+        engine._cache_signal("AAPL", mock_signal, ttl=600.0)
+
+        cached = engine._signal_cache["AAPL"]
+        assert cached.ttl == 600.0
+
+    def test_cache_signal_uses_default_ttl(self, engine):
+        """Test that _cache_signal uses default TTL when not specified."""
+        mock_signal = create_mock_signal()
+        engine._cache_signal("AAPL", mock_signal)
+
+        cached = engine._signal_cache["AAPL"]
+        assert cached.ttl == engine._cache_ttl
+
+    def test_get_cached_signal_returns_none_for_empty_cache(self, engine):
+        """Test that get_cached_signal returns None for empty cache."""
+        result = engine._get_cached_signal("NONEXISTENT")
+        assert result is None
+
+    def test_expired_entry_removed_on_access(self, engine):
+        """Test that expired entries are removed when accessed."""
+        mock_signal = create_mock_signal()
+        engine._signal_cache["AAPL"] = CachedSignal(
+            signal=mock_signal,
+            timestamp=0.0,
+            ttl=100.0,
+        )
+
+        result = engine._get_cached_signal("AAPL")
+        assert result is None
+        assert "AAPL" not in engine._signal_cache
