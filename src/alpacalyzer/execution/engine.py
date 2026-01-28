@@ -3,8 +3,10 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from time import time as time_func
 from typing import TYPE_CHECKING
 
+from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.events import CycleCompleteEvent, EntryTriggeredEvent, ExitTriggeredEvent, emit_event
 from alpacalyzer.execution.cooldown import CooldownManager
 from alpacalyzer.execution.order_manager import OrderManager, OrderParams
@@ -32,12 +34,23 @@ class ExecutionConfig:
         max_positions: Maximum number of concurrent positions
         daily_loss_limit_pct: Maximum daily loss percentage
         analyze_mode: If True, skip order submission
+        signal_cache_ttl: TTL for technical signal cache in seconds
     """
 
     check_interval_seconds: int = 120
     max_positions: int = 10
     daily_loss_limit_pct: float = 0.05
     analyze_mode: bool = False
+    signal_cache_ttl: float = 300.0
+
+
+@dataclass
+class CachedSignal:
+    """Cached technical signal with timestamp."""
+
+    signal: TradingSignals
+    timestamp: float
+    ttl: float
 
 
 class ExecutionEngine:
@@ -70,7 +83,42 @@ class ExecutionEngine:
 
         self._running = False
 
+        self._signal_cache: dict[str, CachedSignal] = {}
+        self._cache_ttl = self.config.signal_cache_ttl
+        self._ta = TechnicalAnalyzer()
+
         self.load_state(reset=reset_state)
+
+    def _get_cached_signal(self, ticker: str) -> TradingSignals | None:
+        """Get cached signal if within TTL."""
+        if ticker not in self._signal_cache:
+            return None
+
+        cached = self._signal_cache[ticker]
+        age = time_func() - cached.timestamp
+
+        if age < cached.ttl:
+            return cached.signal
+        del self._signal_cache[ticker]
+        return None
+
+    def _cache_signal(self, ticker: str, signal: TradingSignals, ttl: float | None = None) -> None:
+        """Cache a technical signal."""
+        if ttl is None:
+            ttl = self._cache_ttl
+
+        self._signal_cache[ticker] = CachedSignal(
+            signal=signal,
+            timestamp=time_func(),
+            ttl=ttl,
+        )
+
+    def _clear_expired_cache(self) -> None:
+        """Remove expired entries from cache."""
+        current_time = time_func()
+        expired = [ticker for ticker, cached in self._signal_cache.items() if current_time - cached.timestamp > cached.ttl]
+        for ticker in expired:
+            del self._signal_cache[ticker]
 
     def run_cycle(self) -> None:
         """
@@ -78,14 +126,17 @@ class ExecutionEngine:
 
         Order of operations:
         1. Sync positions from broker
-        2. Process exits (capital protection first)
-        3. Process entries (new positions)
-        4. Update cooldowns
-        5. Emit summary event
+        2. Clear expired cache
+        3. Process exits (capital protection first)
+        4. Process entries (new positions)
+        5. Update cooldowns
+        6. Emit summary event
         """
         if self.config.analyze_mode:
             self._run_analyze_cycle()
             return
+
+        self._clear_expired_cache()
 
         # 1. Sync positions
         self.positions.sync_from_broker()
@@ -118,11 +169,18 @@ class ExecutionEngine:
 
     def _process_exit(self, position: TrackedPosition) -> None:
         """Evaluate and execute exit for a position."""
-        from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
+        signals = self._get_cached_signal(position.ticker)
 
-        signals = TechnicalAnalyzer().analyze_stock(position.ticker)
         if signals is None:
-            return
+            signals = self._ta.analyze_stock(position.ticker)
+            if signals is not None:
+                self._cache_signal(position.ticker, signals)
+                logger.debug(f"Cache miss for {position.ticker}, fetched fresh signals")
+            else:
+                logger.warning(f"Failed to analyze {position.ticker}")
+                return
+
+        logger.debug(f"Cache hit for {position.ticker}")
 
         context = self._build_market_context()
         decision = self.strategy.evaluate_exit(position, signals, context)
@@ -132,11 +190,18 @@ class ExecutionEngine:
 
     def _process_entry(self, signal: PendingSignal, context: MarketContext) -> None:
         """Evaluate and execute entry for a signal."""
-        from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
+        ta_signals = self._get_cached_signal(signal.ticker)
 
-        ta_signals = TechnicalAnalyzer().analyze_stock(signal.ticker)
         if ta_signals is None:
-            return
+            ta_signals = self._ta.analyze_stock(signal.ticker)
+            if ta_signals is not None:
+                self._cache_signal(signal.ticker, ta_signals)
+                logger.debug(f"Cache miss for {signal.ticker}, fetched fresh signals")
+            else:
+                logger.warning(f"Failed to analyze {signal.ticker}")
+                return
+
+        logger.debug(f"Cache hit for {signal.ticker}")
 
         decision = self.strategy.evaluate_entry(
             ta_signals,
@@ -237,7 +302,7 @@ class ExecutionEngine:
 
     def _run_analyze_cycle(self) -> None:
         """Run cycle in analyze mode (no order submission)."""
-        # In analyze mode, we still sync and evaluate, but don't submit orders
+        self._clear_expired_cache()
         self.positions.sync_from_broker()
 
         for position in self.positions.get_all():
