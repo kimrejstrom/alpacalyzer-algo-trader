@@ -135,19 +135,21 @@ class BreakoutStrategy(BaseStrategy):
         """
         Evaluate entry conditions for breakout.
 
-        NOTE: BreakoutStrategy detects opportunities independently through
-        technical analysis (consolidation + breakout pattern). The
-        agent_recommendation parameter is reserved for future use.
+        Decision Flow (Issue #96 - Agent Integration):
+        1. Check basic filters (market open, cooldown, existing position)
+        2. Validate breakout conditions (consolidation pattern, volume spike)
+        3. If agent_recommendation provided and conditions valid: use agent's values
+        4. If agent_recommendation is None and conditions valid: calculate own values
 
-        Decision Flow:
-        - Strategy validates consolidation pattern exists
-        - If agent_recommendation provided in future: use agent's values
-        - Reject if no clear consolidation pattern detected
+        Agent vs Strategy Authority:
+        - Agent proposes: entry_point, stop_loss, target_price, quantity
+        - Strategy validates: consolidation pattern exists, volume confirms breakout
+        - Strategy MUST NOT override agent's calculated values when provided
 
         Args:
             signal: TradingSignals with technical analysis data
             context: Market and account context
-            agent_recommendation: Reserved for future agent integration
+            agent_recommendation: Optional AI agent recommendation with trade setup
 
         Returns:
             EntryDecision with entry details or rejection reason
@@ -210,48 +212,72 @@ class BreakoutStrategy(BaseStrategy):
         current_high = latest.get("high", price)
         current_low = latest.get("low", price)
 
+        # Check for bullish breakout
         if current_high > resistance + buffer:
-            stop_loss = support - atr
-            pattern_height = price - support
-            target = price + pattern_height * self.config.target_multiple
+            # Determine trade values based on agent recommendation
+            if agent_recommendation is not None:
+                # Use agent's values (agents propose, strategies validate)
+                entry_price = agent_recommendation.entry_point
+                stop_loss = agent_recommendation.stop_loss
+                target = agent_recommendation.target_price
+                size = agent_recommendation.quantity
+                side = agent_recommendation.trade_type
+            else:
+                # Calculate own values (independent operation)
+                entry_price = price
+                stop_loss = support - atr
+                pattern_height = price - support
+                target = price + pattern_height * self.config.target_multiple
+                size = self.calculate_position_size(signal, context, context.buying_power)
+                side = "long"
 
             self._position_data[symbol] = BreakoutPositionData(
-                entry_price=price,
+                entry_price=entry_price,
                 stop_loss=stop_loss,
                 target=target,
-                side="long",
+                side=side,
             )
-
-            size = self.calculate_position_size(signal, context, context.buying_power)
 
             return EntryDecision(
                 should_enter=True,
                 reason=f"Bullish breakout above {resistance:.2f} with {volume_ratio:.1f}x volume",
                 suggested_size=size,
-                entry_price=price,
+                entry_price=entry_price,
                 stop_loss=stop_loss,
                 target=target,
             )
 
+        # Check for bearish breakout
         if current_low < support - buffer:
-            stop_loss = resistance + atr
-            pattern_height = resistance - price
-            target = price - pattern_height * self.config.target_multiple
+            # Determine trade values based on agent recommendation
+            if agent_recommendation is not None:
+                # Use agent's values (agents propose, strategies validate)
+                entry_price = agent_recommendation.entry_point
+                stop_loss = agent_recommendation.stop_loss
+                target = agent_recommendation.target_price
+                size = agent_recommendation.quantity
+                side = agent_recommendation.trade_type
+            else:
+                # Calculate own values (independent operation)
+                entry_price = price
+                stop_loss = resistance + atr
+                pattern_height = resistance - price
+                target = price - pattern_height * self.config.target_multiple
+                size = self.calculate_position_size(signal, context, context.buying_power)
+                side = "short"
 
             self._position_data[symbol] = BreakoutPositionData(
-                entry_price=price,
+                entry_price=entry_price,
                 stop_loss=stop_loss,
                 target=target,
-                side="short",
+                side=side,
             )
-
-            size = self.calculate_position_size(signal, context, context.buying_power)
 
             return EntryDecision(
                 should_enter=True,
                 reason=f"Bearish breakout below {support:.2f} with {volume_ratio:.1f}x volume",
                 suggested_size=size,
-                entry_price=price,
+                entry_price=entry_price,
                 stop_loss=stop_loss,
                 target=target,
             )
