@@ -100,9 +100,6 @@ def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", 
             # Keep full ISO format for minute granularity
             df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Convert to CSV
-    # csv = df.to_csv(index=False)
-    # return cast(str, csv)
     return str(df.to_csv(index=False))
 
 
