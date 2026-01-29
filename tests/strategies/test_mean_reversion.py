@@ -79,23 +79,46 @@ def short_position():
 
 @pytest.fixture
 def oversold_signal():
-    """Oversold signal with RSI < 30, price below BB_lower."""
+    """Oversold signal with RSI < 30, price below BB_lower, extreme Z-score."""
+    # Create price data that triggers mean reversion conditions:
+    # 1. RSI < 30 (oversold) - set directly in signal
+    # 2. Price below BB lower
+    # 3. Z-score < -2.0
+    # 4. Trend strength > -0.10 (not strong downtrend)
+    #
+    # Z-score = (price - mean) / std
+    # For Z-score < -2.0: price < mean - 2*std
+    # BB lower = mean - 2*std (with bb_std=2.0)
+    # So price needs to be below BB lower
+    #
+    # Create stable prices with small variance, then a sudden drop at the end
+    # This creates low std but price far below mean
+
+    # First 50 bars: stable around 140 with small variance
+    stable_prices = [140.0 + (i % 3 - 1) * 0.5 for i in range(50)]  # 139.5-140.5
+    # Last 10 bars: sudden drop to create extreme conditions
+    # Keep variance low but drop the price significantly
+    drop_prices = [130.0 - i * 2.0 for i in range(10)]  # 130 down to 112
+    prices = stable_prices + drop_prices
+
+    # Volume needs to spike at the end to pass min_volume_ratio (1.2)
+    volumes = [1000000] * 50 + [1500000] * 10  # Last 10 bars have higher volume
     daily_data = pd.DataFrame(
         {
-            "close": [152.0 - i * 0.5 for i in range(60)],
-            "volume": [1000000] * 60,
+            "close": prices,
+            "volume": volumes,
         }
     )
     daily_data["RSI"] = 28.0
     return TradingSignals(
         symbol="AAPL",
-        price=140.0,
+        price=112.0,  # Price at the end of decline (below BB lower)
         atr=2.0,
         rvol=1.2,
         signals=["RSI oversold", "Price below BB"],
         raw_score=30,
         score=0.30,
-        momentum=-12.0,
+        momentum=-5.0,
         raw_data_daily=daily_data,
         raw_data_intraday=pd.DataFrame({"Bullish_Engulfing": [0, 0, 0]}),
     )
@@ -103,23 +126,39 @@ def oversold_signal():
 
 @pytest.fixture
 def overbought_signal():
-    """Overbought signal with RSI > 70, price above BB_upper."""
+    """Overbought signal with RSI > 70, price above BB_upper, extreme Z-score."""
+    # Create price data that triggers mean reversion conditions:
+    # 1. RSI > 70 (overbought) - set directly in signal
+    # 2. Price above BB upper
+    # 3. Z-score > 2.0
+    # 4. Trend strength < 0.10 (not strong uptrend)
+    #
+    # Create stable prices with small variance, then a sudden spike at the end
+
+    # First 50 bars: stable around 140 with small variance
+    stable_prices = [140.0 + (i % 3 - 1) * 0.5 for i in range(50)]  # 139.5-140.5
+    # Last 10 bars: sudden rise to create extreme conditions
+    rise_prices = [150.0 + i * 2.0 for i in range(10)]  # 150 up to 168
+    prices = stable_prices + rise_prices
+
+    # Volume needs to spike at the end to pass min_volume_ratio (1.2)
+    volumes = [1000000] * 50 + [1500000] * 10  # Last 10 bars have higher volume
     daily_data = pd.DataFrame(
         {
-            "close": [120.0 + i * 0.5 for i in range(60)],
-            "volume": [1000000] * 60,
+            "close": prices,
+            "volume": volumes,
         }
     )
     daily_data["RSI"] = 72.0
     return TradingSignals(
         symbol="AAPL",
-        price=148.0,
+        price=168.0,  # Price at the end of rise (above BB upper)
         atr=2.0,
         rvol=1.2,
         signals=["RSI overbought", "Price above BB"],
         raw_score=25,
         score=0.25,
-        momentum=12.0,
+        momentum=5.0,
         raw_data_daily=daily_data,
         raw_data_intraday=pd.DataFrame({"Bearish_Engulfing": [0, 0, 0]}),
     )
@@ -408,3 +447,207 @@ class TestMeanReversionStrategyIndicators:
 
         assert confidence >= 50
         assert confidence < 80
+
+
+class TestMeanReversionAgentIntegration:
+    """Test agent recommendation integration (Issue #97)."""
+
+    @pytest.fixture
+    def relaxed_config(self):
+        """Config with relaxed thresholds for testing agent integration."""
+        return MeanReversionConfig(
+            name="test_mean_reversion",
+            description="Test config with relaxed thresholds",
+            rsi_period=14,
+            rsi_oversold=35.0,  # More relaxed
+            rsi_overbought=65.0,  # More relaxed
+            bb_period=20,
+            bb_std=2.0,
+            deviation_threshold=1.5,  # More relaxed (was 2.0)
+            min_volume_ratio=1.0,  # More relaxed (was 1.2)
+            trend_filter_period=50,
+        )
+
+    @pytest.fixture
+    def relaxed_strategy(self, relaxed_config):
+        """Strategy with relaxed config for testing."""
+        return MeanReversionStrategy(relaxed_config)
+
+    @pytest.fixture
+    def agent_recommendation_long(self):
+        """Agent recommendation for long trade."""
+        from alpacalyzer.data.models import EntryCriteria, EntryType, TradingStrategy
+
+        return TradingStrategy(
+            ticker="AAPL",
+            trade_type="long",
+            entry_point=140.0,
+            stop_loss=135.0,
+            target_price=150.0,
+            quantity=100,
+            risk_reward_ratio=2.0,
+            strategy_notes="Mean reversion long setup",
+            entry_criteria=[
+                EntryCriteria(entry_type=EntryType.RSI_OVERSOLD, value=28.0),
+            ],
+        )
+
+    @pytest.fixture
+    def agent_recommendation_short(self):
+        """Agent recommendation for short trade."""
+        from alpacalyzer.data.models import EntryCriteria, EntryType, TradingStrategy
+
+        return TradingStrategy(
+            ticker="AAPL",
+            trade_type="short",
+            entry_point=148.0,
+            stop_loss=153.0,
+            target_price=140.0,
+            quantity=75,
+            risk_reward_ratio=1.6,
+            strategy_notes="Mean reversion short setup",
+            entry_criteria=[
+                EntryCriteria(entry_type=EntryType.RSI_OVERBOUGHT, value=72.0),
+            ],
+        )
+
+    @pytest.fixture
+    def oversold_signal_for_agent(self):
+        """Oversold signal that meets relaxed mean reversion conditions."""
+        # Create price data where current price is below BB lower
+        # BB lower = SMA20 - 2*std
+        # Need: price < SMA20 - 2*std
+        #
+        # Strategy: stable prices for first 40 bars, then gradual decline
+        # but with the CURRENT price (signal["price"]) being much lower
+        # than the last bar in the dataframe
+
+        stable_prices = [140.0] * 40
+        # Gradual decline in last 20 bars
+        decline_prices = [140.0 - i * 0.5 for i in range(20)]  # 140 down to 130.5
+        prices = stable_prices + decline_prices
+
+        daily_data = pd.DataFrame(
+            {
+                "close": prices,
+                "volume": [1000000] * 60,
+            }
+        )
+        daily_data["RSI"] = 28.0
+
+        # The key: signal["price"] is the CURRENT price, which should be
+        # below the BB lower calculated from the dataframe
+        # SMA20 of last 20 bars ≈ 135.25, std ≈ 5.77
+        # BB lower ≈ 135.25 - 2*5.77 ≈ 123.7
+        # So price needs to be < 123.7
+        return TradingSignals(
+            symbol="AAPL",
+            price=120.0,  # Below BB lower
+            atr=2.0,
+            rvol=1.2,
+            signals=["RSI oversold", "Price below BB"],
+            raw_score=30,
+            score=0.30,
+            momentum=-5.0,
+            raw_data_daily=daily_data,
+            raw_data_intraday=pd.DataFrame({"Bullish_Engulfing": [0, 0, 0]}),
+        )
+
+    @pytest.fixture
+    def overbought_signal_for_agent(self):
+        """Overbought signal that meets relaxed mean reversion conditions."""
+        # Create price data where current price is above BB upper
+        # BB upper = SMA20 + 2*std
+
+        stable_prices = [140.0] * 40
+        # Gradual rise in last 20 bars
+        rise_prices = [140.0 + i * 0.5 for i in range(20)]  # 140 up to 149.5
+        prices = stable_prices + rise_prices
+
+        daily_data = pd.DataFrame(
+            {
+                "close": prices,
+                "volume": [1000000] * 60,
+            }
+        )
+        daily_data["RSI"] = 72.0
+
+        # SMA20 of last 20 bars ≈ 144.75, std ≈ 5.77
+        # BB upper ≈ 144.75 + 2*5.77 ≈ 156.3
+        # So price needs to be > 156.3
+        return TradingSignals(
+            symbol="AAPL",
+            price=160.0,  # Above BB upper
+            atr=2.0,
+            rvol=1.2,
+            signals=["RSI overbought", "Price above BB"],
+            raw_score=25,
+            score=0.25,
+            momentum=5.0,
+            raw_data_daily=daily_data,
+            raw_data_intraday=pd.DataFrame({"Bearish_Engulfing": [0, 0, 0]}),
+        )
+
+    def test_long_entry_with_agent_uses_agent_values(self, relaxed_strategy, oversold_signal_for_agent, market_context, agent_recommendation_long):
+        """Test long entry with agent recommendation uses agent's values."""
+        decision = relaxed_strategy.evaluate_entry(oversold_signal_for_agent, market_context, agent_recommendation_long)
+
+        assert decision.should_enter
+        assert decision.suggested_size == agent_recommendation_long.quantity
+        assert decision.entry_price == agent_recommendation_long.entry_point
+        assert decision.stop_loss == agent_recommendation_long.stop_loss
+        assert decision.target == agent_recommendation_long.target_price
+
+    def test_short_entry_with_agent_uses_agent_values(self, relaxed_strategy, overbought_signal_for_agent, market_context, agent_recommendation_short):
+        """Test short entry with agent recommendation uses agent's values."""
+        decision = relaxed_strategy.evaluate_entry(overbought_signal_for_agent, market_context, agent_recommendation_short)
+
+        assert decision.should_enter
+        assert decision.suggested_size == agent_recommendation_short.quantity
+        assert decision.entry_price == agent_recommendation_short.entry_point
+        assert decision.stop_loss == agent_recommendation_short.stop_loss
+        assert decision.target == agent_recommendation_short.target_price
+
+    def test_entry_with_agent_rejects_when_rsi_neutral(self, relaxed_strategy, neutral_signal, market_context, agent_recommendation_long):
+        """Test entry with agent recommendation rejects when RSI not in extreme range."""
+        decision = relaxed_strategy.evaluate_entry(neutral_signal, market_context, agent_recommendation_long)
+
+        assert not decision.should_enter
+        assert "rsi" in decision.reason.lower()
+
+    def test_entry_without_agent_calculates_own_values(self, relaxed_strategy, oversold_signal_for_agent, market_context):
+        """Test entry without agent recommendation calculates own values (existing behavior)."""
+        decision = relaxed_strategy.evaluate_entry(oversold_signal_for_agent, market_context, None)
+
+        # Should still work without agent recommendation
+        # Values should be calculated by strategy, not from agent
+        assert decision.should_enter
+        assert decision.suggested_size > 0
+        assert decision.entry_price > 0
+        assert decision.stop_loss > 0
+        assert decision.target > 0
+
+    def test_entry_with_agent_rejects_insufficient_volume(self, mean_reversion_strategy, oversold_signal, market_context, agent_recommendation_long):
+        """Test entry with agent recommendation still validates volume."""
+        oversold_signal["raw_data_daily"]["volume"] = [500000] * 60
+        decision = mean_reversion_strategy.evaluate_entry(oversold_signal, market_context, agent_recommendation_long)
+
+        assert not decision.should_enter
+        assert "volume" in decision.reason.lower()
+
+    def test_entry_with_agent_rejects_strong_downtrend(self, mean_reversion_strategy, oversold_signal, market_context, agent_recommendation_long):
+        """Test entry with agent recommendation still validates trend."""
+        oversold_signal["raw_data_daily"]["close"] = [160.0 - i * 1.5 for i in range(60)]
+        oversold_signal["raw_data_daily"]["volume"] = [1000000 + 500000 * i for i in range(60)]
+        decision = mean_reversion_strategy.evaluate_entry(oversold_signal, market_context, agent_recommendation_long)
+
+        assert not decision.should_enter
+        assert "downtrend" in decision.reason.lower()
+
+    def test_entry_with_agent_rejects_market_closed(self, mean_reversion_strategy, oversold_signal, market_context, agent_recommendation_long):
+        """Test entry with agent recommendation still validates market status."""
+        market_context.market_status = "closed"
+        decision = mean_reversion_strategy.evaluate_entry(oversold_signal, market_context, agent_recommendation_long)
+
+        assert not decision.should_enter
+        assert "closed" in decision.reason.lower()
