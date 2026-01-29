@@ -19,7 +19,7 @@ Calculates position limits and buying power adjustments for trading decisions.
 Position Sizing Rules:
 - DYNAMIC SIZING (primary): Based on ATR and VIX
   * Base risk: 2% of portfolio equity
-  * Adjusted for VIX: Reduce risk when market is fearful (VIX > 20)
+  * VIX scaling: VIX=20 (no reduction), VIX=30 (33% reduction), VIX=40 (50% reduction)
   * Shares = Risk Amount / (2 * ATR)  // ATR determines stop loss distance
   * Capped at 5% max position size
 - FIXED SIZING (fallback): 5% of portfolio equity
@@ -105,7 +105,11 @@ def calculate_dynamic_position_size(
         return portfolio_equity * max_position_pct
 
     risk_per_share = 2 * atr
-    shares = int(risk_amount / risk_per_share)
+    if risk_amount < risk_per_share:
+        logger.warning(f"Risk amount ${risk_amount:.2f} less than risk per share ${risk_per_share:.2f} for {ticker}, using minimum 1 share")
+        shares = 1
+    else:
+        shares = int(risk_amount / risk_per_share)
 
     position_size = shares * price
 

@@ -212,3 +212,66 @@ class TestGetStockAtr:
             mock_ta_class.return_value = mock_ta
             result = get_stock_atr("AAPL")
         assert result is None
+
+
+class TestDynamicPositionSizingEdgeCases:
+    """Edge case tests for dynamic position sizing."""
+
+    def test_dynamic_sizing_zero_portfolio(self):
+        """Test handling of zero portfolio equity."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=2.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=0.0,
+                    vix=None,
+                    base_risk_pct=0.02,
+                    max_position_pct=0.05,
+                )
+        assert size == 0.0
+
+    def test_dynamic_sizing_price_unavailable(self):
+        """Test fallback when price is unavailable."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=2.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=None):
+                size = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=None,
+                    base_risk_pct=0.02,
+                    max_position_pct=0.05,
+                )
+        assert size == 500.0
+
+    def test_dynamic_sizing_small_risk_amount(self):
+        """Test minimum share when risk amount is very small."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=10.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=100.0,
+                    vix=None,
+                    base_risk_pct=0.02,
+                    max_position_pct=0.05,
+                )
+        assert size == 5.0  # 1 share * $100, but capped at 5% of $100 = $5
+
+    def test_dynamic_sizing_negative_vix(self):
+        """Test handling of negative VIX (should behave like no VIX)."""
+        with patch("alpacalyzer.trading.risk_manager.get_stock_atr", return_value=2.0):
+            with patch("alpacalyzer.trading.risk_manager.get_current_price", return_value=100.0):
+                size_with_neg_vix = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=-5.0,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+                size_no_vix = calculate_dynamic_position_size(
+                    ticker="AAPL",
+                    portfolio_equity=10000.0,
+                    vix=None,
+                    base_risk_pct=0.002,
+                    max_position_pct=0.05,
+                )
+        assert size_with_neg_vix == size_no_vix
