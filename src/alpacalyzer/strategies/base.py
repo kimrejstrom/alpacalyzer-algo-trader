@@ -205,11 +205,17 @@ class Strategy(Protocol):
         max_amount: float,
     ) -> int:
         """
-        Calculate the number of shares to trade.
+        Calculate the number of shares to trade using ATR/VIX-aware sizing.
+
+        Position Sizing Logic (Issue #95 - Consolidated):
+        1. If ATR available in signal: Calculate shares based on risk per share (2 * ATR)
+        2. Apply VIX adjustment from context: Reduce risk in high volatility environments
+        3. Cap at max_amount to respect allocation limits
+        4. Fall back to simple sizing (max_amount / price) if ATR unavailable
 
         Args:
-            signal: Technical analysis signals for the ticker
-            context: Market and account context
+            signal: Technical analysis signals for the ticker (includes ATR)
+            context: Market and account context (includes VIX, account_equity)
             max_amount: Maximum dollar amount to allocate
 
         Returns:
@@ -264,13 +270,21 @@ class BaseStrategy(ABC):
         max_amount: float,
     ) -> int:
         """
-        Calculate position size based on price and max allocation.
+        Calculate position size based on ATR, VIX, and max allocation.
 
-        Default implementation uses max_amount / signal["price"].
+        Uses ATR-based risk calculation when available, with VIX adjustment
+        for market volatility. Falls back to simple max_amount / price when
+        ATR is unavailable.
+
+        Position Sizing Logic (Issue #95 - Consolidated):
+        1. If ATR available: Calculate shares based on risk per share (2 * ATR)
+        2. Apply VIX adjustment: Reduce risk in high volatility environments
+        3. Cap at max_amount to respect allocation limits
+        4. Fall back to simple sizing if ATR unavailable
 
         Args:
-            signal: Trading signals with current price
-            context: Market context (unused in default implementation)
+            signal: Trading signals with current price and ATR
+            context: Market context with VIX and account info
             max_amount: Maximum dollar amount to allocate
 
         Returns:
@@ -280,7 +294,38 @@ class BaseStrategy(ABC):
         if price <= 0:
             return 0
 
-        shares = int(max_amount / price)
+        atr = signal.get("atr", 0.0)
+
+        # If ATR unavailable, fall back to simple sizing
+        if atr is None or atr <= 0:
+            shares = int(max_amount / price)
+            return max(0, shares)
+
+        # ATR-based position sizing
+        # Base risk: 2% of account equity (configurable via context)
+        base_risk_pct = 0.02
+        risk_amount = context.account_equity * base_risk_pct
+
+        # VIX adjustment: reduce position size in high volatility
+        # VIX=20 is baseline (no adjustment), VIX=40 reduces by 50%
+        vix = context.vix
+        if vix is not None and vix > 20:
+            vix_factor = max(0, (vix - 20) / 20)
+            risk_amount = risk_amount / (1 + vix_factor)
+
+        # Calculate shares based on risk per share (2 * ATR as stop distance)
+        risk_per_share = 2 * atr
+        if risk_amount < risk_per_share:
+            # Minimum 1 share if we can afford it
+            shares = 1 if max_amount >= price else 0
+        else:
+            shares = int(risk_amount / risk_per_share)
+
+        # Cap position value at max_amount
+        position_value = shares * price
+        if position_value > max_amount:
+            shares = int(max_amount / price)
+
         return max(0, shares)
 
     def _check_basic_filters(
