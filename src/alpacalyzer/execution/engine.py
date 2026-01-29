@@ -1,23 +1,58 @@
 """
 Execution engine for trade management.
 
-EXIT MECHANISM PRECEDENCE:
+EXIT MECHANISM PRECEDENCE (Issue #73):
+=====================================
 
-1. BRACKET ORDERS (Primary)
-   - Automatic stop loss and take profit orders
-   - Managed by Alpaca broker
-   - Triggered by price movement
-   - Most reliable and fast
-   - Used for: Normal exit conditions
+This module implements a two-tier exit system with clear precedence rules
+to avoid conflicts between automatic and manual exit mechanisms.
 
-2. DYNAMIC EXITS (Secondary)
-   - strategy.evaluate_exit() called each cycle
-   - Manual position close via ExecutionEngine
-   - Used for: Emergency conditions only
-   - Examples: Catastrophic momentum drop, technical score collapse
+1. BRACKET ORDERS (Primary Exit Mechanism)
+   ----------------------------------------
+   - Created via OrderManager.submit_bracket_order() at entry time
+   - Contains stop_loss and take_profit legs as OCO (One-Cancels-Other)
+   - Managed entirely by Alpaca broker infrastructure
+   - Triggered automatically by price movement
+   - Advantages:
+     * Fastest execution (broker-side, no polling delay)
+     * Most reliable (works even if our system is offline)
+     * No race conditions with other exit mechanisms
+   - Used for: Normal profit-taking and stop-loss scenarios
 
-RULE: If position has active bracket order, dynamic exit is SKIPPED.
-This prevents race conditions and redundant closing attempts.
+2. DYNAMIC EXITS (Secondary Exit Mechanism)
+   -----------------------------------------
+   - Evaluated via strategy.evaluate_exit() each execution cycle
+   - Manually closes position via OrderManager.close_position()
+   - Cancels any remaining bracket order legs before closing
+   - Used for: Emergency conditions that bracket orders can't detect
+   - Examples:
+     * Catastrophic momentum collapse (e.g., -25% momentum)
+     * Technical score collapse below threshold
+     * Strategy-specific exit signals not based on price alone
+
+PRECEDENCE RULE:
+----------------
+If a position has an active bracket order (has_bracket_order=True),
+dynamic exit evaluation is SKIPPED entirely. This prevents:
+  - Race conditions between broker and our system
+  - Redundant close attempts on already-closing positions
+  - Order rejection errors from Alpaca API
+
+When dynamic exit IS triggered (has_bracket_order=False):
+  1. All open orders for the ticker are canceled first
+  2. Position is closed via market order
+  3. Cooldown is applied to prevent immediate re-entry
+
+LOGGING:
+--------
+- Bracket order skips are logged at DEBUG level
+- Dynamic exit triggers are logged at INFO level with reason
+- Exit mechanism type is recorded in ExitTriggeredEvent.exit_mechanism
+
+See also:
+- OrderManager.submit_bracket_order() for bracket order creation
+- OrderManager.close_position() for dynamic exit execution
+- TrackedPosition.has_bracket_order for bracket order tracking
 """
 
 from dataclasses import dataclass
@@ -188,9 +223,22 @@ class ExecutionEngine:
         self.save_state()
 
     def _process_exit(self, position: TrackedPosition) -> None:
-        """Evaluate and execute exit for a position."""
+        """
+        Evaluate and execute exit for a position.
+
+        Exit Mechanism Precedence:
+        --------------------------
+        1. If position has active bracket order → SKIP dynamic exit
+           (Bracket order handles stop_loss/take_profit automatically)
+        2. If no bracket order → Evaluate strategy.evaluate_exit()
+           (Used for emergency conditions like momentum collapse)
+
+        See module docstring for full precedence documentation.
+        """
         if position.has_bracket_order:
-            logger.debug(f"Skipping dynamic exit for {position.ticker}: has active bracket order (will be managed by broker)")
+            logger.debug(
+                f"[EXIT PRECEDENCE] Skipping dynamic exit for {position.ticker}: bracket order active (stop={position.stop_loss}, target={position.target}). Broker will manage exit automatically."
+            )
             return
 
         signals = self._get_cached_signal(position.ticker)
@@ -250,7 +298,20 @@ class ExecutionEngine:
         return True
 
     def _execute_exit(self, position: TrackedPosition, decision: ExitDecision) -> None:
-        """Execute exit order for a position."""
+        """
+        Execute exit order for a position via dynamic exit mechanism.
+
+        This is the SECONDARY exit path, used only when:
+        - Position has no active bracket order (has_bracket_order=False)
+        - Strategy.evaluate_exit() returned should_exit=True
+
+        The dynamic exit will:
+        1. Cancel any remaining open orders for the ticker
+        2. Close the position via market order
+        3. Apply cooldown to prevent immediate re-entry
+        """
+        logger.info(f"[DYNAMIC EXIT] Triggering manual exit for {position.ticker}: reason='{decision.reason}', urgency={decision.urgency}")
+
         result = self.orders.close_position(position.ticker)
         if result:
             exit_price = float(result.filled_avg_price) if result.filled_avg_price else 0.0

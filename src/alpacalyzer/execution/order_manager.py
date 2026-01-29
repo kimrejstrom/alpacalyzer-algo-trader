@@ -92,6 +92,21 @@ class OrderManager:
         """
         Submit a bracket order with entry, stop loss, and take profit.
 
+        Bracket Order Exit Mechanism (Issue #73):
+        -----------------------------------------
+        This creates the PRIMARY exit mechanism for the position.
+        The bracket order includes:
+        - Entry: Limit order at params.entry_price
+        - Stop Loss: Stop order at params.stop_loss (OCO leg)
+        - Take Profit: Limit order at params.target (OCO leg)
+
+        The stop_loss and take_profit legs are One-Cancels-Other (OCO),
+        meaning when one triggers, the other is automatically canceled.
+
+        Precedence: Bracket orders take precedence over dynamic exits.
+        When a position has an active bracket order, the ExecutionEngine
+        will skip strategy.evaluate_exit() calls for that position.
+
         Returns the Order object if successful, None otherwise.
         """
         if self.analyze_mode:
@@ -162,6 +177,21 @@ class OrderManager:
     ) -> Order | None:
         """
         Close a position, optionally canceling open orders first.
+
+        Dynamic Exit Mechanism (Issue #73):
+        -----------------------------------
+        This method is used by the SECONDARY exit mechanism (dynamic exits).
+        It is called by ExecutionEngine._execute_exit() when:
+        - Position has no active bracket order (has_bracket_order=False)
+        - Strategy.evaluate_exit() returned should_exit=True
+
+        The method will:
+        1. Cancel any remaining open orders for the ticker (if cancel_orders=True)
+        2. Wait for cancellation confirmation (up to timeout_seconds)
+        3. Submit a market order to close the position
+
+        Note: If the position still has bracket order legs active, they will
+        be canceled before closing to prevent conflicts.
 
         Returns the close order if successful.
         """

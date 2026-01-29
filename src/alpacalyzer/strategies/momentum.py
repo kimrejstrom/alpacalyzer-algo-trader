@@ -244,8 +244,23 @@ class MomentumStrategy(BaseStrategy):
         """
         Evaluate exit conditions using logic from trader.py check_exit_conditions().
 
-        Serves as safeguard against extreme conditions. Primary exit is handled
-        by bracket order's take_profit and stop_loss.
+        Exit Mechanism Role (Issue #73):
+        ---------------------------------
+        This method is part of the SECONDARY exit mechanism (dynamic exits).
+        It serves as a safeguard against extreme conditions that bracket orders
+        cannot detect (bracket orders only trigger on price levels).
+
+        Primary exit is handled by bracket order's take_profit and stop_loss,
+        which are set at entry time and managed by the Alpaca broker.
+
+        This method should return should_exit=True only for:
+        - Catastrophic momentum collapse (e.g., -25% momentum)
+        - Technical score collapse below threshold
+        - Major reversal signals not based on price alone
+
+        Note: This method is only called when has_bracket_order=False.
+        If the position has an active bracket order, ExecutionEngine skips
+        this evaluation entirely.
         """
         momentum = signal["momentum"]
         score = signal["score"]

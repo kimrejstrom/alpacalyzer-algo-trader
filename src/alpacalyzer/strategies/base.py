@@ -49,10 +49,24 @@ class ExitDecision:
     """
     Decision result from evaluate_exit method.
 
+    Exit Mechanism Context (Issue #73):
+    -----------------------------------
+    This decision is used by the SECONDARY exit mechanism (dynamic exits).
+    It is only evaluated when a position does NOT have an active bracket order.
+
+    Primary exits (bracket orders) are handled automatically by the broker
+    and do not use this decision class.
+
     Attributes:
-        should_exit: Whether to exit the position
-        reason: Human-readable explanation of decision
-        urgency: Exit urgency level - affects execution priority
+        should_exit: Whether to exit the position via dynamic exit.
+                     Only set True for emergency conditions that bracket
+                     orders cannot detect (e.g., momentum collapse).
+        reason: Human-readable explanation of decision. Logged and stored
+                in exit events for debugging and analytics.
+        urgency: Exit urgency level - affects execution priority:
+                 - "normal": Standard exit, no special handling
+                 - "urgent": Prioritize this exit in the queue
+                 - "immediate": Execute as soon as possible (e.g., catastrophic loss)
     """
 
     should_exit: bool
@@ -149,6 +163,30 @@ class Strategy(Protocol):
     ) -> ExitDecision:
         """
         Evaluate whether to exit an existing position.
+
+        IMPORTANT - Exit Mechanism Precedence (Issue #73):
+        --------------------------------------------------
+        This method is part of the SECONDARY exit mechanism (dynamic exits).
+        It is only called when the position does NOT have an active bracket order.
+
+        Primary Exit (Bracket Orders):
+        - Stop loss and take profit are set at entry time
+        - Managed automatically by Alpaca broker
+        - Fastest and most reliable
+
+        Secondary Exit (This Method):
+        - Called each execution cycle by ExecutionEngine
+        - Used for emergency conditions bracket orders can't detect
+        - Examples: Momentum collapse, technical score degradation
+
+        When to return should_exit=True:
+        - Catastrophic momentum drop (e.g., -25%)
+        - Technical score collapse below threshold
+        - Strategy-specific emergency conditions
+
+        When to return should_exit=False:
+        - Normal market conditions (let bracket order handle it)
+        - Minor fluctuations within acceptable range
 
         Args:
             position: Current position with P&L info

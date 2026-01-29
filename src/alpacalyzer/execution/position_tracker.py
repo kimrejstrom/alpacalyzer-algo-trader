@@ -38,7 +38,13 @@ class TrackedPosition:
     stop_loss: float | None = None
     target: float | None = None
 
-    # Bracket order tracking
+    # Bracket order tracking (Issue #73 - Exit Mechanism Precedence)
+    # When True: Position has active stop_loss/take_profit bracket order
+    #            Dynamic exits via strategy.evaluate_exit() are SKIPPED
+    #            Broker handles exit automatically via price triggers
+    # When False: No bracket order active (e.g., order was canceled, or
+    #             position was opened outside our system)
+    #             Dynamic exits are evaluated each cycle
     has_bracket_order: bool = True
 
     # State tracking
