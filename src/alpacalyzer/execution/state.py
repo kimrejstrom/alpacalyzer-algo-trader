@@ -1,10 +1,10 @@
 """ExecutionEngine state persistence model."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-STATE_VERSION = "1.0.0"
+STATE_VERSION = "1.1.0"
 
 
 @dataclass
@@ -19,6 +19,7 @@ class EngineState:
         positions: Current position data
         cooldowns: Cooldown manager data
         orders: Order manager data
+        strategy_state: Strategy-specific state (Issue #98)
     """
 
     version: str
@@ -27,6 +28,7 @@ class EngineState:
     positions: dict[str, Any]
     cooldowns: dict[str, Any]
     orders: dict[str, Any]
+    strategy_state: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
         """Convert state to JSON string."""
@@ -43,6 +45,9 @@ class EngineState:
 
         state_dict = json.loads(json_str)
         state_dict["timestamp"] = datetime.fromisoformat(state_dict["timestamp"])
+        # Backward compatibility: default strategy_state to empty dict if missing
+        if "strategy_state" not in state_dict:
+            state_dict["strategy_state"] = {}
         return cls(**state_dict)
 
 
@@ -55,4 +60,5 @@ def create_empty_state() -> EngineState:
         positions={},
         cooldowns={},
         orders={},
+        strategy_state={},
     )

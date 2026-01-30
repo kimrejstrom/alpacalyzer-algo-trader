@@ -5,8 +5,8 @@ Identifies consolidation patterns and enters positions when price breaks
 out with volume confirmation. Supports both long and short positions.
 """
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import asdict, dataclass
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -431,3 +431,46 @@ class BreakoutStrategy(BaseStrategy):
     def _clear_false_breakouts(self, ticker: str) -> None:
         """Clear false breakout count after successful trade."""
         self._false_breakout_count[ticker] = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize strategy state for persistence.
+
+        Persists:
+        - _position_data: Entry price, stop loss, target for each position
+        - _false_breakout_count: Failed breakout count per ticker
+
+        Returns:
+            Dictionary containing strategy state.
+        """
+        return {
+            "position_data": {ticker: asdict(data) for ticker, data in self._position_data.items()},
+            "false_breakout_count": dict(self._false_breakout_count),
+        }
+
+    def from_dict(self, data: dict[str, Any]) -> None:
+        """
+        Restore strategy state from persisted data.
+
+        Args:
+            data: Dictionary containing strategy state from to_dict()
+        """
+        # Clear existing state
+        self._position_data = {}
+        self._false_breakout_count = {}
+
+        if not data:
+            return
+
+        # Restore position data
+        position_data = data.get("position_data", {})
+        for ticker, pos_dict in position_data.items():
+            self._position_data[ticker] = BreakoutPositionData(
+                entry_price=pos_dict["entry_price"],
+                stop_loss=pos_dict["stop_loss"],
+                target=pos_dict["target"],
+                side=pos_dict["side"],
+            )
+
+        # Restore false breakout counts
+        self._false_breakout_count = dict(data.get("false_breakout_count", {}))

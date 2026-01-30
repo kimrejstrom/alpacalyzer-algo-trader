@@ -7,7 +7,7 @@ reversion to the mean using RSI, Bollinger Bands, and Z-score.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -72,6 +72,7 @@ class MeanReversionStrategy(BaseStrategy):
         if config is None:
             config = self._default_config()
         self.config = config
+        self._entry_times: dict[str, datetime] = {}
 
     @staticmethod
     def _default_config() -> MeanReversionConfig:
@@ -395,3 +396,33 @@ class MeanReversionStrategy(BaseStrategy):
                 confidence += 10
 
         return min(confidence, 95.0)
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize strategy state for persistence.
+
+        Persists:
+        - _entry_times: Entry timestamps for max_hold_hours calculation
+
+        Returns:
+            Dictionary containing strategy state.
+        """
+        return {"entry_times": {ticker: dt.isoformat() for ticker, dt in self._entry_times.items()}}
+
+    def from_dict(self, data: dict[str, Any]) -> None:
+        """
+        Restore strategy state from persisted data.
+
+        Args:
+            data: Dictionary containing strategy state from to_dict()
+        """
+        # Clear existing state
+        self._entry_times = {}
+
+        if not data:
+            return
+
+        # Restore entry times
+        entry_times = data.get("entry_times", {})
+        for ticker, iso_str in entry_times.items():
+            self._entry_times[ticker] = datetime.fromisoformat(iso_str)
