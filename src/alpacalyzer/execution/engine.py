@@ -233,13 +233,25 @@ class ExecutionEngine:
         2. If no bracket order → Evaluate strategy.evaluate_exit()
            (Used for emergency conditions like momentum collapse)
 
+        Bracket Order Sync (Issue #99):
+        --------------------------------
+        Before skipping dynamic exit, we verify the bracket order still exists
+        by querying the broker. This handles cases where bracket orders are
+        canceled externally (via Alpaca dashboard, API, or fills).
+
         See module docstring for full precedence documentation.
         """
         if position.has_bracket_order:
-            logger.debug(
-                f"[EXIT PRECEDENCE] Skipping dynamic exit for {position.ticker}: bracket order active (stop={position.stop_loss}, target={position.target}). Broker will manage exit automatically."
-            )
-            return
+            # Verify bracket order still exists before skipping (Issue #99)
+            self.positions.sync_bracket_order_status(position.ticker)
+
+            # Re-check after sync - bracket order may have been canceled
+            if position.has_bracket_order:
+                logger.debug(
+                    f"[EXIT PRECEDENCE] Skipping dynamic exit for {position.ticker}: bracket order active (stop={position.stop_loss}, target={position.target}). Broker will manage exit automatically."
+                )
+                return
+            # If bracket order is gone, fall through to dynamic exit evaluation
 
         signals = self._get_cached_signal(position.ticker)
 

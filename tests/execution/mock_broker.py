@@ -145,6 +145,21 @@ class MockAlpacaClient:
         """Cancel an order by ID."""
         self.orders = [o for o in self.orders if o.id != order_id]
 
+    def get_account(self) -> Any:
+        """Get account information."""
+        return type(
+            "MockAccount",
+            (),
+            {
+                "equity": str(self.equity),
+                "buying_power": str(self.buying_power),
+                "initial_margin": "0",
+                "multiplier": "1",
+                "daytrading_buying_power": str(self.buying_power),
+                "maintenance_margin": "0",
+            },
+        )()
+
 
 def create_mock_broker() -> MockAlpacaClient:
     """Create a mock broker with default configuration."""
