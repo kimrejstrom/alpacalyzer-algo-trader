@@ -2,12 +2,18 @@
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from alpaca.trading.models import Position
+from alpaca.trading.enums import QueryOrderStatus
+from alpaca.trading.models import Order, Position
+from alpaca.trading.requests import GetOrdersRequest
+
+from alpacalyzer.utils.logger import get_logger
 
 if TYPE_CHECKING:
     pass
+
+logger = get_logger()
 
 
 @dataclass
@@ -238,6 +244,53 @@ class PositionTracker:
 
         self._last_sync = datetime.now(UTC)
         return changes
+
+    def sync_bracket_order_status(self, ticker: str) -> None:
+        """
+        Sync bracket order status from broker for a specific position.
+
+        Queries the broker for open orders on the ticker and updates
+        the has_bracket_order flag based on whether any bracket-related
+        orders exist.
+
+        Bracket-related order classes:
+        - "bracket": Full bracket order
+        - "oco": One-Cancels-Other (bracket legs)
+        - "oto": One-Triggers-Other
+
+        Args:
+            ticker: Stock ticker symbol to sync
+
+        Note:
+            This is called lazily before skipping dynamic exit evaluation
+            to ensure the has_bracket_order flag reflects actual broker state.
+            See Issue #99 for details.
+        """
+        from alpacalyzer.trading.alpaca_client import trading_client
+
+        position = self._positions.get(ticker)
+        if position is None:
+            return
+
+        previous_state = position.has_bracket_order
+
+        try:
+            orders_response = trading_client.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker]))
+            open_orders = cast(list[Order], orders_response)
+
+            # Check if any order is a bracket-related order
+            bracket_order_classes = {"bracket", "oco", "oto"}
+            has_bracket = any(getattr(order, "order_class", None) in bracket_order_classes for order in open_orders)
+
+            position.has_bracket_order = has_bracket
+
+            # Log state change
+            if previous_state and not has_bracket:
+                logger.info(f"[BRACKET SYNC] {ticker}: Bracket order no longer exists. Dynamic exit evaluation will now be enabled.")
+
+        except Exception as e:
+            logger.warning(f"[BRACKET SYNC] Failed to sync bracket order status for {ticker}: {e}")
+            # On error, keep the existing state (fail-safe)
 
     def add_position(
         self,
