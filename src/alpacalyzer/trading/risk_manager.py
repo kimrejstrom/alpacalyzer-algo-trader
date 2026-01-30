@@ -26,14 +26,40 @@ Position Sizing Rules:
   * Used when ATR unavailable or calculation fails
 
 Margin Calculation:
-- Margin requirement = 50% (typical for short positions)
+- Margin requirement derived from Alpaca account multiplier
+- Reg-T accounts: multiplier=2 → requirement=0.5 (50%)
+- Portfolio margin: multiplier=4 → requirement=0.25 (25%)
 - Short capacity = day_trading_BP / margin_requirement
-- Example: $10k / 0.5 = $20k short capacity
+- Example: $10k / 0.5 = $20k short capacity (Reg-T)
+- Example: $10k / 0.25 = $40k short capacity (Portfolio margin)
 
 Safety Factor:
 - 90% of available buying power used
 - Accounts for price movements between analysis and execution
 """
+
+DEFAULT_MARGIN_REQUIREMENT = 0.5  # Fallback for Reg-T accounts
+
+
+def get_margin_requirement(account: dict[str, float | int]) -> float:
+    """
+    Derive margin requirement from Alpaca account multiplier.
+
+    Args:
+        account: Account info dict containing margin_multiplier
+
+    Returns:
+        Margin requirement as decimal (e.g., 0.5 for 50%)
+
+    Examples:
+        - Reg-T (2x multiplier): 1/2 = 0.5 (50% requirement)
+        - Portfolio margin (4x): 1/4 = 0.25 (25% requirement)
+        - Portfolio margin (6x): 1/6 ≈ 0.167 (16.7% requirement)
+    """
+    multiplier = account.get("margin_multiplier", 0)
+    if multiplier and multiplier > 0:
+        return 1.0 / float(multiplier)
+    return DEFAULT_MARGIN_REQUIREMENT
 
 
 def get_stock_atr(ticker: str, period: int = 14) -> float | None:
@@ -185,7 +211,9 @@ def risk_management_agent(state: AgentState):
 
         remaining_position_limit = position_limit - abs(current_position_value)
 
-        short_margin_requirement = 0.5
+        # Get margin requirement from account multiplier (dynamic based on account type)
+        short_margin_requirement = get_margin_requirement(account)
+        margin_multiplier = account.get("margin_multiplier", 0)
 
         regular_buying_power = float(account["buying_power"])
         day_trading_buying_power = float(account.get("daytrading_buying_power", regular_buying_power))
@@ -226,6 +254,8 @@ def risk_management_agent(state: AgentState):
                 "adjusted_buying_power": float(adjusted_buying_power),
                 "trade_type": "short" if is_bearish else "long",
                 "sizing_method": "dynamic" if position_limit <= total_portfolio_value * 0.05 else "fixed",
+                "margin_multiplier": float(margin_multiplier) if margin_multiplier else 0,
+                "margin_requirement": float(short_margin_requirement),
             },
         }
 

@@ -275,3 +275,228 @@ class TestDynamicPositionSizingEdgeCases:
                     max_position_pct=0.05,
                 )
         assert size_with_neg_vix == size_no_vix
+
+
+class TestGetMarginRequirement:
+    """Tests for get_margin_requirement function."""
+
+    def test_reg_t_account_multiplier_2(self):
+        """Test Reg-T account with 2x multiplier returns 0.5 (50%) requirement."""
+        from alpacalyzer.trading.risk_manager import get_margin_requirement
+
+        account = {"margin_multiplier": 2.0}
+        result = get_margin_requirement(account)
+        assert result == 0.5
+
+    def test_portfolio_margin_multiplier_4(self):
+        """Test portfolio margin account with 4x multiplier returns 0.25 (25%) requirement."""
+        from alpacalyzer.trading.risk_manager import get_margin_requirement
+
+        account = {"margin_multiplier": 4.0}
+        result = get_margin_requirement(account)
+        assert result == 0.25
+
+    def test_portfolio_margin_multiplier_6(self):
+        """Test portfolio margin account with 6x multiplier returns ~0.167 requirement."""
+        from alpacalyzer.trading.risk_manager import get_margin_requirement
+
+        account = {"margin_multiplier": 6.0}
+        result = get_margin_requirement(account)
+        assert abs(result - (1.0 / 6.0)) < 0.001
+
+    def test_fallback_when_multiplier_zero(self):
+        """Test fallback to 0.5 when multiplier is zero."""
+        from alpacalyzer.trading.risk_manager import get_margin_requirement
+
+        account = {"margin_multiplier": 0.0}
+        result = get_margin_requirement(account)
+        assert result == 0.5
+
+    def test_fallback_when_multiplier_missing(self):
+        """Test fallback to 0.5 when multiplier key is missing."""
+        from alpacalyzer.trading.risk_manager import get_margin_requirement
+
+        account = {"equity": 100000.0}
+        result = get_margin_requirement(account)
+        assert result == 0.5
+
+    def test_fallback_when_account_empty(self):
+        """Test fallback to 0.5 when account dict is empty."""
+        from alpacalyzer.trading.risk_manager import get_margin_requirement
+
+        account = {}
+        result = get_margin_requirement(account)
+        assert result == 0.5
+
+
+class TestDynamicMarginInRiskAgent:
+    """Test that risk_management_agent uses dynamic margin requirement."""
+
+    def test_short_position_uses_dynamic_margin_reg_t(self, monkeypatch):
+        """Test short position calculation with Reg-T account (2x multiplier)."""
+        from alpacalyzer.graph.state import AgentState
+        from alpacalyzer.trading.risk_manager import risk_management_agent
+
+        state = AgentState(
+            messages=[],
+            data={
+                "tickers": ["AAPL"],
+                "portfolio": {},
+                "AAPL": {"signal": "bearish"},
+                "analyst_signals": {},
+            },
+            metadata={"show_reasoning": False},
+        )
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+        mock_position.qty = "0"
+        mock_position.cost_basis = "0"
+        mock_position.current_price = "150.00"
+        mock_position.side = "long"
+        mock_position.unrealized_pl = "0"
+
+        mock_account = {
+            "equity": 100000.0,
+            "buying_power": 50000.0,
+            "daytrading_buying_power": 200000.0,
+            "maintenance_margin": 2500.0,
+            "margin_multiplier": 2.0,  # Reg-T account
+        }
+
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.trading_client.get_all_positions",
+            lambda: [mock_position],
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.get_account_info",
+            lambda: mock_account,
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.get_current_price",
+            lambda ticker: 150.0,
+        )
+
+        result = risk_management_agent(state)
+        risk_data = result["data"]["analyst_signals"]["risk_management_agent"]["AAPL"]
+
+        # With 2x multiplier, margin requirement = 0.5
+        # adjusted_buying_power = 200000 / 0.5 * 0.9 = 360000
+        expected_adjusted_buying_power = 200000.0 / 0.5 * 0.9
+        actual_adjusted_buying_power = risk_data["reasoning"]["adjusted_buying_power"]
+
+        assert actual_adjusted_buying_power == expected_adjusted_buying_power
+        assert risk_data["reasoning"]["margin_multiplier"] == 2.0
+        assert risk_data["reasoning"]["margin_requirement"] == 0.5
+
+    def test_short_position_uses_dynamic_margin_portfolio(self, monkeypatch):
+        """Test short position calculation with portfolio margin account (4x multiplier)."""
+        from alpacalyzer.graph.state import AgentState
+        from alpacalyzer.trading.risk_manager import risk_management_agent
+
+        state = AgentState(
+            messages=[],
+            data={
+                "tickers": ["AAPL"],
+                "portfolio": {},
+                "AAPL": {"signal": "bearish"},
+                "analyst_signals": {},
+            },
+            metadata={"show_reasoning": False},
+        )
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+        mock_position.qty = "0"
+        mock_position.cost_basis = "0"
+        mock_position.current_price = "150.00"
+        mock_position.side = "long"
+        mock_position.unrealized_pl = "0"
+
+        mock_account = {
+            "equity": 100000.0,
+            "buying_power": 50000.0,
+            "daytrading_buying_power": 200000.0,
+            "maintenance_margin": 2500.0,
+            "margin_multiplier": 4.0,  # Portfolio margin account
+        }
+
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.trading_client.get_all_positions",
+            lambda: [mock_position],
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.get_account_info",
+            lambda: mock_account,
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.get_current_price",
+            lambda ticker: 150.0,
+        )
+
+        result = risk_management_agent(state)
+        risk_data = result["data"]["analyst_signals"]["risk_management_agent"]["AAPL"]
+
+        # With 4x multiplier, margin requirement = 0.25
+        # adjusted_buying_power = 200000 / 0.25 * 0.9 = 720000
+        expected_adjusted_buying_power = 200000.0 / 0.25 * 0.9
+        actual_adjusted_buying_power = risk_data["reasoning"]["adjusted_buying_power"]
+
+        assert actual_adjusted_buying_power == expected_adjusted_buying_power
+        assert risk_data["reasoning"]["margin_multiplier"] == 4.0
+        assert risk_data["reasoning"]["margin_requirement"] == 0.25
+
+    def test_long_position_not_affected_by_margin(self, monkeypatch):
+        """Test that long positions don't use margin requirement calculation."""
+        from alpacalyzer.graph.state import AgentState
+        from alpacalyzer.trading.risk_manager import risk_management_agent
+
+        state = AgentState(
+            messages=[],
+            data={
+                "tickers": ["AAPL"],
+                "portfolio": {},
+                "AAPL": {"signal": "bullish"},  # Long position
+                "analyst_signals": {},
+            },
+            metadata={"show_reasoning": False},
+        )
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+        mock_position.qty = "0"
+        mock_position.cost_basis = "0"
+        mock_position.current_price = "150.00"
+        mock_position.side = "long"
+        mock_position.unrealized_pl = "0"
+
+        mock_account = {
+            "equity": 100000.0,
+            "buying_power": 50000.0,
+            "daytrading_buying_power": 200000.0,
+            "maintenance_margin": 2500.0,
+            "margin_multiplier": 4.0,
+        }
+
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.trading_client.get_all_positions",
+            lambda: [mock_position],
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.get_account_info",
+            lambda: mock_account,
+        )
+        monkeypatch.setattr(
+            "alpacalyzer.trading.risk_manager.get_current_price",
+            lambda ticker: 150.0,
+        )
+
+        result = risk_management_agent(state)
+        risk_data = result["data"]["analyst_signals"]["risk_management_agent"]["AAPL"]
+
+        # Long positions use regular buying power * safety factor
+        expected_adjusted_buying_power = 50000.0 * 0.9
+        actual_adjusted_buying_power = risk_data["reasoning"]["adjusted_buying_power"]
+
+        assert actual_adjusted_buying_power == expected_adjusted_buying_power
+        assert risk_data["reasoning"]["trade_type"] == "long"
