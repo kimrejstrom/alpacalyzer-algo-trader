@@ -90,26 +90,30 @@ class MeanReversionStrategy(BaseStrategy):
         """
         Evaluate whether to enter a mean reversion position.
 
-        NOTE: MeanReversionStrategy currently detects opportunities independently.
-        If agent_recommendation is provided, strategy should validate conditions
-        and use agent's entry/stop/target/quantity values.
+        Decision Flow (Issue #97 - Agent Integration):
+        1. Strategy validates RSI oversold/overbought + Bollinger Band conditions
+        2. If agent_recommendation provided AND conditions valid: use agent's values
+        3. If agent_recommendation provided AND conditions invalid: reject with reason
+        4. If agent_recommendation is None: calculate own values (independent mode)
 
-        Decision Flow:
-        - Strategy validates RSI oversold/overbought + Bollinger Band conditions
-        - If agent_recommendation provided: validate mean reversion fit, use agent values
-        - Reject if not in mean reversion range (RSI neutral, price within bands)
+        Agent Integration:
+        - Agent provides: entry_point, stop_loss, target_price, quantity
+        - Strategy validates: RSI extreme, price outside BB, Z-score extreme, trend filter
+        - Strategy MUST NOT override agent's calculated values when conditions are met
 
         Entry conditions (Long):
         - RSI below oversold threshold (< 30)
         - Price below lower Bollinger Band
+        - Z-score below -deviation_threshold
         - Volume spike indicating capitulation
-        - Not in strong downtrend
+        - Not in strong downtrend (trend_strength > -0.10)
 
         Entry conditions (Short):
         - RSI above overbought threshold (> 70)
         - Price above upper Bollinger Band
+        - Z-score above deviation_threshold
         - Volume spike indicating exhaustion
-        - Not in strong uptrend
+        - Not in strong uptrend (trend_strength < 0.10)
         """
         from dataclasses import dataclass
 
@@ -227,6 +231,22 @@ class MeanReversionStrategy(BaseStrategy):
                 reasons.append(f"Strong uptrend ({trend_strength:.1%})")
             return EntryDecision(should_enter=False, reason="; ".join(reasons))
 
+        # If agent recommendation provided, use agent's values
+        # Strategy's role: Validate mean reversion conditions, not recalculate prices
+        # Agent provides: entry_point, stop_loss, target_price, quantity
+        # Strategy validates: RSI oversold/overbought, price outside BB, Z-score extreme
+        if agent_recommendation is not None:
+            assert mr_signal is not None, "mr_signal must be set when should_enter is True"
+            return EntryDecision(
+                should_enter=True,
+                reason=mr_signal.reason,
+                suggested_size=agent_recommendation.quantity,
+                entry_price=agent_recommendation.entry_point,
+                stop_loss=agent_recommendation.stop_loss,
+                target=agent_recommendation.target_price,
+            )
+
+        # No agent recommendation - calculate own values (existing behavior)
         suggested_size = self.calculate_position_size(signal, context, context.buying_power * self.config.risk_pct_per_trade)
 
         assert mr_signal is not None, "mr_signal must be set when should_enter is True"
