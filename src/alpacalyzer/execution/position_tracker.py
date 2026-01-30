@@ -287,6 +287,8 @@ class PositionTracker:
             # Log state change
             if previous_state and not has_bracket:
                 logger.info(f"[BRACKET SYNC] {ticker}: Bracket order no longer exists. Dynamic exit evaluation will now be enabled.")
+            elif has_bracket:
+                logger.debug(f"[BRACKET SYNC] {ticker}: Bracket order confirmed present.")
 
         except Exception as e:
             logger.warning(f"[BRACKET SYNC] Failed to sync bracket order status for {ticker}: {e}")

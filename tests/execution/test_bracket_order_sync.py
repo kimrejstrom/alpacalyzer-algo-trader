@@ -221,6 +221,24 @@ class TestSyncBracketOrderStatus:
         # Assert - flag should be updated
         assert tracker._positions["AAPL"].has_bracket_order is False
 
+    def test_sync_handles_api_error_gracefully(self, mock_broker, tracked_position_with_bracket):
+        """On API error, should keep existing state (fail-safe)."""
+
+        # Setup: Make get_orders raise an exception
+        def raise_error(*args, **kwargs):
+            raise Exception("API Error")
+
+        mock_broker.get_orders = raise_error
+
+        tracker = PositionTracker()
+        tracker._positions["AAPL"] = tracked_position_with_bracket
+
+        # Act - should not raise
+        tracker.sync_bracket_order_status("AAPL")
+
+        # Assert - flag should remain True (fail-safe)
+        assert tracker._positions["AAPL"].has_bracket_order is True
+
 
 class TestExecutionEngineExitWithBracketSync:
     """Tests for ExecutionEngine._process_exit() with bracket order sync."""
