@@ -7,7 +7,7 @@ and supporting dataclasses for entry/exit decisions and market context.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from alpaca.trading.models import Position as AlpacaPosition
@@ -134,6 +134,11 @@ class Strategy(Protocol):
     - Agents have authority to propose trade setups
     - Strategies have authority to reject if setup doesn't fit their style
     - Strategies MUST NOT override agent's calculated values
+
+    STATE PERSISTENCE (Issue #98):
+    - Strategies can persist state via to_dict() and from_dict()
+    - ExecutionEngine calls these during save_state/load_state
+    - Default implementation returns empty dict / no-op
     """
 
     def evaluate_entry(
@@ -220,6 +225,29 @@ class Strategy(Protocol):
 
         Returns:
             Number of shares (rounded down to integer)
+        """
+        ...
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize strategy-specific state for persistence.
+
+        Override in subclasses that maintain state (e.g., position data,
+        false breakout counts, entry times).
+
+        Returns:
+            Dictionary containing strategy state, empty dict by default.
+        """
+        ...
+
+    def from_dict(self, data: dict[str, Any]) -> None:
+        """
+        Restore strategy-specific state from persisted data.
+
+        Override in subclasses that maintain state.
+
+        Args:
+            data: Dictionary containing strategy state from to_dict()
         """
         ...
 
@@ -362,3 +390,27 @@ class BaseStrategy(ABC):
             return False, f"Already have position in {symbol}"
 
         return True, "Basic filters passed"
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize strategy-specific state for persistence.
+
+        Default implementation returns empty dict. Override in subclasses
+        that maintain state (e.g., BreakoutStrategy, MeanReversionStrategy).
+
+        Returns:
+            Dictionary containing strategy state.
+        """
+        return {}
+
+    def from_dict(self, data: dict[str, Any]) -> None:
+        """
+        Restore strategy-specific state from persisted data.
+
+        Default implementation is a no-op. Override in subclasses
+        that maintain state.
+
+        Args:
+            data: Dictionary containing strategy state from to_dict()
+        """
+        pass

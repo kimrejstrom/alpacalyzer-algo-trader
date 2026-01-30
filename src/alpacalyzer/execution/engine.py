@@ -456,6 +456,7 @@ class ExecutionEngine:
                 positions=self.positions.to_dict(),
                 cooldowns=self.cooldowns.to_dict(),
                 orders=self.orders.to_dict(),
+                strategy_state=self.strategy.to_dict(),
             )
 
             STATE_FILE.write_text(state.to_json(), encoding="utf-8")
@@ -478,7 +479,12 @@ class ExecutionEngine:
             state_json = STATE_FILE.read_text(encoding="utf-8")
             state = EngineState.from_json(state_json)
 
-            if state.version != STATE_VERSION:
+            # Handle version migration: v1.0.0 -> v1.1.0
+            # v1.0.0 states don't have strategy_state, from_json defaults it to {}
+            if state.version == "1.0.0":
+                logger.info("Migrating state from v1.0.0 to v1.1.0 (adding strategy_state)")
+                # Continue loading - strategy_state will be empty dict
+            elif state.version != STATE_VERSION:
                 logger.warning(f"State version mismatch: {state.version} != {STATE_VERSION}. Starting with fresh state.")
                 return
 
@@ -488,6 +494,9 @@ class ExecutionEngine:
             self.positions = PositionTracker.from_dict(state.positions)
             self.cooldowns = CooldownManager.from_dict(state.cooldowns)
             self.orders = OrderManager.from_dict(state.orders)
+
+            # Restore strategy state (Issue #98)
+            self.strategy.from_dict(state.strategy_state)
 
             logger.info(f"State loaded: {len(self.signal_queue._heap)} signals, {len(self.positions._positions)} positions, {len(self.cooldowns._cooldowns)} cooldowns")
         except Exception as e:
