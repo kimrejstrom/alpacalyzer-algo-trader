@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, TypeVar
 
 from openai import OpenAI
+from pydantic import BaseModel
+
+from alpacalyzer.llm.config import LLMTier, get_model_for_tier
+from alpacalyzer.llm.structured import complete_structured
+
+T = TypeVar("T", bound="BaseModel")
 
 
 class LLMClient:
@@ -29,3 +35,13 @@ class LLMClient:
             messages=messages,  # type: ignore[arg-type]
         )
         return response.choices[0].message.content or ""
+
+    def complete_structured(
+        self,
+        messages: list[dict],
+        response_model: type[T],
+        tier: LLMTier = LLMTier.STANDARD,
+        use_response_healing: bool = True,
+    ) -> T:
+        model = get_model_for_tier(tier)
+        return complete_structured(self.client, messages, response_model, model, use_response_healing)
