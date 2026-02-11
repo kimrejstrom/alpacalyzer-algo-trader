@@ -25,7 +25,7 @@ class LLMClient:
         model: str | None = None,
     ) -> str:
         response = self.client.chat.completions.create(
-            model=model or os.getenv("LLM_MODEL_STANDARD", "anthropic/claude-3.5-sonnet"),
+            model=model or os.getenv("LLM_MODEL_STANDARD", "gpt-4o"),
             messages=messages,  # type: ignore[arg-type]
         )
         return response.choices[0].message.content or ""
