@@ -45,9 +45,15 @@ class TestLLMClient:
             assert call_kwargs["model"] == "gpt-4"
 
     def test_default_headers(self):
-        client = LLMClient()
-        assert client.client.default_headers.get("X-Title") == "Alpacalyzer"
+        mock_client = MagicMock()
+        mock_client.default_headers = {"X-Title": "Alpacalyzer"}
+        with patch("alpacalyzer.llm.client.OpenAI", return_value=mock_client):
+            client = LLMClient()
+            assert client.client.default_headers.get("X-Title") == "Alpacalyzer"
 
     def test_init_with_custom_headers(self):
-        client = LLMClient(default_headers={"X-Custom": "Value"})
-        assert client.client.default_headers.get("X-Custom") == "Value"
+        mock_client = MagicMock()
+        mock_client.default_headers = {"X-Custom": "Value"}
+        with patch("alpacalyzer.llm.client.OpenAI", return_value=mock_client):
+            client = LLMClient(default_headers={"X-Custom": "Value"})
+            assert client.client.default_headers.get("X-Custom") == "Value"
