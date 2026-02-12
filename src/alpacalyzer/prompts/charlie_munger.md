@@ -49,7 +49,7 @@ Provide your analysis in this exact JSON structure:
 ```json
 {
   "signal": "bullish" | "bearish" | "neutral",
-  "confidence": 0-100,
+  "confidence": 0-100%,
   "thesis": "2-3 sentence investment thesis using Munger's mental models",
   "key_metrics": {
     "roic": "return on invested capital percentage",

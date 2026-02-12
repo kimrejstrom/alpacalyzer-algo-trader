@@ -45,7 +45,7 @@ Synthesize signals from multiple investor agents (Benjamin Graham, Bill Ackman, 
     "TICKER": {
       "agent_name": {
         "signal": "bullish" | "bearish" | "neutral",
-        "confidence": 0-100
+        "confidence": 0-100%
       }
     }
   },
