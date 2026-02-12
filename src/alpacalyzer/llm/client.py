@@ -11,15 +11,6 @@ from alpacalyzer.llm.structured import complete_structured
 
 T = TypeVar("T", bound="BaseModel")
 
-_llm_client: LLMClient | None = None
-
-
-def get_llm_client() -> LLMClient:
-    global _llm_client
-    if _llm_client is None:
-        _llm_client = LLMClient()
-    return _llm_client
-
 
 class LLMClient:
     def __init__(
