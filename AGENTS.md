@@ -21,7 +21,8 @@ cp .env.example .env
 # Edit .env with required API keys:
 # - ALPACA_API_KEY (Alpaca API)
 # - ALPACA_SECRET_KEY (Alpaca secret)
-# - OPENAI_API_KEY (GPT-4)
+# - LLM_API_KEY (OpenAI-compatible LLM provider, e.g., OpenRouter)
+# - USE_NEW_LLM=true (use new LLM abstraction layer)
 
 # 3. Start development
 uv run alpacalyzer --analyze  # Analysis mode (no real trades)
