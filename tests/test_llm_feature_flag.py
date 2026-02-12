@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pydantic import BaseModel
 
 from alpacalyzer.llm import complete_structured, use_new_llm
@@ -63,3 +64,13 @@ class TestCompleteStructured:
 
             assert result == mock_response
             mock_legacy.assert_called_once()
+
+    def test_raises_value_error_when_legacy_returns_none(self, monkeypatch):
+        monkeypatch.setenv("USE_NEW_LLM", "false")
+
+        with patch("alpacalyzer.llm.legacy_complete_structured", return_value=None):
+            with pytest.raises(ValueError, match="Legacy LLM implementation returned None"):
+                complete_structured(
+                    messages=[{"role": "user", "content": "test"}],
+                    response_model=TestModel,
+                )
