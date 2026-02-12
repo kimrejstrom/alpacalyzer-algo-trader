@@ -163,9 +163,17 @@ def fundamentals_agent(state: AgentState):
 
         progress.update_status("fundamentals_agent", ticker, "Done")
 
-    # Create the fundamental analysis message
+    # Create the fundamental analysis message with explicit units
+    fundamental_analysis_formatted = {}
+    for ticker, data in fundamental_analysis.items():
+        fundamental_analysis_formatted[ticker] = {
+            "signal": data["signal"],
+            "confidence": f"{data['confidence']:.1f}%" if isinstance(data["confidence"], int | float) else data["confidence"],
+            "reasoning": data["reasoning"],
+        }
+
     message = HumanMessage(
-        content=json.dumps(fundamental_analysis),
+        content=json.dumps(fundamental_analysis_formatted),
         name="fundamentals_agent",
     )
 

@@ -48,9 +48,17 @@ def web_agent(state: AgentState):
 
         progress.update_status("web_agent", ticker, "Done")
 
-    # Create the web agent message
+    # Create the web agent message with explicit units
+    web_analysis_formatted = {}
+    for ticker, data in web_analysis.items():
+        web_analysis_formatted[ticker] = {
+            "signal": data["signal"],
+            "confidence": f"{data['confidence']:.1f}%" if isinstance(data["confidence"], int | float) else data["confidence"],
+            "reasoning": data["reasoning"],
+        }
+
     message = HumanMessage(
-        content=json.dumps(web_analysis),
+        content=json.dumps(web_analysis_formatted),
         name="web_agent",
     )
 
