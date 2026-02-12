@@ -175,6 +175,47 @@ LOG_LEVEL=INFO
 
 ---
 
+## LLM Configuration
+
+Alpacalyzer supports multiple LLM providers via OpenAI-compatible APIs.
+
+### Quick Start (OpenRouter)
+
+1. Get an API key from [OpenRouter](https://openrouter.ai)
+2. Set in `.env`:
+   ```
+   LLM_API_KEY=your_openrouter_key
+   ```
+
+### Model Tiers
+
+Different agents use different model tiers based on task complexity:
+
+| Tier     | Agents                             | Default Model     |
+| -------- | ---------------------------------- | ----------------- |
+| Fast     | Sentiment, Opportunity Finder      | Llama 3.2 3B      |
+| Standard | Investor Agents, Portfolio Manager | Claude 3.5 Sonnet |
+| Deep     | Quant Agent, Trading Strategist    | Claude 3.5 Sonnet |
+
+Override defaults via environment variables:
+
+```
+LLM_MODEL_FAST=meta-llama/llama-3.2-3b-instruct
+LLM_MODEL_STANDARD=anthropic/claude-3.5-sonnet
+LLM_MODEL_DEEP=anthropic/claude-3.5-sonnet
+```
+
+### Rollback to OpenAI
+
+To use the legacy OpenAI implementation:
+
+```
+USE_NEW_LLM=false
+OPENAI_API_KEY=your_openai_key
+```
+
+---
+
 ## Usage
 
 ### Analysis Mode (No Trades)
