@@ -134,7 +134,7 @@ def generate_trading_decision(
 
     # Prepare dynamic input values (assumes these variables are defined)
     signals_by_ticker_str = json.dumps(signals_by_ticker, indent=2)
-    current_prices_formatted = {f"${k}": f"${v:.2f}" for k, v in current_prices.items()}
+    current_prices_formatted = {k: f"${v:.2f}" for k, v in current_prices.items()}
     current_prices_str = json.dumps(current_prices_formatted, indent=2)
     max_shares_formatted = {k: f"{v:,} shares" for k, v in max_shares.items()}
     max_shares_str = json.dumps(max_shares_formatted, indent=2)
