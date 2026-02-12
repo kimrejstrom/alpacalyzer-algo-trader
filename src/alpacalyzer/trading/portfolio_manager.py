@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage
 from alpacalyzer.data.models import PortfolioManagerOutput
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.llm import LLMTier, get_llm_client
+from alpacalyzer.prompts import load_prompt
 from alpacalyzer.utils.progress import progress
 
 
@@ -102,37 +103,7 @@ def generate_trading_decision(
     """Attempts to get a decision from the LLM with retry logic"""
     system_message = {
         "role": "system",
-        "content": (
-            "You are a portfolio manager making final trading decisions based on multiple tickers.\n\n"
-            "Trading Rules:\n"
-            "- Only enter trades if there is high confidence in the signal and majority agreement among analysts\n"
-            "- For long positions:\n"
-            "  * Only buy if you have available cash\n"
-            "  * Only sell if you currently hold long shares of that ticker\n"
-            "  * Sell quantity must be ≤ current long position shares\n"
-            "  * Buy quantity must be ≤ max_shares for that ticker\n\n"
-            "- For short positions:\n"
-            "  * Only short if you have available margin (50% of position value required)\n"
-            "  * Only cover if you currently have short shares of that ticker\n"
-            "  * Cover quantity must be ≤ current short position shares\n"
-            "  * Short quantity must respect margin requirements\n\n"
-            "- The max_shares values are pre-calculated to respect position limits\n"
-            "- Consider both long and short opportunities based on signals\n"
-            "- Maintain appropriate risk management with both long and short exposure\n\n"
-            "Available Actions:\n"
-            '- "buy": Open or add to long position\n'
-            '- "sell": Close or reduce long position\n'
-            '- "short": Open or add to short position\n'
-            '- "cover": Close or reduce short position\n'
-            '- "hold": No action\n\n'
-            "Inputs:\n"
-            "- signals_by_ticker: dictionary of ticker → signals\n"
-            "- max_shares: maximum shares allowed per ticker\n"
-            "- portfolio_cash: current cash in portfolio\n"
-            "- portfolio_positions: current positions (both long and short)\n"
-            "- current_prices: current prices for each ticker\n"
-            "- margin_requirement: current margin requirement for short positions"
-        ),
+        "content": load_prompt("portfolio_manager"),
     }
 
     # Define a template for the user (human) message
