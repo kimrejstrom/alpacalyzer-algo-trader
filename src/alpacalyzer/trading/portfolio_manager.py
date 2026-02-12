@@ -110,18 +110,18 @@ def generate_trading_decision(
     human_template = (
         "Based on the team's analysis, make your trading decisions for each ticker.\n\n"
         "Here are the signals by ticker:\n{signals_by_ticker}\n\n"
-        "Current Prices:\n{current_prices}\n\n"
+        "Current Prices ($):\n{current_prices}\n\n"
         "Maximum Shares Allowed For Purchases:\n{max_shares}\n\n"
-        "Portfolio Cash: {portfolio_cash}\n"
+        "Portfolio Cash ($): {portfolio_cash}\n"
         "Current Positions: {portfolio_positions}\n"
-        "Current Margin Requirement: {margin_requirement}\n\n"
+        "Current Margin Requirement ($): {margin_requirement}\n\n"
         "Output strictly in JSON with the following structure:\n"
         "{{\n"
         '  "decisions": {{\n'
         '    "TICKER1": {{\n'
         '      "action": "buy/sell/short/cover/hold",\n'
-        '      "quantity": integer,\n'
-        '      "confidence": float,\n'
+        '      "quantity": integer (shares),\n'
+        '      "confidence": float (0-100%),\n'
         '      "reasoning": "string"\n'
         "    }},\n"
         '    "TICKER2": {{\n'
@@ -134,11 +134,13 @@ def generate_trading_decision(
 
     # Prepare dynamic input values (assumes these variables are defined)
     signals_by_ticker_str = json.dumps(signals_by_ticker, indent=2)
-    current_prices_str = json.dumps(current_prices, indent=2)
-    max_shares_str = json.dumps(max_shares, indent=2)
-    portfolio_cash_str = f"{portfolio.get('cash', 0):.2f}"
+    current_prices_formatted = {f"${k}": f"${v:.2f}" for k, v in current_prices.items()}
+    current_prices_str = json.dumps(current_prices_formatted, indent=2)
+    max_shares_formatted = {k: f"{v:,} shares" for k, v in max_shares.items()}
+    max_shares_str = json.dumps(max_shares_formatted, indent=2)
+    portfolio_cash_str = f"${portfolio.get('cash', 0):,.2f}"
     portfolio_positions_str = json.dumps(portfolio.get("positions", {}), indent=2)
-    margin_requirement_str = f"{portfolio.get('margin_requirement', 0):.2f}"
+    margin_requirement_str = f"${portfolio.get('margin_requirement', 0):,.2f}"
 
     # Format the human message using the template
     human_message = {
