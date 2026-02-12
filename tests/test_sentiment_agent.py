@@ -67,10 +67,11 @@ def test_sentiment_agent_no_news(mock_yfinance_client, mock_finviz_scanner, mock
     assert isinstance(result["data"]["analyst_signals"]["sentiment_agent"], dict)
 
 
-@patch("alpacalyzer.agents.sentiment_agent.call_gpt_structured")
-def test_calculate_sentiment_signals(mock_call_gpt_structured):
-    # Use proper Pydantic model objects
-    mock_call_gpt_structured.return_value = SentimentAnalysisResponse(
+@patch("alpacalyzer.agents.sentiment_agent.get_llm_client")
+def test_calculate_sentiment_signals(mock_get_llm_client):
+    mock_client = MagicMock()
+    mock_get_llm_client.return_value = mock_client
+    mock_client.complete_structured.return_value = SentimentAnalysisResponse(
         sentiment_analysis=[
             SentimentAnalysis(
                 sentiment="Bullish",
@@ -85,6 +86,7 @@ def test_calculate_sentiment_signals(mock_call_gpt_structured):
 
     result = calculate_sentiment_signals(news_items)
 
+    mock_client.complete_structured.assert_called_once()
     assert result is not None
     assert len(result.sentiment_analysis) > 0
     assert result.sentiment_analysis[0].sentiment == "Bullish"

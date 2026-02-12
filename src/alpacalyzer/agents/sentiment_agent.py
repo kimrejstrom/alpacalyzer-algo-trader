@@ -6,8 +6,8 @@ from typing import Any
 from langchain_core.messages import HumanMessage
 
 from alpacalyzer.data.models import SentimentAnalysisResponse
-from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
+from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import get_logger
@@ -186,4 +186,5 @@ def calculate_sentiment_signals(news_items: list[dict[str, Any]]) -> SentimentAn
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]
 
-    return call_gpt_structured(messages=messages, function_schema=SentimentAnalysisResponse)
+    client = get_llm_client()
+    return client.complete_structured(messages, SentimentAnalysisResponse, tier=LLMTier.FAST)
