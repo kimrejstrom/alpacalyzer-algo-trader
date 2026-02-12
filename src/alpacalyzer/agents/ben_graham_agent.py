@@ -6,8 +6,8 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
 from alpacalyzer.data.api import get_financial_metrics, get_market_cap, search_line_items
-from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
+from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.utils.progress import progress
 
 
@@ -379,4 +379,5 @@ def generate_graham_output(
     # Combine messages into a list
     messages = [system_message, human_message]
 
-    return call_gpt_structured(messages=messages, function_schema=BenGrahamSignal)
+    client = get_llm_client()
+    return client.complete_structured(messages, BenGrahamSignal, tier=LLMTier.STANDARD)

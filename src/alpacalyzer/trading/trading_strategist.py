@@ -6,8 +6,8 @@ from langchain_core.messages import HumanMessage
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.data.models import PortfolioDecision, TradingStrategyResponse
-from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
+from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.utils.progress import progress
 
 
@@ -223,4 +223,5 @@ def get_trading_strategies(trading_signals: TradingSignals, decision: PortfolioD
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]
 
-    return call_gpt_structured(messages=messages, function_schema=TradingStrategyResponse)
+    client = get_llm_client()
+    return client.complete_structured(messages, TradingStrategyResponse, tier=LLMTier.DEEP)

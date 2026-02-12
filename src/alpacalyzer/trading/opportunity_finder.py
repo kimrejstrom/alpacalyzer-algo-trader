@@ -1,7 +1,7 @@
 from pandas import DataFrame
 
 from alpacalyzer.data.models import TopTicker, TopTickersResponse
-from alpacalyzer.gpt.call_gpt import call_gpt_structured
+from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.scanners.reddit_scanner import fetch_reddit_posts, fetch_user_posts
 from alpacalyzer.utils.logger import get_logger
 
@@ -55,7 +55,8 @@ def get_reddit_insights() -> TopTickersResponse | None:
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]
 
-    top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
+    client = get_llm_client()
+    top_tickers_response = client.complete_structured(messages, TopTickersResponse, tier=LLMTier.FAST)
     logger.debug(f"Reddit insights output: {top_tickers_response}")
     return top_tickers_response
 
@@ -129,6 +130,7 @@ def get_top_candidates(top_tickers: list[TopTicker], finviz_df: DataFrame) -> To
     }
 
     messages = [system_message, human_message]
-    top_tickers_response = call_gpt_structured(messages, TopTickersResponse)
+    client = get_llm_client()
+    top_tickers_response = client.complete_structured(messages, TopTickersResponse, tier=LLMTier.FAST)
     logger.debug(f"Top candidates output: {top_tickers_response}")
     return top_tickers_response

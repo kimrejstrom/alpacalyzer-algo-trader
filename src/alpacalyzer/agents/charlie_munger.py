@@ -11,8 +11,8 @@ from alpacalyzer.data.api import (
     get_market_cap,
     search_line_items,
 )
-from alpacalyzer.gpt.call_gpt import call_gpt_structured
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
+from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.utils.progress import progress
 
 
@@ -677,4 +677,5 @@ def generate_munger_output(
     }
 
     messages = [system_message, human_message]
-    return call_gpt_structured(messages=messages, function_schema=CharlieMungerSignal)
+    client = get_llm_client()
+    return client.complete_structured(messages, CharlieMungerSignal, tier=LLMTier.STANDARD)
