@@ -44,7 +44,7 @@ Provide your analysis in this exact JSON structure:
 ```json
 {
   "signal": "bullish" | "bearish" | "neutral",
-  "confidence": 0-100,
+  "confidence": 0-100%,
   "thesis": "2-3 sentence investment thesis from Wood's disruptive growth perspective",
   "key_metrics": {
     "disruption_type": "AI/robotics/genomics/energy存储/blockchain/etc",

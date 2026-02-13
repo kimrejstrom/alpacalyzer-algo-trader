@@ -112,7 +112,7 @@ def sentiment_agent(state: AgentState):
 
         sentiment_analysis[ticker] = {
             "signal": overall_signal,
-            "confidence": confidence,
+            "confidence": f"{confidence:.1f}%",
             "reasoning": reasoning,
         }
 

@@ -71,10 +71,10 @@ def trading_strategist_agent(state: AgentState):
 
 
 def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", "minute"] = "minute") -> str:
-    """Convert a DataFrame of candle data to a compact CSV format with rounding."""
+    """Convert a DataFrame of candle data to a compact CSV format with explicit units."""
 
     # Keep only the most recent `max_rows`
-    df = df.tail(max_rows)
+    df = df.tail(max_rows).copy()
 
     # Rename "symbol" to "ticker" if present
     if "symbol" in df.columns:
@@ -88,8 +88,14 @@ def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", 
     # Filter columns (only if they exist)
     df = df[[col for col in required_cols if col in df.columns]]
 
-    # Round all float values to 3 decimal places
-    df = df.map(lambda x: round(x, 3) if isinstance(x, float) else x)
+    # Round and add units to price columns
+    for col in ["open", "high", "low", "close"]:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda x: f"${round(x, 2):.2f}" if pd.notna(x) else "")
+
+    # Add units to volume (comma-formatted with "shares" suffix)
+    if "volume" in df.columns:
+        df["volume"] = df["volume"].apply(lambda x: f"{int(x):,} shares" if pd.notna(x) else "")
 
     # Adjust timestamp based on granularity
     if "timestamp" in df.columns:
@@ -105,18 +111,18 @@ def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", 
 
 
 def serialize_trading_signals(signals: TradingSignals) -> str:
-    """Convert TradingSignals object into a JSON-compatible format with CSV data."""
+    """Convert TradingSignals object into a JSON-compatible format with explicit units."""
 
     json_ready_signals = {
-        "ticker": signals["symbol"],  # Rename at the top level
-        "current_price": signals["price"],
-        "technical_analysis_score_from_0_to_1": signals["score"],
-        "atr": signals["atr"],
-        "rvol": signals["rvol"],
-        "momentum": signals["momentum"],
+        "ticker": signals["symbol"],
+        "current_price": f"${signals['price']:.2f}",
+        "technical_analysis_score_from_0_to_1": f"{signals['score']:.2f}/1.00 ({signals['score'] * 100:.1f}%)",
+        "atr": f"${signals['atr']:.2f}",
+        "rvol": f"{signals['rvol']:.2f}x",
+        "momentum": f"{signals['momentum']:.2f}%",
     }
 
-    return json.dumps(json_ready_signals, indent=2)  # Convert to JSON string
+    return json.dumps(json_ready_signals, indent=2)
 
 
 def get_trading_strategies(trading_signals: TradingSignals, decision: PortfolioDecision) -> TradingStrategyResponse | None:

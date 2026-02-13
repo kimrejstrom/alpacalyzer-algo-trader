@@ -36,7 +36,7 @@ Provide your analysis in this exact JSON structure:
 ```json
 {
   "signal": "bullish" | "bearish" | "neutral",
-  "confidence": 0-100,
+  "confidence": 0-100%,
   "thesis": "2-3 sentence investment thesis from Graham's perspective",
   "key_metrics": {
     "graham_number": "calculated value or N/A",

@@ -296,6 +296,30 @@ def calculate_intrinsic_value(financial_line_items: list[Any]) -> dict[str, Any]
     }
 
 
+def serialize_buffett_analysis(ticker: str, analysis_data: dict[str, Any]) -> str:
+    """Serialize Buffett analysis data with explicit units for LLM consumption."""
+
+    data = analysis_data[ticker]
+
+    market_cap = data.get("market_cap")
+    margin_of_safety = data.get("margin_of_safety")
+    intrinsic_value_analysis = data.get("intrinsic_value_analysis", {})
+    intrinsic_value = intrinsic_value_analysis.get("intrinsic_value")
+    owner_earnings = intrinsic_value_analysis.get("owner_earnings")
+
+    json_ready_data = {
+        "ticker": ticker,
+        "signal": data.get("signal"),
+        "score": f"{data.get('score', 0):.1f}/{data.get('max_score', 10)}",
+        "market_cap": f"${market_cap:,.2f}" if market_cap else "N/A",
+        "margin_of_safety": f"{margin_of_safety:.1%}" if margin_of_safety is not None else "N/A",
+        "intrinsic_value": f"${intrinsic_value:,.2f}" if intrinsic_value else "N/A",
+        "owner_earnings": f"${owner_earnings:,.2f}" if owner_earnings else "N/A",
+    }
+
+    return json.dumps(json_ready_data, indent=2)
+
+
 def generate_buffett_output(
     ticker: str,
     analysis_data: dict[str, Any],
@@ -315,7 +339,7 @@ def generate_buffett_output(
         Return the trading signal in the following JSON format:
         {{
           "signal": "bullish/bearish/neutral",
-          "confidence": float (0-100),
+          "confidence": float (0-100%),
           "reasoning": "string"
         }}
     """
@@ -325,7 +349,7 @@ def generate_buffett_output(
         "role": "user",
         "content": human_template.format(
             ticker=ticker,
-            analysis_data=json.dumps(analysis_data[ticker], indent=2),
+            analysis_data=serialize_buffett_analysis(ticker, analysis_data),
         ),
     }
 

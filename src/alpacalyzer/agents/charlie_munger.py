@@ -624,6 +624,30 @@ def analyze_news_sentiment(news_items: list[Any]) -> str:
     return f"Qualitative review of {len(news_items)} recent news items would be needed"
 
 
+def serialize_munger_analysis(ticker: str, analysis_data: dict[str, Any]) -> str:
+    """Serialize Munger analysis data with explicit units for LLM consumption."""
+
+    data = analysis_data[ticker]
+
+    valuation_analysis = data.get("valuation_analysis", {})
+    intrinsic_value_range = valuation_analysis.get("intrinsic_value_range", {})
+    fcf_yield = valuation_analysis.get("fcf_yield")
+    normalized_fcf = valuation_analysis.get("normalized_fcf")
+
+    json_ready_data = {
+        "ticker": ticker,
+        "signal": data.get("signal"),
+        "score": f"{data.get('score', 0):.1f}/{data.get('max_score', 10)}",
+        "fcf_yield": f"{fcf_yield:.1%}" if fcf_yield is not None else "N/A",
+        "normalized_fcf": f"${normalized_fcf:,.2f}" if normalized_fcf else "N/A",
+        "intrinsic_value_conservative": f"${intrinsic_value_range.get('conservative', 0):,.2f}" if intrinsic_value_range.get("conservative") else "N/A",
+        "intrinsic_value_reasonable": f"${intrinsic_value_range.get('reasonable', 0):,.2f}" if intrinsic_value_range.get("reasonable") else "N/A",
+        "intrinsic_value_optimistic": f"${intrinsic_value_range.get('optimistic', 0):,.2f}" if intrinsic_value_range.get("optimistic") else "N/A",
+    }
+
+    return json.dumps(json_ready_data, indent=2)
+
+
 def generate_munger_output(
     ticker: str,
     analysis_data: dict[str, Any],
@@ -642,7 +666,7 @@ def generate_munger_output(
             Return the trading signal in this JSON format:
             {{
               "signal": "bullish/bearish/neutral",
-              "confidence": float (0-100),
+              "confidence": float (0-100%),
               "reasoning": "string"
             }}
             """
@@ -652,7 +676,7 @@ def generate_munger_output(
         "role": "user",
         "content": human_template.format(
             ticker=ticker,
-            analysis_data=json.dumps(analysis_data[ticker], indent=2),
+            analysis_data=serialize_munger_analysis(ticker, analysis_data),
         ),
     }
 

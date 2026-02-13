@@ -402,6 +402,26 @@ def analyze_cathie_wood_valuation(financial_line_items: list[LineItem], market_c
     }
 
 
+def serialize_cathie_wood_analysis(ticker: str, analysis_data: dict[str, Any]) -> str:
+    """Serialize Cathie Wood analysis data with explicit units for LLM consumption."""
+
+    data = analysis_data[ticker]
+
+    valuation_analysis = data.get("valuation_analysis", {})
+    intrinsic_value = valuation_analysis.get("intrinsic_value")
+    margin_of_safety = valuation_analysis.get("margin_of_safety")
+
+    json_ready_data = {
+        "ticker": ticker,
+        "signal": data.get("signal"),
+        "score": f"{data.get('score', 0):.1f}/{data.get('max_score', 10)}",
+        "intrinsic_value": f"${intrinsic_value:,.2f}" if intrinsic_value else "N/A",
+        "margin_of_safety": f"{margin_of_safety:.1%}" if margin_of_safety is not None else "N/A",
+    }
+
+    return json.dumps(json_ready_data, indent=2)
+
+
 def generate_cathie_wood_output(
     ticker: str,
     analysis_data: dict[str, Any],
@@ -420,7 +440,7 @@ def generate_cathie_wood_output(
             Return the trading signal in this JSON format:
             {{
               "signal": "bullish/bearish/neutral",
-              "confidence": float (0-100),
+              "confidence": float (0-100%),
               "reasoning": "string"
             }}
             """
@@ -430,7 +450,7 @@ def generate_cathie_wood_output(
         "role": "user",
         "content": human_template.format(
             ticker=ticker,
-            analysis_data=json.dumps(analysis_data[ticker], indent=2),
+            analysis_data=serialize_cathie_wood_analysis(ticker, analysis_data),
         ),
     }
 

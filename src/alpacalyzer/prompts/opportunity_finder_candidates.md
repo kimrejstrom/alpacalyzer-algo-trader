@@ -10,7 +10,7 @@ Respond ONLY with valid JSON. No other text.
     {
       "ticker": "SYMBOL",
       "signal": "bullish|bearish|neutral",
-      "confidence": 0-100,
+      "confidence": 0-100%,
       "reasoning": "brief reason",
       "mentions": 0,
       "upvotes": 0,

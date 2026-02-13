@@ -314,6 +314,60 @@ def analyze_valuation_graham(financial_line_items: list[Any], market_cap: float)
     return {"score": score, "details": "; ".join(details)}
 
 
+def serialize_graham_analysis(ticker: str, analysis_data: dict[str, Any]) -> str:
+    """Serialize Ben Graham analysis data with explicit units for LLM consumption."""
+
+    data = analysis_data[ticker]
+
+    valuation = data.get("valuation_analysis", {})
+    valuation_details = valuation.get("details", "")
+
+    import re
+
+    net_current_asset_value = None
+    ncav_per_share = None
+    price_per_share = None
+    graham_number = None
+    margin_of_safety = None
+
+    if valuation_details:
+        match = re.search(r"Net Current Asset Value = ([0-9,.-]+)", valuation_details)
+        if match:
+            net_current_asset_value = float(match.group(1).replace(",", ""))
+
+        match = re.search(r"NCAV Per Share = ([0-9,.-]+)", valuation_details)
+        if match:
+            ncav_per_share = float(match.group(1).replace(",", ""))
+
+        match = re.search(r"Price Per Share = ([0-9,.-]+)", valuation_details)
+        if match:
+            price_per_share = float(match.group(1).replace(",", ""))
+
+        match = re.search(r"Graham Number = ([0-9,.-]+)", valuation_details)
+        if match:
+            graham_number = float(match.group(1).replace(",", ""))
+
+        match = re.search(r"Margin of Safety \(Graham Number\) = ([0-9.-]+)%", valuation_details)
+        if match:
+            margin_of_safety = float(match.group(1)) / 100
+
+    json_ready_data = {
+        "ticker": ticker,
+        "signal": data.get("signal"),
+        "score": f"{data.get('score', 0):.1f}/{data.get('max_score', 15)}",
+        "earnings_stability_score": f"{data.get('earnings_analysis', {}).get('score', 0)}/5",
+        "financial_strength_score": f"{data.get('strength_analysis', {}).get('score', 0)}/5",
+        "valuation_score": f"{valuation.get('score', 0)}/7",
+        "net_current_asset_value": f"${net_current_asset_value:,.2f}" if net_current_asset_value is not None else "N/A",
+        "ncav_per_share": f"${ncav_per_share:,.2f}" if ncav_per_share is not None else "N/A",
+        "price_per_share": f"${price_per_share:,.2f}" if price_per_share is not None else "N/A",
+        "graham_number": f"${graham_number:,.2f}" if graham_number is not None else "N/A",
+        "margin_of_safety": f"{margin_of_safety:.1%}" if margin_of_safety is not None else "N/A",
+    }
+
+    return json.dumps(json_ready_data, indent=2)
+
+
 def generate_graham_output(
     ticker: str,
     analysis_data: dict[str, Any],
@@ -349,7 +403,7 @@ def generate_graham_output(
         "role": "user",
         "content": human_template.format(
             ticker=ticker,
-            analysis_data=json.dumps(analysis_data[ticker], indent=2),
+            analysis_data=serialize_graham_analysis(ticker, analysis_data),
         ),
     }
 

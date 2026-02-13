@@ -114,9 +114,25 @@ def technical_analyst_agent(state: AgentState):
         }
         progress.update_status("technical_analyst_agent", ticker, "Done")
 
-    # Create the technical analyst message
+    # Create the technical analyst message with explicit units
+    def add_confidence_units(data):
+        """Recursively add % suffix to confidence values."""
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if key == "confidence" and isinstance(value, int | float):
+                    result[key] = f"{value}%"
+                else:
+                    result[key] = add_confidence_units(value)
+            return result
+        if isinstance(data, list):
+            return [add_confidence_units(item) for item in data]
+        return data
+
+    technical_analysis_formatted = add_confidence_units(technical_analysis)
+
     message = HumanMessage(
-        content=json.dumps(technical_analysis),
+        content=json.dumps(technical_analysis_formatted),
         name="technical_analyst_agent",
     )
 

@@ -47,7 +47,7 @@ Provide your analysis in this exact JSON structure:
 ```json
 {
   "signal": "bullish" | "bearish" | "neutral",
-  "confidence": 0-100,
+  "confidence": 0-100%,
   "thesis": "2-3 sentence investment thesis from Buffett's perspective",
   "key_metrics": {
     "intrinsic_value_estimate": "estimated value per share",
