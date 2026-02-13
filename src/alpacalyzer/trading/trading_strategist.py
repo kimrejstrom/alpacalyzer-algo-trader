@@ -1,7 +1,5 @@
 import json
-from typing import Literal
 
-import pandas as pd
 from langchain_core.messages import HumanMessage
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
@@ -9,6 +7,7 @@ from alpacalyzer.data.models import PortfolioDecision, TradingStrategyResponse
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.prompts import load_prompt
+from alpacalyzer.utils.candles_formatter import format_candles_to_markdown
 from alpacalyzer.utils.progress import progress
 
 
@@ -70,45 +69,6 @@ def trading_strategist_agent(state: AgentState):
     }
 
 
-def candles_to_csv(df: pd.DataFrame, max_rows: int, granularity: Literal["day", "minute"] = "minute") -> str:
-    """Convert a DataFrame of candle data to a compact CSV format with explicit units."""
-
-    # Keep only the most recent `max_rows`
-    df = df.tail(max_rows).copy()
-
-    # Rename "symbol" to "ticker" if present
-    if "symbol" in df.columns:
-        df = df.rename(columns={"symbol": "ticker"})
-
-    # Define required columns, include ticker if available
-    required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
-    if "ticker" in df.columns:
-        required_cols.append("ticker")
-
-    # Filter columns (only if they exist)
-    df = df[[col for col in required_cols if col in df.columns]]
-
-    # Round and add units to price columns
-    for col in ["open", "high", "low", "close"]:
-        if col in df.columns:
-            df[col] = df[col].apply(lambda x: f"${round(x, 2):.2f}" if pd.notna(x) else "")
-
-    # Add units to volume (comma-formatted with "shares" suffix)
-    if "volume" in df.columns:
-        df["volume"] = df["volume"].apply(lambda x: f"{int(x):,} shares" if pd.notna(x) else "")
-
-    # Adjust timestamp based on granularity
-    if "timestamp" in df.columns:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        if granularity == "day":
-            # Keep only the date part
-            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d")
-        elif granularity == "minute":
-            # Keep full ISO format for minute granularity
-            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    return str(df.to_csv(index=False))
-
 
 def serialize_trading_signals(signals: TradingSignals) -> str:
     """Convert TradingSignals object into a JSON-compatible format with explicit units."""
@@ -142,8 +102,8 @@ def get_trading_strategies(trading_signals: TradingSignals, decision: PortfolioD
 
     signals_str = serialize_trading_signals(trading_signals)
     decision_str = json.dumps(decision.model_dump(), indent=2)
-    candles_3_months_str = candles_to_csv(trading_signals["raw_data_daily"], max_rows=90, granularity="day")
-    candles_5_min_str = candles_to_csv(trading_signals["raw_data_intraday"], max_rows=120, granularity="minute")
+    candles_3_months_str = format_candles_to_markdown(trading_signals["raw_data_daily"], max_rows=90, granularity="day")
+    candles_5_min_str = format_candles_to_markdown(trading_signals["raw_data_intraday"], max_rows=120, granularity="minute")
 
     human_message = {
         "role": "user",
