@@ -1,7 +1,7 @@
 # Alpacalyzer Next Iteration: LLM Provider Migration & Model Tuning
 
 **Created**: February 9, 2026
-**Status**: � ISSUES CREATED
+**Status**: ✅ Iteration 1 COMPLETE · ✅ Iteration 2 COMPLETE · 📋 Iteration 3 ISSUES CREATED
 **Goal**: Move from OpenAI to an OpenAI-compatible provider, tune models per task
 
 ---
@@ -158,20 +158,29 @@ This is exactly what OpenRouter's `json_schema.schema` field expects.
 
 ---
 
-## Iteration 1: LLM Abstraction Layer
+## Iteration 1: LLM Abstraction Layer ✅ COMPLETE
 
 **Scope**: Replace the OpenAI-specific Responses API with a provider-agnostic layer. Ship and validate before changing prompts.
 
-### Issues
+**Completed**: February 12, 2026 — All 6 PRs merged, 624 tests passing.
 
-| #                                                                         | Title                                                    | Priority | Depends On       | Effort |
-| ------------------------------------------------------------------------- | -------------------------------------------------------- | -------- | ---------------- | ------ |
-| [#106](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/106) | Create `llm/` module with provider-agnostic client       | P0       | -                | M      |
-| [#107](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/107) | Add model routing config (fast/standard/deep tiers)      | P0       | #106             | S      |
-| [#108](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/108) | Implement structured output with fallback chain          | P0       | #106             | M      |
-| [#109](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/109) | Migrate all agents to new LLM client                     | P0       | #106, #107, #108 | M      |
-| [#110](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/110) | Add feature flag for rollback (`USE_NEW_LLM=true/false`) | P0       | #106             | S      |
-| [#111](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/111) | Update `.env.example` and docs                           | P1       | #109             | S      |
+### Issues (all closed)
+
+| #                                                                         | Title                                                    | Priority | Depends On       | Effort | PR                                                                      |
+| ------------------------------------------------------------------------- | -------------------------------------------------------- | -------- | ---------------- | ------ | ----------------------------------------------------------------------- |
+| [#106](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/106) | Create `llm/` module with provider-agnostic client       | P0       | -                | M      | [#112](https://github.com/kimrejstrom/alpacalyzer-algo-trader/pull/112) |
+| [#107](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/107) | Add model routing config (fast/standard/deep tiers)      | P0       | #106             | S      | [#113](https://github.com/kimrejstrom/alpacalyzer-algo-trader/pull/113) |
+| [#108](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/108) | Implement structured output with fallback chain          | P0       | #106             | M      | [#114](https://github.com/kimrejstrom/alpacalyzer-algo-trader/pull/114) |
+| [#109](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/109) | Migrate all agents to new LLM client                     | P0       | #106, #107, #108 | M      | [#115](https://github.com/kimrejstrom/alpacalyzer-algo-trader/pull/115) |
+| [#110](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/110) | Add feature flag for rollback (`USE_NEW_LLM=true/false`) | P0       | #106             | S      | [#116](https://github.com/kimrejstrom/alpacalyzer-algo-trader/pull/116) |
+| [#111](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/111) | Update `.env.example` and docs                           | P1       | #109             | S      | [#117](https://github.com/kimrejstrom/alpacalyzer-algo-trader/pull/117) |
+
+### Code Review Observations
+
+Two minor issues identified during post-merge review, tracked as [#118](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/118) in Iteration 2:
+
+1. **Duplicate singletons** — Both `llm/__init__.py` and `llm/client.py` maintain their own `LLMClient` singleton
+2. **Return type mismatch** — `__init__.py` returns `BaseModel | None`, `client.py` returns `T`
 
 ### Acceptance Criteria
 
@@ -280,32 +289,55 @@ OPENAI_API_KEY=your_openai_api_key
 
 ---
 
-## Iteration 2: Prompt Optimization (Future)
+## Iteration 2: Prompt Optimization
 
 **Scope**: After Iteration 1 is stable, optimize prompts per model tier.
 
-| #   | Title                                                      | Priority |
-| --- | ---------------------------------------------------------- | -------- |
-| 7   | Externalize agent prompts to markdown skill files          | P1       |
-| 8   | Optimize fast-tier prompts (sentiment, opportunity finder) | P1       |
-| 9   | Optimize standard-tier prompts (investor agents)           | P1       |
-| 10  | Optimize deep-tier prompts (quant, trading strategist)     | P1       |
-| 11  | Add explicit units to all numeric data in prompts          | P2       |
-| 12  | Convert candle data to markdown tables                     | P2       |
+### Issues
+
+| #                                                                         | Title                                                          | Priority | Depends On | Effort |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------- | -------- | ---------- | ------ |
+| [#118](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/118) | Consolidate duplicate LLMClient singletons and fix return type | P0       | -          | S      |
+| [#119](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/119) | Externalize agent prompts to markdown skill files              | P1       | -          | M      |
+| [#120](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/120) | Optimize fast-tier prompts (sentiment, opportunity finder)     | P1       | #119       | M      |
+| [#121](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/121) | Optimize standard-tier prompts (investor agents)               | P1       | #119       | M      |
+| [#122](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/122) | Optimize deep-tier prompts (quant, trading strategist)         | P1       | #119       | M      |
+| [#123](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/123) | Add explicit units to all numeric data in prompts              | P2       | #119       | S      |
+| [#124](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/124) | Convert candle data to markdown tables                         | P2       | #119       | S      |
+
+### Execution Order
+
+**Wave 1** (parallel, no dependencies):
+
+- #118 — Consolidate LLM singletons (cleanup from Iteration 1)
+- #119 — Externalize prompts to markdown files (foundation for all prompt work)
+
+**Wave 2** (parallel, after #119):
+
+- #120 — Optimize fast-tier prompts
+- #121 — Optimize standard-tier prompts
+- #122 — Optimize deep-tier prompts
+
+**Wave 3** (parallel, after #119):
+
+- #123 — Add explicit units to numeric data
+- #124 — Convert candle data to markdown tables
 
 ---
 
-## Iteration 3: Trading Improvements (Future)
+## Iteration 3: Trading Improvements
 
 **Scope**: Orthogonal to LLM migration. Separate iteration.
 
-| #   | Title                                                | Priority | Notes                              |
-| --- | ---------------------------------------------------- | -------- | ---------------------------------- |
-| 13  | Add chop/regime filter (VIX + ATR Z-score)           | P1       | Prevents trading in bad conditions |
-| 14  | Consume unused Alpaca bar fields (VWAP, trade count) | P2       | No subscription upgrade needed     |
-| 15  | Add halt checks before order placement               | P2       | Via trading API, not market data   |
-| 16  | Volume profile / VPOC analysis                       | P2       | New signal source                  |
-| 17  | Risk-adjusted metrics in perf dashboard              | P2       | Sharpe, Sortino, Calmar            |
+**Status**: Issues created February 13, 2026
+
+| #                                                                         | Title                                                | Priority | Notes                              |
+| ------------------------------------------------------------------------- | ---------------------------------------------------- | -------- | ---------------------------------- |
+| [#132](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/132) | Add chop/regime filter (VIX + ATR Z-score)           | P1       | Prevents trading in bad conditions |
+| [#133](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/133) | Consume unused Alpaca bar fields (VWAP, trade count) | P2       | No subscription upgrade needed     |
+| [#134](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/134) | Add halt checks before order placement               | P2       | Via trading API, not market data   |
+| [#135](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/135) | Volume profile / VPOC analysis                       | P2       | New signal source                  |
+| [#136](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/136) | Risk-adjusted metrics in perf dashboard              | P2       | Sharpe, Sortino, Calmar            |
 
 ---
 
@@ -352,24 +384,4 @@ Key takeaways incorporated:
 
 ---
 
-_Issues created for Iteration 1. Work can begin._
-
-### Execution Order
-
-**Wave 1** (parallel):
-
-- #106 — LLM client module (foundation)
-- #110 — Feature flag (can start skeleton)
-
-**Wave 2** (parallel, after #106):
-
-- #107 — Model routing config
-- #108 — Structured output
-
-**Wave 3** (after #106, #107, #108):
-
-- #109 — Migrate all agents
-
-**Wave 4** (after #109):
-
-- #111 — Documentation
+_Iteration 1 complete. Iteration 2 complete. Iteration 3 issues created. Work can begin._

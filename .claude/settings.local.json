@@ -8,7 +8,8 @@
       "Bash(uv run ty *)",
       "Bash(ls *)",
       "Bash(find *)",
-      "Skill(pr-code-review)"
+      "Skill(pr-code-review)",
+      "Bash(ln:*)"
     ]
   }
 }
