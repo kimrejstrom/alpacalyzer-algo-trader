@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from alpacalyzer.analysis.risk_metrics import (
+    calculate_calmar_ratio,
+    calculate_sortino_ratio,
+)
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.data.api import get_price_data
 from alpacalyzer.strategies.base import (
@@ -154,6 +158,24 @@ class BacktestResult:
 
         return max_dd
 
+    @property
+    def sortino_ratio(self) -> float:
+        if len(self.closed_trades) < 2:
+            return 0.0
+        returns = [t.pnl_pct for t in self.closed_trades if t.pnl_pct is not None]
+        if not returns:
+            return 0.0
+        return calculate_sortino_ratio(returns, risk_free_rate=0.0, annualize=True)
+
+    @property
+    def calmar_ratio(self) -> float:
+        if not self.closed_trades:
+            return 0.0
+        returns = [t.pnl_pct for t in self.closed_trades if t.pnl_pct is not None]
+        if not returns:
+            return 0.0
+        return calculate_calmar_ratio(returns, self.max_drawdown, annualize=True)
+
     def summary(self) -> str:
         """Generate a text summary of results."""
         return f"""Backtest Results: {self.strategy} on {self.ticker}
@@ -168,6 +190,8 @@ Average Win: ${self.average_win:.2f}
 Average Loss: ${self.average_loss:.2f}
 Profit Factor: {self.profit_factor:.2f}
 Sharpe Ratio: {self.sharpe_ratio:.2f}
+Sortino Ratio: {self.sortino_ratio:.2f}
+Calmar Ratio: {self.calmar_ratio:.2f}
 Max Drawdown: {self.max_drawdown:.1%}
 """
 
