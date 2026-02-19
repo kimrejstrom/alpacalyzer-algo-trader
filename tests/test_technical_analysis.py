@@ -46,6 +46,7 @@ def intraday_df():
         "open": [108, 109, 110],
         "volume": [500, 600, 700],
         "vwap": [108, 109, 110],
+        "trade_count": [100, 120, 150],
         "MACD": [0.5, 0.6, 0.7],
         "RVOL": [1, 1.2, 1.5],
         "MACD_Signal": [0.4, 0.5, 0.6],
@@ -121,3 +122,59 @@ def test_calculate_short_candidate_score(analyzer, daily_df, intraday_df):
     assert result["symbol"] == symbol
     assert result["price"] == 110
     assert 0 <= result["score"] <= 1
+
+
+def test_trade_count_confirmation_signal(analyzer):
+    """Test that high trade count provides positive signal."""
+    # Create intraday data with 20+ rows for trade_count average calculation
+    # Note: code uses intraday_df.iloc[-2] for latest_intraday, so we need high trade_count at -2
+    timestamps = [datetime(2023, 10, 3, 9, 30 + i) for i in range(25)]
+    data = {
+        "timestamp": timestamps,
+        "close": [110 + i * 0.1 for i in range(25)],
+        "high": [111 + i * 0.1 for i in range(25)],
+        "low": [109 + i * 0.1 for i in range(25)],
+        "open": [110 + i * 0.1 for i in range(25)],
+        "volume": [1000] * 25,
+        "vwap": [110 + i * 0.1 for i in range(25)],
+        # Code uses iloc[-2], so index 23 (second-to-last) should have high trade_count
+        # First 23 rows: 100, then 300 at index 23, then 100 at index 24
+        "trade_count": [100] * 23 + [300, 100],
+        "MACD": [0.5] * 25,
+        "MACD_Signal": [0.4] * 25,
+        "RVOL": [1] * 25,
+        "BB_Lower": [109] * 25,
+        "BB_Upper": [111] * 25,
+        "Bullish_Engulfing": [0] * 25,
+        "Bearish_Engulfing": [0] * 25,
+        "Hammer": [0] * 25,
+        "Shooting_Star": [0] * 25,
+    }
+    intraday = pd.DataFrame(data)
+
+    # Create minimal daily data
+    daily_data = {
+        "timestamp": [datetime(2023, 10, 1), datetime(2023, 10, 2), datetime(2023, 10, 3)],
+        "close": [100, 105, 110],
+        "high": [101, 106, 111],
+        "low": [99, 104, 109],
+        "open": [100, 105, 110],
+        "volume": [1000, 1500, 2000],
+        "Volume_MA": [1000, 1200, 1500],
+        "SMA_20": [95, 96, 97],
+        "SMA_50": [90, 91, 92],
+        "RSI": [50, 55, 60],
+        "ATR": [1, 1.5, 2],
+        "RVOL": [1, 1.2, 1.5],
+        "ADX": [20, 25, 30],
+        "Bullish_Engulfing": [0, 0, 0],
+        "Bearish_Engulfing": [0, 0, 0],
+        "Hammer": [0, 0, 0],
+        "Shooting_Star": [0, 0, 0],
+    }
+    daily = pd.DataFrame(daily_data)
+
+    result = analyzer.calculate_technical_analysis_score("AAPL", daily, intraday, target_side="long")
+
+    assert result is not None
+    assert any("trade count" in s.lower() for s in result["signals"]), f"Expected trade count signal, got: {result['signals']}"
