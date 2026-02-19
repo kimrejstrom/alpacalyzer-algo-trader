@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from alpacalyzer.analysis.risk_metrics import (
+    calculate_calmar_ratio,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
+)
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer, TradingSignals
 from alpacalyzer.data.api import get_price_data
 from alpacalyzer.strategies.base import (
@@ -129,13 +134,10 @@ class BacktestResult:
     def sharpe_ratio(self) -> float:
         if len(self.closed_trades) < 2:
             return 0.0
-        returns = [t.pnl_pct for t in self.closed_trades]
-        mean_return = sum(returns) / len(returns)
-        variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
-        std_dev = variance**0.5
-        if std_dev == 0:
+        returns = [t.pnl_pct for t in self.closed_trades if t.pnl_pct is not None]
+        if not returns:
             return 0.0
-        return (mean_return / std_dev) * (252**0.5)
+        return calculate_sharpe_ratio(returns, risk_free_rate=0.0, annualize=True)
 
     @property
     def max_drawdown(self) -> float:
@@ -154,8 +156,29 @@ class BacktestResult:
 
         return max_dd
 
+    @property
+    def sortino_ratio(self) -> float:
+        if len(self.closed_trades) < 2:
+            return 0.0
+        returns = [t.pnl_pct for t in self.closed_trades if t.pnl_pct is not None]
+        if not returns:
+            return 0.0
+        return calculate_sortino_ratio(returns, risk_free_rate=0.0, annualize=True)
+
+    @property
+    def calmar_ratio(self) -> float:
+        if not self.closed_trades:
+            return 0.0
+        returns = [t.pnl_pct for t in self.closed_trades if t.pnl_pct is not None]
+        if not returns:
+            return 0.0
+        return calculate_calmar_ratio(returns, self.max_drawdown, annualize=True)
+
     def summary(self) -> str:
         """Generate a text summary of results."""
+        sharpe = f"{self.sharpe_ratio:.2f}" if self.sharpe_ratio != float("inf") else "N/A"
+        sortino = f"{self.sortino_ratio:.2f}" if self.sortino_ratio != float("inf") else "N/A"
+        calmar = f"{self.calmar_ratio:.2f}" if self.calmar_ratio != float("inf") else "N/A"
         return f"""Backtest Results: {self.strategy} on {self.ticker}
 {"=" * 50}
 Period: {self.start_date.date()} to {self.end_date.date()}
@@ -167,7 +190,9 @@ Average P/L: ${self.average_pnl:.2f}
 Average Win: ${self.average_win:.2f}
 Average Loss: ${self.average_loss:.2f}
 Profit Factor: {self.profit_factor:.2f}
-Sharpe Ratio: {self.sharpe_ratio:.2f}
+Sharpe Ratio: {sharpe}
+Sortino Ratio: {sortino}
+Calmar Ratio: {calmar}
 Max Drawdown: {self.max_drawdown:.1%}
 """
 
@@ -275,7 +300,7 @@ class Backtester:
                         )
 
         if position and not position.closed:
-            position.exit_time = df.index[-1]  # type: ignore[assignment]
+            position.exit_time = df.index[-1]
             position.exit_price = float(df.iloc[-1]["close"])
             result.trades.append(position)
 
