@@ -1,53 +1,55 @@
 # Worktrunk Configuration for Alpacalyzer Algo Trader
+# Updated for worktrunk v0.26+
 #
-# This configuration enables seamless worktree management for parallel development,
-# critical for the ongoing migration (see migration_plan.md).
-#
-# Documentation: See AGENTS.md section "Worktree Workflow Management"
+# Run `wt config update` after upgrading to auto-migrate deprecated patterns.
+# Run `wt config show` to verify configuration.
 #
 # ⚠️  AGENT GUARDRAIL: One worktree = One issue = One session
 # Each worktree is created for a SINGLE GitHub issue. AI agents must:
 # - Complete ONLY the assigned issue in this worktree
 # - NEVER start work on a different issue in the same session
 # - Report completion and STOP when the issue PR is created/merged
-# The human orchestrator will create new worktrees for subsequent issues.
 
-# Post-create hooks run after a new worktree is created (blocking)
-# These must succeed before worktree switch completes
+# --- Hooks ---
+# Docs: https://worktrunk.dev/hook/
+
+# Pre-switch: runs before every `wt switch` (v0.26+)
+# Fetch if stale to ensure we have latest remote state
+[pre-switch]
+fetch-if-stale = """
+FETCH_HEAD="$(git rev-parse --git-common-dir)/FETCH_HEAD"
+if [ "$(find "$FETCH_HEAD" -mmin +360 2>/dev/null)" ] || [ ! -f "$FETCH_HEAD" ]; then
+    git fetch --prune --quiet
+fi
+"""
+
+# Post-create: blocking, runs after worktree created
+# Must succeed before post-start hooks or --execute run
 [post-create]
-# Copy .env file from main worktree (continue if .env doesn't exist)
-copy-env = "cp {{ main_worktree_path }}/.env {{ worktree_path }}/.env 2>/dev/null || true"
-# Sync dependencies using uv - must succeed for working environment
+# Copy .env from primary worktree (renamed from main_worktree_path in v0.21+)
+copy-env = "cp {{ primary_worktree_path }}/.env {{ worktree_path }}/.env 2>/dev/null || true"
+# Sync dependencies — must succeed for working environment
 uv-sync = "uv sync"
 
-# Optional: Install pre-commit hooks in new worktree
-# Uncomment if pre-commit is added to the project
-# pre-commit-install = "uv run pre-commit install"
-
-# Pre-merge hooks run before merging to target branch (fail-fast)
-# All commands must exit 0 for the merge to proceed
+# Pre-merge: blocking, fail-fast — all must exit 0 for merge to proceed
 [pre-merge]
-# Run tests before merging
 test = "uv run pytest tests"
-# Check linting
 lint = "uv run ruff check ."
-# Type checking
 typecheck = "uv run ty check src"
 
-# Usage Examples
-# ----------------
-#
-# Create worktree for issue #42:
-#   wt switch -c feature/issue-42-add-rsi-indicator
-#
-# List all worktrees:
-#   wt list
-#
-# Switch to worktree:
-#   wt switch feature/issue-42-add-rsi-indicator
-#
-# Remove worktree (after merging):
-#   wt remove
-#
-# For full worktree workflow, see AGENTS.md section:
-# "Worktree Workflow Management"
+# Post-remove: background, runs after worktree removal (v0.18+)
+# Template variables reference the removed worktree
+[post-remove]
+cleanup-review = "rm -f {{ worktree_path }}/CODE_REVIEW_*.md 2>/dev/null || true"
+
+# --- LLM Commit Messages (v0.19+) ---
+# Auto-generate commit messages via Claude Code
+# Note: CLAUDECODE= unsets the env var that blocks nested Claude invocations (v0.24 fix)
+# Docs: https://worktrunk.dev/llm-commits/
+[commit.generation]
+command = "CLAUDECODE= claude -p 'Write a conventional commit message for this diff. Use the format: type(scope): description. Reference the GitHub issue number if visible in the branch name. Output ONLY the commit message, nothing else.' --output-format text"
+
+# --- List Display ---
+[list]
+# LLM-generated one-line branch summaries in `wt list --full` (v0.26, experimental)
+summary = true
