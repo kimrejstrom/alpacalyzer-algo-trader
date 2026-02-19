@@ -330,7 +330,7 @@ uv run ruff check . && uv run ruff format . && uv run ty check src
 See [AGENTS.md](AGENTS.md) for comprehensive development guidelines including:
 
 - Test-driven development workflow
-- Skill files for common tasks (`.claude/skills/`)
+- Skill files for common tasks (`.agents/skills/`)
 - Code review instructions
 - Worktree management for parallel development
 
