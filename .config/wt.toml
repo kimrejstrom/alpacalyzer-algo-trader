@@ -30,6 +30,8 @@ fi
 copy-env = "cp {{ primary_worktree_path }}/.env {{ worktree_path }}/.env 2>/dev/null || true"
 # Sync dependencies — must succeed for working environment
 uv-sync = "uv sync"
+# Setup agent symlinks to .agents/ source of truth
+agent-links = "cd {{ worktree_path }} && bash scripts/setup-agent-links.sh"
 
 # Pre-merge: blocking, fail-fast — all must exit 0 for merge to proceed
 [pre-merge]
