@@ -300,7 +300,7 @@ class Backtester:
                         )
 
         if position and not position.closed:
-            position.exit_time = df.index[-1]  # type: ignore[assignment]
+            position.exit_time = df.index[-1]
             position.exit_price = float(df.iloc[-1]["close"])
             result.trades.append(position)
 
