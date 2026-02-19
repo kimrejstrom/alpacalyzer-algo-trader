@@ -69,7 +69,6 @@ def trading_strategist_agent(state: AgentState):
     }
 
 
-
 def serialize_trading_signals(signals: TradingSignals) -> str:
     """Convert TradingSignals object into a JSON-compatible format with explicit units."""
 
