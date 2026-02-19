@@ -387,7 +387,7 @@ from alpacalyzer.strategies.base import BaseStrategy
 
 ## 📚 Common Tasks & Skills
 
-For detailed step-by-step procedures, see skill files in `.claude/skills/`:
+For detailed step-by-step procedures, see skill files in `.agents/skills/` (symlinked from `.claude/skills/`):
 
 | Task                        | Skill File                     | When to Use                                                   |
 | --------------------------- | ------------------------------ | ------------------------------------------------------------- |
