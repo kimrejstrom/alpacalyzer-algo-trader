@@ -2,6 +2,7 @@
 
 from alpacalyzer.analysis.risk_metrics import (
     calculate_calmar_ratio,
+    calculate_max_drawdown,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
 )
@@ -11,7 +12,7 @@ class TestSharpeRatio:
     """Tests for Sharpe ratio calculation."""
 
     def test_sharpe_ratio_basic(self):
-        """Test basic Sharpe ratio calculation."""
+        """Test basic Sharpe ratio calculation with deterministic values."""
         returns = [0.01, 0.02, -0.01, 0.015, 0.025]
         risk_free_rate = 0.0
 
@@ -19,6 +20,7 @@ class TestSharpeRatio:
 
         assert result is not None
         assert isinstance(result, float)
+        assert 13 < result < 15
 
     def test_sharpe_ratio_with_risk_free_rate(self):
         """Test Sharpe ratio with non-zero risk-free rate."""
@@ -50,7 +52,7 @@ class TestSortinoRatio:
     """Tests for Sortino ratio calculation."""
 
     def test_sortino_ratio_basic(self):
-        """Test basic Sortino ratio calculation."""
+        """Test basic Sortino ratio calculation with deterministic values."""
         returns = [0.01, 0.02, -0.01, 0.015, 0.025]
         risk_free_rate = 0.0
 
@@ -58,6 +60,7 @@ class TestSortinoRatio:
 
         assert result is not None
         assert isinstance(result, float)
+        assert 40 < result < 45
 
     def test_sortino_ratio_with_upside_volatility(self):
         """Test Sortino ratio only penalizes downside volatility."""
@@ -89,7 +92,7 @@ class TestCalmarRatio:
     """Tests for Calmar ratio calculation."""
 
     def test_calmar_ratio_basic(self):
-        """Test basic Calmar ratio calculation."""
+        """Test basic Calmar ratio calculation with deterministic values."""
         returns = [0.01, 0.02, 0.015, 0.025, 0.03]
         max_drawdown = 0.10
 
@@ -97,6 +100,7 @@ class TestCalmarRatio:
 
         assert result is not None
         assert isinstance(result, float)
+        assert result > 1.0
 
     def test_calmar_ratio_zero_drawdown(self):
         """Test Calmar ratio when max drawdown is zero."""
@@ -115,6 +119,7 @@ class TestCalmarRatio:
         result = calculate_calmar_ratio(returns, max_drawdown)
 
         assert result is not None
+        assert result < 0
 
     def test_calmar_ratio_empty_returns(self):
         """Test Calmar ratio with empty returns."""
@@ -122,5 +127,33 @@ class TestCalmarRatio:
         max_drawdown = 0.10
 
         result = calculate_calmar_ratio(returns, max_drawdown)
+
+        assert result == 0.0
+
+
+class TestMaxDrawdown:
+    """Tests for max drawdown calculation."""
+
+    def test_max_drawdown_basic(self):
+        """Test basic max drawdown calculation."""
+        equity_curve = [100.0, 110.0, 105.0, 95.0, 100.0, 115.0]
+
+        result = calculate_max_drawdown(equity_curve)
+
+        assert 0.13 < result < 0.15
+
+    def test_max_drawdown_no_drawdown(self):
+        """Test max drawdown when equity always increases."""
+        equity_curve = [100.0, 110.0, 120.0, 130.0, 140.0]
+
+        result = calculate_max_drawdown(equity_curve)
+
+        assert result == 0.0
+
+    def test_max_drawdown_empty(self):
+        """Test max drawdown with empty list."""
+        equity_curve = []
+
+        result = calculate_max_drawdown(equity_curve)
 
         assert result == 0.0
