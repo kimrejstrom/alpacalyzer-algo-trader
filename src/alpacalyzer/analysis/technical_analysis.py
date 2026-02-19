@@ -459,6 +459,18 @@ class TechnicalAnalyzer:
             elif rvol_intraday < 0.7:
                 signals["raw_score"] -= 20
 
+            # 5. Trade Count Confirmation (high trade count = high conviction)
+            # Compare current trade_count to average over lookback period
+            trade_count = latest_intraday.get("trade_count")
+            if trade_count is not None and intraday_df is not None and len(intraday_df) >= 20:
+                avg_trade_count = intraday_df["trade_count"].iloc[-20:].mean()
+                if avg_trade_count > 0:
+                    trade_count_ratio = trade_count / avg_trade_count
+                    if trade_count_ratio > 1.5:
+                        # High trade count indicates strong conviction
+                        signals["raw_score"] += 15
+                        signals["signals"].append(f"TA: High trade count confirmation ({trade_count:.0f} > 1.5x avg {avg_trade_count:.0f})")
+
         ### --- NORMALIZATION --- ###
         min_raw_score, max_raw_score = -130, 180
         signals["score"] = (signals["raw_score"] - min_raw_score) / (max_raw_score - min_raw_score)
