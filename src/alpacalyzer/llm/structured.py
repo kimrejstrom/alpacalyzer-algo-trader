@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-import logging
 from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from alpacalyzer.utils.logger import get_logger
+
 T = TypeVar("T", bound=BaseModel)
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def complete_structured[T: BaseModel](
@@ -17,7 +18,13 @@ def complete_structured[T: BaseModel](
     response_model: type[T],
     model: str,
     use_response_healing: bool = True,
-) -> T:
+) -> tuple[T, object]:
+    """
+    Complete a structured LLM call.
+
+    Returns:
+        Tuple of (parsed_result, raw_response).
+    """
     schema = response_model.model_json_schema()
 
     try:
@@ -39,7 +46,7 @@ def complete_structured[T: BaseModel](
             **extra_body,
         )
         content = response.choices[0].message.content
-        return response_model.model_validate_json(content)
+        return response_model.model_validate_json(content), response
     except (ValidationError, json.JSONDecodeError) as e:
         logger.debug(f"Strict JSON schema failed for {response_model.__name__}: {e}")
         return _fallback_json_mode(client, messages, response_model, model, schema)
@@ -51,7 +58,7 @@ def _fallback_json_mode[T: BaseModel](
     response_model: type[T],
     model: str,
     schema: dict,
-) -> T:
+) -> tuple[T, object]:
     schema_instruction = f"Respond with valid JSON matching this schema:\n```json\n{json.dumps(schema, indent=2)}\n```"
 
     augmented_messages = [
@@ -65,4 +72,4 @@ def _fallback_json_mode[T: BaseModel](
         response_format={"type": "json_object"},
     )
     content = response.choices[0].message.content
-    return response_model.model_validate_json(content)
+    return response_model.model_validate_json(content), response

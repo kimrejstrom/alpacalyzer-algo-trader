@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from alpacalyzer.events.emitter import (
-    AnalyticsEventHandler,
     CallbackEventHandler,
     ConsoleEventHandler,
     EventEmitter,
@@ -21,7 +20,6 @@ from alpacalyzer.events.models import (
     OrderCanceledEvent,
     OrderFilledEvent,
     OrderRejectedEvent,
-    PositionClosedEvent,
     ScanCompleteEvent,
     SignalGeneratedEvent,
 )
@@ -207,86 +205,6 @@ def test_file_handler_append_mode(tmp_path):
     assert len(lines) == 2
     assert "ENTRY_TRIGGERED" in lines[0]
     assert "SCAN_COMPLETE" in lines[1]
-
-
-def test_analytics_handler_filters_events():
-    """Test AnalyticsEventHandler filters by event type."""
-    mock_logger = Mock()
-    handler = AnalyticsEventHandler()
-
-    with patch("alpacalyzer.events.emitter.logger", mock_logger):
-        analytics_event = OrderFilledEvent(
-            timestamp=datetime(2024, 1, 1, 12, 1, 0, tzinfo=UTC),
-            ticker="AAPL",
-            order_id="12345",
-            client_order_id="client_123",
-            side="buy",
-            quantity=100,
-            filled_qty=100,
-            avg_price=150.25,
-            strategy="momentum",
-        )
-
-        non_analytics_event = ScanCompleteEvent(
-            timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
-            source="reddit",
-            tickers_found=["AAPL"],
-            duration_seconds=10.0,
-        )
-
-        handler.handle(analytics_event)
-        handler.handle(non_analytics_event)
-
-        # Only analytics event should be logged
-        assert mock_logger.analyze.call_count == 1
-
-
-def test_analytics_handler_formats_order_filled():
-    """Test AnalyticsEventHandler formats OrderFilledEvent."""
-    handler = AnalyticsEventHandler()
-
-    event = OrderFilledEvent(
-        timestamp=datetime(2024, 1, 1, 12, 1, 0, tzinfo=UTC),
-        ticker="AAPL",
-        order_id="12345",
-        client_order_id="client_123",
-        side="buy",
-        quantity=100,
-        filled_qty=100,
-        avg_price=150.25,
-        strategy="momentum",
-    )
-
-    formatted = handler._format_analytics_line(event)
-
-    assert "[EXECUTION]" in formatted
-    assert "AAPL" in formatted
-    assert "BUY" in formatted
-
-
-def test_analytics_handler_formats_position_closed():
-    """Test AnalyticsEventHandler formats PositionClosedEvent."""
-    handler = AnalyticsEventHandler()
-
-    event = PositionClosedEvent(
-        timestamp=datetime(2024, 1, 2, 12, 0, 0, tzinfo=UTC),
-        ticker="AAPL",
-        side="long",
-        quantity=100,
-        entry_price=150.25,
-        exit_price=162.50,
-        pnl=1225.0,
-        pnl_pct=0.0815,
-        hold_duration_hours=24.0,
-        strategy="momentum",
-        exit_reason="Target price reached",
-    )
-
-    formatted = handler._format_analytics_line(event)
-
-    assert "[EXIT]" in formatted
-    assert "AAPL" in formatted
-    assert "8.15%" in formatted
 
 
 def test_callback_handler():

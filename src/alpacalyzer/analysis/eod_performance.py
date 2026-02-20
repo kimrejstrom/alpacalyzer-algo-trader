@@ -101,7 +101,7 @@ class OpenPositionExec:
 class EODPerformanceAnalyzer:
     def __init__(
         self,
-        log_path: str = "logs/analytics_log.log",
+        log_path: str = "logs/events.jsonl",
         output_dir: str = "logs/eod",
         threshold_pct: float = 1.0,
         timeframe: str = "5Min",
@@ -1275,7 +1275,7 @@ class EODPerformanceAnalyzer:
 def analyze_today(
     threshold_pct: float = 1.0,
     timeframe: str = "5Min",
-    log_path: str = "logs/analytics_log.log",
+    log_path: str = "logs/events.jsonl",
     output_dir: str = "logs/eod",
 ) -> str:
     analyzer = EODPerformanceAnalyzer(

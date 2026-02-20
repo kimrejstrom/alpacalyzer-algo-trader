@@ -1,21 +1,42 @@
+---
+name: "observability"
+description: "Use this skill when you need to inspect runtime behavior, query LLM costs, trade execution metrics, or error rates"
+---
+
 # Observability Skill
 
-Use this skill when you need to inspect runtime behavior, query LLM costs, trade execution metrics, or error rates.
+## How It Works
+
+All runtime metrics flow through the structured event system (`events.jsonl`). Every trading event, LLM call, and error is emitted as a typed Pydantic model via `emit_event()` and written as JSON lines to `logs/events.jsonl` by the `FileEventHandler`.
+
+The metrics summary script reads this structured data directly — no regex parsing of free-text logs.
 
 ## Running the Metrics Summary
 
-To get a summary of recent runtime metrics:
-
 ```bash
-python scripts/agent-metrics-summary.py
+python scripts/agent_metrics_summary.py
 ```
 
 This outputs structured JSON with:
 
 - **LLM metrics**: Call count, latency, token usage, cost per agent
-- **Trade metrics**: Fills, rejects, slippage, entries, exits, PnL
+- **Trade metrics**: Fills, rejects, entries, exits, PnL
 - **Error metrics**: Error rates by type and component
-- **Last run info**: Timestamp and duration
+- **Scan metrics**: Scanner activity by source
+- **Last run info**: Timestamp, duration, cycle count
+
+## Event Types
+
+| Event             | Source                            | Key Fields                                   |
+| ----------------- | --------------------------------- | -------------------------------------------- |
+| `LLM_CALL`        | `LLMClient.complete_structured()` | agent, model, tier, latency_ms, tokens, cost |
+| `ORDER_FILLED`    | Trade update handler              | ticker, side, filled_qty, avg_price          |
+| `ORDER_REJECTED`  | Trade update handler              | ticker, reason                               |
+| `POSITION_OPENED` | Execution engine                  | ticker, side, entry_price, strategy          |
+| `POSITION_CLOSED` | Execution engine                  | ticker, pnl, pnl_pct, exit_reason            |
+| `ERROR`           | Any component                     | error_type, component, message               |
+| `SCAN_COMPLETE`   | Scanners                          | source, tickers_found, duration              |
+| `CYCLE_COMPLETE`  | Execution engine                  | entries/exits triggered, duration            |
 
 ## Interpreting Output
 
@@ -25,8 +46,8 @@ This outputs structured JSON with:
 {
   "llm_metrics": {
     "call_count": 42,
-    "avg_latency_ms": 1250.5,
     "total_tokens": 15000,
+    "avg_latency_ms": 1250.5,
     "total_cost_usd": 0.45,
     "by_agent": {
       "TechnicalsAgent": 15,
@@ -36,11 +57,9 @@ This outputs structured JSON with:
 }
 ```
 
-Key indicators:
-
-- High `call_count` with low tokens may indicate inefficient prompting
-- High `avg_latency_ms` may indicate LLM provider issues
-- `total_cost_usd` helps track API spend
+- High `call_count` with low tokens → inefficient prompting
+- High `avg_latency_ms` → LLM provider issues
+- `by_agent` → identify heavy consumers
 
 ### Trade Metrics
 
@@ -52,16 +71,13 @@ Key indicators:
     "entries": 8,
     "exits": 3,
     "total_pnl": 125.5,
-    "reject_reasons": ["Rate limit", "Insufficient buying power"]
+    "reject_reasons": ["Insufficient buying power"]
   }
 }
 ```
 
-Key indicators:
-
-- High `rejects` / `entries` ratio may indicate strategy misalignment
+- High rejects/entries ratio → strategy misalignment
 - Check `reject_reasons` for actionable feedback
-- `total_pnl` shows overall profitability
 
 ### Error Metrics
 
@@ -69,49 +85,36 @@ Key indicators:
 {
   "error_metrics": {
     "total_errors": 10,
-    "by_type": {
-      "rate_limit": 5,
-      "api_error": 3
-    },
-    "by_component": {
-      "order_manager": 4,
-      "emitter": 2
-    }
+    "by_type": { "rate_limit": 5, "api_error": 3 },
+    "by_component": { "order_manager": 4, "emitter": 2 }
   }
 }
 ```
 
-Key indicators:
+## Emitting New Events
 
-- High `rate_limit` errors: Check API rate limits
-- High `api_error` by component: Investigate that component
-- Persistent errors require investigation
+To add observability to a new component:
 
-## Common Diagnostics
+```python
+from alpacalyzer.events import emit_event, ErrorEvent
+from datetime import datetime, timezone
 
-### High Error Rate
+# Emit an error event
+emit_event(ErrorEvent(
+    timestamp=datetime.now(tz=timezone.utc),
+    error_type="api_error",
+    component="my_component",
+    message="Something went wrong",
+))
+```
 
-1. Run metrics summary: `python scripts/agent-metrics-summary.py`
-2. Check `error_metrics.by_type` for patterns
-3. Check `error_metrics.by_component` for affected components
-4. Review recent log files in `logs/`
+For LLM calls, pass `caller=` to `complete_structured()`:
 
-### High Reject Rate
-
-1. Check `trade_metrics.reject_reasons`
-2. Review strategy configuration in `.env`
-3. Verify Alpaca account status and buying power
-
-### LLM Cost Issues
-
-1. Check `llm_metrics.total_cost_usd`
-2. Review `llm_metrics.by_agent` for heavy users
-3. Consider optimizing prompts for token efficiency
+```python
+client.complete_structured(messages, MyModel, tier=LLMTier.STANDARD, caller="MyAgent")
+```
 
 ## Log Files
 
-- `logs/trading_logs.log` - Main trading activity
-- `logs/analytics_log.log` - Analytics and metrics
-- `logs/eod/` - End-of-day reports
-
-For detailed debugging, inspect raw log files directly.
+- `logs/events.jsonl` - Structured event log (machine-readable, source of truth)
+- `logs/trading_logs.log` - Human-readable trading activity

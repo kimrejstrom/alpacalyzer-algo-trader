@@ -17,7 +17,7 @@ from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
 
 # Initialize logger
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()

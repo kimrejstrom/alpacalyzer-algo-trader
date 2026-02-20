@@ -15,7 +15,7 @@ from alpacalyzer.trading.opportunity_finder import get_reddit_insights, get_top_
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class RedditScannerAdapter(BaseScanner):

@@ -4,10 +4,10 @@ import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
-from alpacalyzer.events.models import OrderFilledEvent, PositionClosedEvent, TradingEvent
+from alpacalyzer.events.models import TradingEvent
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class EventHandler(ABC):
@@ -77,39 +77,6 @@ class FileEventHandler(EventHandler):
             f.write(json_line + "\n")
 
 
-class AnalyticsEventHandler(EventHandler):
-    """Writes events to analytics log for EOD analysis."""
-
-    ANALYTICS_EVENTS = [
-        "ENTRY_TRIGGERED",
-        "EXIT_TRIGGERED",
-        "ORDER_FILLED",
-        "ORDER_CANCELED",
-        "POSITION_OPENED",
-        "POSITION_CLOSED",
-    ]
-
-    def handle(self, event: TradingEvent) -> None:
-        if event.event_type not in self.ANALYTICS_EVENTS:
-            return
-
-        line = self._format_analytics_line(event)
-        logger.analyze(line)
-
-    def _format_analytics_line(self, event: TradingEvent) -> str:
-        """Format event for analytics log (backwards compatible)."""
-        if isinstance(event, OrderFilledEvent):
-            return (
-                f"[EXECUTION] Ticker: {event.ticker}, Side: {event.side.upper()}, "
-                f"Cum: {event.filled_qty}/{event.quantity} @ {event.avg_price}, "
-                f"OrderType: limit, OrderId: {event.order_id}, "
-                f"ClientOrderId: {event.client_order_id}, Status: fill"
-            )
-        if isinstance(event, PositionClosedEvent):
-            return f"[EXIT] Ticker: {event.ticker}, Side: {event.side}, Entry: {event.entry_price}, Exit: {event.exit_price}, P/L: {event.pnl_pct:.2%}, Reason: {event.exit_reason}"
-        return event.model_dump_json()
-
-
 class CallbackEventHandler(EventHandler):
     """Calls a callback function for each event."""
 
@@ -147,7 +114,7 @@ class EventEmitter:
                 if cls._instance is None:
                     cls._instance = cls()
                     cls._instance.add_handler(ConsoleEventHandler())
-                    cls._instance.add_handler(AnalyticsEventHandler())
+                    cls._instance.add_handler(FileEventHandler())
         assert cls._instance is not None
         return cls._instance
 
@@ -165,7 +132,7 @@ class EventEmitter:
             try:
                 handler.handle(event)
             except Exception as e:
-                logger.error(f"Event handler error: {e}", exc_info=True)
+                logger.error(f"event handler error | error={e}", exc_info=True)
 
     def clear_handlers(self) -> None:
         """Remove all handlers."""

@@ -16,7 +16,7 @@ from alpacalyzer.data.models import (
 )
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Global cache instance
 _cache = get_cache()
@@ -55,7 +55,7 @@ def get_prices(ticker: str, start_date: str, end_date: str) -> list[Price]:
             _cache.set_prices(cache_key, [p.model_dump() for p in prices])
             return prices
     except Exception as e:
-        logger.debug(f"Yahoo Finance error for {ticker}: {str(e)}")
+        logger.debug(f"yahoo finance error | ticker={ticker} error={e}")
 
     # Return empty list if all sources fail
     return []
@@ -228,7 +228,7 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
                 financial_metrics.append(metrics)
 
             except Exception as e:
-                logger.debug(f"Error processing metrics for {ticker} on {report_date}: {str(e)}")
+                logger.debug(f"metrics processing error | ticker={ticker} date={report_date} error={e}")
                 continue
 
         # Cache the results
@@ -238,7 +238,7 @@ def get_financial_metrics(ticker: str, end_date: str, period: str = "ttm", limit
         return financial_metrics
 
     except Exception as e:
-        logger.debug(f"Error fetching financial metrics for {ticker}: {str(e)}")
+        logger.debug(f"financial metrics fetch failed | ticker={ticker} error={e}")
         return []
 
 
@@ -375,7 +375,7 @@ def search_line_items(ticker: str, line_items: list[str], end_date: str, period:
         return result_items
 
     except Exception as e:
-        logger.debug(f"Error fetching line items for {ticker}: {str(e)}")
+        logger.debug(f"line items fetch failed | ticker={ticker} error={e}")
         return []
 
 
@@ -404,14 +404,14 @@ def get_insider_trades(
         ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "test")
 
         if not ALPHA_VANTAGE_API_KEY:
-            logger.debug("No Alpha Vantage API key found. Set ALPHA_VANTAGE_API_KEY in your environment.")
+            logger.debug("no Alpha Vantage API key configured")
             return []
 
         url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={ticker}&apikey={ALPHA_VANTAGE_API_KEY}"
         response = requests.get(url, timeout=15)
 
         if response.status_code != 200:
-            logger.debug(f"Error fetching insider data from Alpha Vantage: {response.status_code}")
+            logger.debug(f"insider data fetch error | status={response.status_code}")
             return []
 
         data = response.json()
@@ -477,7 +477,7 @@ def get_insider_trades(
         return insider_trades
 
     except Exception as e:
-        logger.debug(f"Error fetching insider trades for {ticker}: {str(e)}")
+        logger.debug(f"insider trades fetch failed | ticker={ticker} error={e}")
 
         # Fallback to empty result
         return []
@@ -509,7 +509,7 @@ def get_company_news(ticker: str, end_date: str, start_date: str | None = None, 
         for news in news_data:
             # Get the timestamp and convert to date
             timestamp = news.get("providerPublishTime", 0)
-            logger.debug(f"Raw providerPublishTime value: {timestamp} (type: {type(timestamp)})")
+            logger.debug(f"news timestamp | value={timestamp} type={type(timestamp)}")
 
             news_date = datetime.fromtimestamp(timestamp)
             date_str = news_date.strftime("%Y-%m-%d")
@@ -552,7 +552,7 @@ def get_company_news(ticker: str, end_date: str, start_date: str | None = None, 
         return news_items
 
     except Exception as e:
-        logger.debug(f"Error fetching company news for {ticker}: {str(e)}")
+        logger.debug(f"company news fetch failed | ticker={ticker} error={e}")
         return []
 
 
@@ -581,7 +581,7 @@ def get_market_cap(
         return None
 
     except Exception as e:
-        logger.debug(f"Error fetching market cap for {ticker}: {str(e)}")
+        logger.debug(f"market cap fetch failed | ticker={ticker} error={e}")
 
         # Try to get from financial metrics as fallback
         financial_metrics = get_financial_metrics(ticker, end_date)
@@ -648,7 +648,7 @@ def get_vix(use_cache: bool = True) -> float | None:
 
         return None
     except Exception as e:
-        logger.error(f"Failed to fetch VIX: {e}")
+        logger.error(f"VIX fetch failed | error={e}")
         return None
 
 

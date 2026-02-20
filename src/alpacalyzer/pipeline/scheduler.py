@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -103,14 +103,14 @@ class PipelineScheduler:
         """Run a specific stage."""
         stage = self._stages.get(name)
         if not stage:
-            logger.warning(f"Unknown stage: {name}")
+            logger.warning(f"unknown stage | name={name}")
             return
 
         if not stage.enabled:
             logger.debug(f"Stage disabled: {name}")
             return
 
-        logger.info(f"Running pipeline stage: {name}")
+        logger.info(f"running pipeline stage | name={name}")
         start = datetime.now(UTC)
 
         try:
@@ -122,10 +122,10 @@ class PipelineScheduler:
             stage.run_count += 1
 
             duration = (datetime.now(UTC) - start).total_seconds()
-            logger.info(f"Stage {name} completed in {duration:.2f}s")
+            logger.info(f"stage complete | name={name} duration={duration:.2f}s")
 
         except Exception as e:
-            logger.error(f"Stage {name} failed: {e}", exc_info=True)
+            logger.error(f"stage failed | name={name} error={e}", exc_info=True)
 
     async def run_cycle(self) -> None:
         """Run one complete pipeline cycle."""
@@ -137,7 +137,7 @@ class PipelineScheduler:
     async def run(self) -> None:
         """Run the pipeline continuously."""
         self._running = True
-        logger.info("Pipeline scheduler started")
+        logger.info("pipeline scheduler started")
 
         await self.run_cycle()
 
@@ -148,7 +148,7 @@ class PipelineScheduler:
     def stop(self) -> None:
         """Stop the pipeline."""
         self._running = False
-        logger.info("Pipeline scheduler stopped")
+        logger.info("pipeline scheduler stopped")
 
     def status(self) -> dict:
         """Get scheduler status."""

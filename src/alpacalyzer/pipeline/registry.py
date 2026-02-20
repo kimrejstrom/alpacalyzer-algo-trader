@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from alpacalyzer.pipeline.scanner_protocol import BaseScanner, ScanResult
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class ScannerRegistry:
@@ -43,7 +43,7 @@ class ScannerRegistry:
     def register(self, scanner: BaseScanner) -> None:
         """Register a scanner."""
         if scanner.name in self._scanners:
-            logger.warning(f"Overwriting scanner: {scanner.name}")
+            logger.warning(f"overwriting scanner | name={scanner.name}")
         self._scanners[scanner.name] = scanner
 
     def unregister(self, name: str) -> None:
@@ -76,10 +76,10 @@ class ScannerRegistry:
         """Run all scanners and yield results."""
         for name, scanner in self._scanners.items():
             if enabled_only and not scanner.enabled:
-                logger.debug(f"Skipping disabled scanner: {name}")
+                logger.debug(f"skipping disabled scanner | name={name}")
                 continue
 
-            logger.info(f"Running scanner: {name}")
+            logger.info(f"running scanner | name={name}")
             yield scanner.scan()
 
     def run(self, name: str) -> ScanResult | None:

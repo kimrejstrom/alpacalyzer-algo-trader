@@ -4,7 +4,7 @@ import yfinance as yf
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class YFinanceClient:
@@ -36,17 +36,17 @@ class YFinanceClient:
         """
         ticker = yf.Ticker("^VIX")
         if ticker is None:
-            logger.warning("Failed to retrieve VIX ticker.")
+            logger.warning("VIX ticker retrieval failed")
             return 25.0
 
         try:
             vix_data = ticker.history(period=period)
             if vix_data.empty:
-                logger.warning("VIX data is empty.")
+                logger.warning("VIX data empty")
                 return 25.0
             return vix_data["Close"].iloc[-1]
         except Exception as e:
-            logger.error(f"Error retrieving VIX history: {e}")
+            logger.error(f"VIX history retrieval failed | error={e}")
             return 25.0
 
     @timed_lru_cache(seconds=1800, maxsize=128)
@@ -63,19 +63,19 @@ class YFinanceClient:
         """
         ticker = yf.Ticker(ticker_symbol)
         if ticker is None:
-            logger.warning(f"Failed to retrieve ticker for {ticker_symbol}.")
+            logger.warning(f"ticker retrieval failed | ticker={ticker_symbol}")
             return []
 
         try:
             news = ticker.news
             if not news:
-                logger.warning(f"No news found for {ticker_symbol}.")
+                logger.warning(f"no news found | ticker={ticker_symbol}")
                 return []
 
             # Limit the number of articles returned
             return news[:limit]
         except Exception as e:
-            logger.error(f"Error retrieving news for {ticker_symbol}: {e}")
+            logger.error(f"news retrieval failed | ticker={ticker_symbol} error={e}")
             return []
 
     @timed_lru_cache(seconds=1800, maxsize=128)
@@ -94,14 +94,14 @@ class YFinanceClient:
         """
         ticker = yf.Ticker(ticker_symbol)
         if ticker is None:
-            logger.warning(f"Failed to retrieve ticker for {ticker_symbol}.")
+            logger.warning(f"ticker retrieval failed | ticker={ticker_symbol}")
             return pd.DataFrame()
 
         try:
             data = ticker.history(period=period, interval=interval)
             if data.empty:
-                logger.warning(f"No intraday data found for {ticker_symbol} for the given period and interval.")
+                logger.warning(f"no intraday data found | ticker={ticker_symbol} period={period} interval={interval}")
             return data
         except Exception as e:
-            logger.error(f"Error retrieving intraday data for {ticker_symbol}: {e}")
+            logger.error(f"intraday data retrieval failed | ticker={ticker_symbol} error={e}")
             return pd.DataFrame()

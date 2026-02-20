@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from typing import cast
 
@@ -9,8 +8,9 @@ from pydantic import BaseModel
 from alpacalyzer.llm.client import LLMClient
 from alpacalyzer.llm.config import LLMTier
 from alpacalyzer.llm.legacy import legacy_complete_structured
+from alpacalyzer.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _client: LLMClient | None = None
 
@@ -44,12 +44,12 @@ def complete_structured[T: BaseModel](
     if use_new_llm():
         client = get_llm_client()
         result = client.complete_structured(messages, response_model, tier)
-        logger.info(f"LLM call via new client (tier={tier.value})")
+        logger.debug(f"llm call complete | tier={tier.value}")
         return result
     result = legacy_complete_structured(messages, response_model)
     if result is None:
         raise ValueError("Legacy LLM implementation returned None")
-    logger.info("LLM call via legacy call_gpt.py")
+    logger.debug("llm call complete | client=legacy")
     return cast(T, result)
 
 

@@ -20,7 +20,7 @@ from alpacalyzer.utils.logger import get_logger
 if TYPE_CHECKING:
     from alpaca.trading.models import Position
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class MomentumStrategy(BaseStrategy):

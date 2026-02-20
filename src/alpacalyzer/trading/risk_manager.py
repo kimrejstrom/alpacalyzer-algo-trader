@@ -9,7 +9,7 @@ from alpacalyzer.trading.alpaca_client import get_account_info, get_current_pric
 from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 """Risk Management Agent.
@@ -82,7 +82,7 @@ def get_stock_atr(ticker: str, period: int = 14) -> float | None:
             return float(signals["atr"])
         return None
     except Exception as e:
-        logger.warning(f"Failed to fetch ATR for {ticker}: {e}")
+        logger.warning(f"ATR fetch failed | ticker={ticker} error={e}")
         return None
 
 
@@ -122,17 +122,17 @@ def calculate_dynamic_position_size(
 
     atr = get_stock_atr(ticker)
     if atr is None or atr == 0:
-        logger.warning(f"ATR unavailable for {ticker}, using fixed position size")
+        logger.warning(f"ATR unavailable, using fixed size | ticker={ticker}")
         return portfolio_equity * max_position_pct
 
     price = get_current_price(ticker)
     if price is None or price == 0:
-        logger.warning(f"Price unavailable for {ticker}, using fixed position size")
+        logger.warning(f"price unavailable, using fixed size | ticker={ticker}")
         return portfolio_equity * max_position_pct
 
     risk_per_share = 2 * atr
     if risk_amount < risk_per_share:
-        logger.warning(f"Risk amount ${risk_amount:.2f} less than risk per share ${risk_per_share:.2f} for {ticker}, using minimum 1 share")
+        logger.warning(f"risk amount below risk per share, using 1 share | ticker={ticker} risk=${risk_amount:.2f} risk_per_share=${risk_per_share:.2f}")
         shares = 1
     else:
         shares = int(risk_amount / risk_per_share)
@@ -142,7 +142,7 @@ def calculate_dynamic_position_size(
     max_size = portfolio_equity * max_position_pct
     position_size = min(position_size, max_size)
 
-    logger.debug(f"Dynamic sizing for {ticker}: risk=${risk_amount:.0f}, ATR={atr:.2f}, shares={shares}, size=${position_size:.0f}")
+    logger.debug(f"dynamic sizing | ticker={ticker} risk=${risk_amount:.0f} atr={atr:.2f} shares={shares} size=${position_size:.0f}")
 
     return position_size
 
@@ -239,7 +239,7 @@ def risk_management_agent(state: AgentState):
         if position_limit > 0:
             position_usage_pct = abs(current_position_value) / position_limit
             if position_usage_pct > 0.8:
-                logger.warning(f"{ticker}: Position limit usage at {position_usage_pct:.1%} (${abs(current_position_value):,.2f} / ${position_limit:,.2f})")
+                logger.warning(f"position limit high usage | ticker={ticker} usage={position_usage_pct:.1%} current=${abs(current_position_value):,.2f} limit=${position_limit:,.2f}")
 
         risk_analysis[ticker] = {
             "remaining_position_limit": float(max_position_size),

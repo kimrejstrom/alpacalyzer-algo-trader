@@ -13,7 +13,7 @@ from alpacalyzer.utils.logger import get_logger
 if TYPE_CHECKING:
     pass
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -286,12 +286,12 @@ class PositionTracker:
 
             # Log state change
             if previous_state and not has_bracket:
-                logger.info(f"[BRACKET SYNC] {ticker}: Bracket order no longer exists. Dynamic exit evaluation will now be enabled.")
+                logger.info(f"bracket order gone, dynamic exit enabled | ticker={ticker}")
             elif has_bracket:
-                logger.debug(f"[BRACKET SYNC] {ticker}: Bracket order confirmed present.")
+                logger.debug(f"bracket order confirmed | ticker={ticker}")
 
         except Exception as e:
-            logger.warning(f"[BRACKET SYNC] Failed to sync bracket order status for {ticker}: {e}")
+            logger.warning(f"bracket sync failed | ticker={ticker} error={e}")
             # On error, keep the existing state (fail-safe)
 
     def add_position(

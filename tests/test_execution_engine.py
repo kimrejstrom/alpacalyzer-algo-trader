@@ -276,13 +276,13 @@ class TestExecutionEngine:
         engine = ExecutionEngine(strategy)
         monkeypatch.setattr(engine.positions, "sync_from_broker", mock_sync)
 
-        logger = get_logger()
+        logger = get_logger("engine")
         with patch.object(logger, "warning") as mock_warning:
             engine._build_market_context()
 
             assert mock_warning.called
             call_args = str(mock_warning.call_args)
-            assert "Elevated VIX" in call_args
+            assert "elevated VIX" in call_args
 
     def test_build_market_context_fallback_vix_on_error(self, monkeypatch):
         """Test that fallback VIX (25.0) is used when API returns default."""

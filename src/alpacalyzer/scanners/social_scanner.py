@@ -10,7 +10,7 @@ from alpacalyzer.scanners.stocktwits_scanner import StocktwitsScanner
 from alpacalyzer.scanners.wsb_scanner import WSBScanner
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class SocialScanner:
@@ -23,16 +23,16 @@ class SocialScanner:
     def display_top_stocks(self, df, top_n=10):
         """Display the top N ranked stocks."""
         if not df.empty:
-            logger.debug(f"\nTop {top_n} Ranked Stocks")
+            logger.debug(f"top {top_n} ranked stocks")
             for index, row in df.head(top_n).iterrows():
                 logger.debug(
-                    f"\n#{index + 1}: {row['ticker']}:\n"
-                    f"Score: {row['sentiment_score']:.2f} Rank: {row['sentiment_rank']:.2f}: Sentiment\n"
-                    f"Score: {row['technical_score']:.2f} Rank: {row['ta_rank']:.2f}: Technical\n"
-                    f"Score: {row['final_score']:.2f} Rank: {row['final_rank']:.2f}: Final"
+                    f"#{index + 1}: {row['ticker']} |"
+                    f" sentiment_score={row['sentiment_score']:.2f} sentiment_rank={row['sentiment_rank']:.2f}"
+                    f" technical_score={row['technical_score']:.2f} ta_rank={row['ta_rank']:.2f}"
+                    f" final_score={row['final_score']:.2f} final_rank={row['final_rank']:.2f}"
                 )
         else:
-            logger.info("No stocks found")
+            logger.info("no stocks found")
 
     def get_trending_stocks(self, limit: int = 20) -> pd.DataFrame:
         """
@@ -50,22 +50,22 @@ class SocialScanner:
             wsb_df = self.wsb_scanner.get_trending_stocks(limit)
             if not wsb_df.empty:
                 tickers_set.update(wsb_df["ticker"].tolist())
-                logger.info(f"Fetched {len(wsb_df)} tickers from ApeWisdom.")
+                logger.info(f"fetched tickers from apewisdom | count={len(wsb_df)}")
             else:
-                logger.info("No trending stocks found from ApeWisdom.")
+                logger.info("no trending stocks from apewisdom")
         except Exception as e:
-            logger.error(f"Error fetching data from ApeWisdom: {str(e)}", exc_info=True)
+            logger.error(f"apewisdom fetch failed | error={e}", exc_info=True)
 
         # Fetch trending stocks from Stocktwits
         try:
             stocktwits_df = self.stocktwits_scanner.get_trending_stocks()
             if not stocktwits_df.empty:
                 tickers_set.update(stocktwits_df["ticker"].tolist())
-                logger.info(f"Fetched {len(stocktwits_df)} tickers from Stocktwits.")
+                logger.info(f"fetched tickers from stocktwits | count={len(stocktwits_df)}")
             else:
-                logger.info("No trending stocks found from Stocktwits.")
+                logger.info("no trending stocks from stocktwits")
         except Exception as e:
-            logger.error(f"Error fetching data from Stocktwits: {str(e)}", exc_info=True)
+            logger.error(f"stocktwits fetch failed | error={e}", exc_info=True)
 
         # Fetch trending stocks from Finviz
         try:
@@ -74,19 +74,19 @@ class SocialScanner:
                 if "Ticker" in finviz_df.columns:
                     finviz_df = finviz_df.rename(columns={"Ticker": "ticker"})
                 tickers_set.update(finviz_df["ticker"].tolist())
-                logger.info(f"Fetched {len(finviz_df)} tickers from Finviz.")
+                logger.info(f"fetched tickers from finviz | count={len(finviz_df)}")
             else:
-                logger.info("No trending stocks found from Finviz.")
+                logger.info("no trending stocks from finviz")
         except Exception as e:
-            logger.error(f"Error fetching data from Finviz: {str(e)}", exc_info=True)
+            logger.error(f"finviz fetch failed | error={e}", exc_info=True)
 
         # Combine all unique tickers into a list and filter VOO SPY and QQQ
         tickers_list = list(filter(lambda x: x not in ["VOO", "SPY", "QQQ"], tickers_set))
 
-        logger.info(f"\nTotal unique tickers combined: {len(tickers_list)}")
+        logger.info(f"unique tickers combined | count={len(tickers_list)}")
 
         if not tickers_list:
-            logger.info("No tickers found from the sources.")
+            logger.info("no tickers found from sources")
             return pd.DataFrame()
 
         # Fetch ranks for the combined tickers
@@ -100,7 +100,7 @@ class SocialScanner:
             st_ranked = self.stocktwits_scanner.get_stock_ranks(pd.DataFrame({"ticker": tickers_list}))
 
         except Exception as e:
-            logger.error(f"Error fetching ranks from Stocktwits: {str(e)}", exc_info=True)
+            logger.error(f"stocktwits ranks fetch failed | error={e}", exc_info=True)
             st_ranked = pd.DataFrame()
 
         # Fetch ranks for tickers from Finviz
@@ -108,7 +108,7 @@ class SocialScanner:
             finviz_ranked = self.finviz_scanner.get_stock_ranks(pd.DataFrame({"ticker": tickers_list}))
 
         except Exception as e:
-            logger.error(f"Error fetching ranks from Finviz: {str(e)}", exc_info=True)
+            logger.error(f"finviz ranks fetch failed | error={e}", exc_info=True)
             finviz_ranked = pd.DataFrame()
 
         # Combine the ranked results
@@ -133,7 +133,7 @@ class SocialScanner:
         combined_df = combined_df.dropna(subset=["st_rank", "finviz_rank", "st_score", "finviz_score"])
 
         if combined_df.empty:
-            logger.info("No stocks to combine from the sources.")
+            logger.info("no stocks to combine from sources")
             return pd.DataFrame()
 
         # Calculate sentiment rank
@@ -149,7 +149,7 @@ class SocialScanner:
         )
 
         # Run technical analysis silently
-        logger.info("\nRunning technical analysis...")
+        logger.info("running technical analysis")
         ta_results = []
         for _, row in combined_df.iterrows():
             ta_data = self.technical_analyzer.analyze_stock(row["ticker"])
@@ -186,10 +186,10 @@ class SocialScanner:
                 )
 
             return combined_df.sort_values("final_rank").reset_index(drop=True)
-        logger.warning("Technical analysis data is empty or invalid.")
+        logger.warning("technical analysis data empty or invalid")
 
         if combined_df.empty:
-            logger.info("No stocks found or no technical data available")
+            logger.info("no stocks found or no technical data available")
         return pd.DataFrame()
 
 

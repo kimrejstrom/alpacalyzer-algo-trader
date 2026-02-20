@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from alpacalyzer.data.models import TradingStrategy
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 @dataclass

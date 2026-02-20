@@ -14,7 +14,7 @@ from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 ##### Technical Analyst #####

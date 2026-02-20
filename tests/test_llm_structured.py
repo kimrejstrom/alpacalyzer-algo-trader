@@ -18,7 +18,7 @@ class TestCompleteStructured:
 
         from alpacalyzer.llm.structured import complete_structured
 
-        result = complete_structured(
+        result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
@@ -41,7 +41,7 @@ class TestCompleteStructured:
 
         from alpacalyzer.llm.structured import complete_structured
 
-        result = complete_structured(
+        result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
@@ -73,7 +73,7 @@ class TestCompleteStructured:
 
         from alpacalyzer.llm.structured import complete_structured
 
-        result = complete_structured(
+        result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,

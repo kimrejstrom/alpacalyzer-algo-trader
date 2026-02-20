@@ -16,7 +16,7 @@ from alpacalyzer.data.api import get_price_data
 from alpacalyzer.strategies.registry import StrategyRegistry
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def print_header(title: str) -> None:

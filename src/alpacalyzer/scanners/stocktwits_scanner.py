@@ -5,7 +5,7 @@ import requests
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class StocktwitsScanner:
@@ -37,10 +37,10 @@ class StocktwitsScanner:
                 return df[df["instrument_class"] == "Stock"]
 
             except Exception as e:
-                logger.error(f"Error parsing Stocktwits data: {str(e)}", exc_info=True)
+                logger.error(f"stocktwits parse failed | error={e}", exc_info=True)
                 return pd.DataFrame()
         except Exception as e:
-            logger.error(f"Error fetching trending stocks: {str(e)}", exc_info=True)
+            logger.error(f"stocktwits trending fetch failed | error={e}", exc_info=True)
             return pd.DataFrame()
 
     # Get sentiment from messages
@@ -79,12 +79,12 @@ class StocktwitsScanner:
 
             return 0.5, 0
         except Exception as e:
-            logger.error(f"Error fetching sentiment for {ticker}: {str(e)}", exc_info=True)
+            logger.error(f"stocktwits sentiment fetch failed | ticker={ticker} error={e}", exc_info=True)
             return 0.5, 0
 
     def get_stock_ranks(self, df: pd.DataFrame) -> pd.DataFrame:
         if "ticker" not in df:
-            logger.warning("DataFrame must contain 'ticker' column")
+            logger.warning("dataframe must contain 'ticker' column")
             return pd.DataFrame()
 
         # Add bullish ratio and mentions if missing
