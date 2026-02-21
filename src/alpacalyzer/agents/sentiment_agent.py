@@ -5,11 +5,11 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage
 
+from alpacalyzer.data.finviz import get_ownership_data
 from alpacalyzer.data.models import SentimentAnalysisResponse
 from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.prompts import load_prompt
-from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.trading.yfinance_client import YFinanceClient
 from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
@@ -31,7 +31,7 @@ def sentiment_agent(state: AgentState):
     sentiment_analysis = {}
 
     # Get Ownership data
-    ownership_df = FinvizScanner().get_ownership_stocks(tickers=tickers)
+    ownership_df = get_ownership_data(tickers=tickers)
 
     for ticker in tickers:
         progress.update_status("sentiment_agent", ticker, "Analyzing sentiment of news data")

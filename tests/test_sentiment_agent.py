@@ -15,12 +15,12 @@ def mock_state():
     }
 
 
-@patch("alpacalyzer.agents.sentiment_agent.FinvizScanner")
+@patch("alpacalyzer.agents.sentiment_agent.get_ownership_data")
 @patch("alpacalyzer.agents.sentiment_agent.YFinanceClient")
 @patch("alpacalyzer.agents.sentiment_agent.calculate_sentiment_signals")
-def test_sentiment_agent_success(mock_calculate_sentiment_signals, mock_yfinance_client, mock_finviz_scanner, mock_state):
-    # Mock FinvizScanner
-    mock_finviz_scanner.return_value.get_ownership_stocks.return_value = MagicMock(loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"]))))
+def test_sentiment_agent_success(mock_calculate_sentiment_signals, mock_yfinance_client, mock_get_ownership_data, mock_state):
+    # Mock get_ownership_data
+    mock_get_ownership_data.return_value = MagicMock(loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"]))))
 
     # Mock YFinanceClient
     mock_yfinance_client.return_value.get_news.return_value = [
@@ -48,11 +48,11 @@ def test_sentiment_agent_success(mock_calculate_sentiment_signals, mock_yfinance
     assert result["data"]["analyst_signals"]["sentiment_agent"]["AAPL"]["signal"] == "bullish"
 
 
-@patch("alpacalyzer.agents.sentiment_agent.FinvizScanner")
+@patch("alpacalyzer.agents.sentiment_agent.get_ownership_data")
 @patch("alpacalyzer.agents.sentiment_agent.YFinanceClient")
-def test_sentiment_agent_no_news(mock_yfinance_client, mock_finviz_scanner, mock_state):
-    # Mock FinvizScanner
-    mock_finviz_scanner.return_value.get_ownership_stocks.return_value = MagicMock(loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"]))))
+def test_sentiment_agent_no_news(mock_yfinance_client, mock_get_ownership_data, mock_state):
+    # Mock get_ownership_data
+    mock_get_ownership_data.return_value = MagicMock(loc=MagicMock(return_value=MagicMock(empty=False, __getitem__=MagicMock(return_value=["-0.26%"]))))
 
     # Mock YFinanceClient
     mock_yfinance_client.return_value.get_news.return_value = None

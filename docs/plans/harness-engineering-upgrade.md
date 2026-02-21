@@ -523,16 +523,16 @@ agent-links = "bash scripts/setup-agent-links.sh"
 | 6   | [#142](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/142) | Build `scripts/agent-metrics-summary.py` + observability skill                         | P1       | M      | Gap 1  |
 | 7   | [#143](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/143) | Create reusable commands (`start-issue`, `create-pr`, `fix-issue`)                     | P1       | M      | Gap 9  |
 
-### Wave 2 (Enforcement & Autonomy)
+### Wave 2 (Enforcement & Autonomy) ✅ Complete
 
-| #   | Issue                                                                     | Task                                                                         | Priority | Effort | Source |
-| --- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ------ | ------ |
-| 8   | [#144](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/144) | Build grind loop: Claude `Stop` hook + `wti` wrapper + `check-completion.sh` | P2       | M      | Gap 10 |
-| 9   | [#145](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/145) | Wire blind validation into grind loop (separate agent session for review)    | P2       | S      | Gap 3  |
-| 10  | [#146](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/146) | Enforce plan-first workflow (PreToolUse hook + plan template)                | P2       | S      | Gap 11 |
-| 11  | [#147](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/147) | Add architecture boundary linter (`scripts/lint-architecture.py`)            | P2       | M      | Gap 5  |
-| 12  | [#148](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/148) | Add CI job to validate doc cross-references                                  | P2       | S      | Gap 4  |
-| 13  | [#149](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/149) | Slim down skill files — replace inline templates with file references        | P2       | M      | Gap 13 |
+| #   | Issue                                                                     | Task                                                                         | Priority | Effort | Source | Status |
+| --- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ------ | ------ | ------ |
+| 8   | [#144](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/144) | Build grind loop: Claude `Stop` hook + `wti` wrapper + `check-completion.sh` | P2       | M      | Gap 10 | ✅     |
+| 9   | [#145](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/145) | Wire blind validation into grind loop (separate agent session for review)    | P2       | S      | Gap 3  | ✅     |
+| 10  | [#146](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/146) | Enforce plan-first workflow (PreToolUse hook + plan template)                | P2       | S      | Gap 11 | ✅     |
+| 11  | [#147](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/147) | Add architecture boundary linter (`scripts/lint-architecture.py`)            | P2       | M      | Gap 5  | ✅     |
+| 12  | [#148](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/148) | Add CI job to validate doc cross-references                                  | P2       | S      | Gap 4  | ✅     |
+| 13  | [#149](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/149) | Slim down skill files — replace inline templates with file references        | P2       | M      | Gap 13 | ✅     |
 
 ### Wave 3 (Compounding Improvements)
 

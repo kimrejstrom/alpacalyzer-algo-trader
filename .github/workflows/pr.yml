@@ -82,6 +82,12 @@ jobs:
       - name: Run ruff format check
         run: uv run ruff format --check .
 
+      - name: Run architecture boundary linter
+        run: uv run python scripts/lint_architecture.py
+
+      - name: Validate doc cross-references
+        run: uv run python scripts/validate_docs.py
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-24.04

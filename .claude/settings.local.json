@@ -9,7 +9,32 @@
       "Bash(ls *)",
       "Bash(find *)",
       "Skill(pr-code-review)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(bash .agents/hooks/check-completion.sh)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GRIND_ITERATION=${GRIND_ITERATION:-0} bash .agents/hooks/check-completion.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/hooks/check-plan-exists.sh \"$CLAUDE_TOOL_ARG_FILE_PATH\""
+          }
+        ]
+      }
     ]
   }
 }

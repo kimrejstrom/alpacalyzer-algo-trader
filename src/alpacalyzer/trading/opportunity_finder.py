@@ -1,9 +1,9 @@
 from pandas import DataFrame
 
 from alpacalyzer.data.models import TopTicker, TopTickersResponse
+from alpacalyzer.data.reddit import fetch_reddit_posts, fetch_user_posts
 from alpacalyzer.llm import LLMTier, get_llm_client
 from alpacalyzer.prompts import load_prompt
-from alpacalyzer.scanners.reddit_scanner import fetch_reddit_posts, fetch_user_posts
 from alpacalyzer.utils.logger import get_logger
 
 logger = get_logger(__name__)

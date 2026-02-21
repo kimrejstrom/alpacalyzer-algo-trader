@@ -17,6 +17,21 @@
 - [Debugging](dev/debugging.md) - Debugging procedures
 - [GitHub Operations](dev/github-operations.md) - GitHub MCP tools usage
 - [Testing](dev/testing.md) - Test structure and patterns
+- [Common Mistakes](dev/common-mistakes.md) - Recurring agent errors and fixes
+
+## Plans
+
+- [Plans Index](plans/INDEX.md) - Active, completed, and backlog plans
+- [Plan Template](templates/plan-template.md) - Template for new issue plans
+
+## Enforcement & Automation
+
+- `scripts/lint_architecture.py` - Architecture boundary linter (import rules, stop_loss enforcement)
+- `scripts/validate_docs.py` - Doc cross-reference validation
+- `.agents/hooks/check-completion.sh` - Grind loop completion checker (shared by Claude + OpenCode)
+- `.agents/hooks/check-plan-exists.sh` - Plan-first workflow enforcement (Claude PreToolUse hook)
+- `.opencode/plugins/grind-loop.ts` - OpenCode grind loop plugin (session.idle → re-prompt)
+- `.opencode/plugins/plan-first.ts` - OpenCode plan-first plugin (tool.execute.before → block writes)
 
 ## Skills
 

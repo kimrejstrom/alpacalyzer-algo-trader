@@ -58,6 +58,40 @@ git commit -m "feat(strategies): implement momentum strategy for #XX"
    Feature #XX ready for review. PR url: {PR_URL}, also see _PLAN_issue-XX.md for details
    ```
 
+## Grind Loop (Iterate-Until-Done)
+
+Both Claude Code and OpenCode support automated iteration loops that re-prompt the agent until all completion criteria are met.
+
+### Claude Code
+
+Enforcement is automatic via hooks in `.claude/settings.local.json`:
+
+- `Stop` hook runs `.agents/hooks/check-completion.sh` after each agent turn
+- `PreToolUse` hook runs `.agents/hooks/check-plan-exists.sh` before any Write/Edit
+
+No manual setup needed — hooks fire automatically.
+
+### OpenCode
+
+Enforcement is automatic via plugins in `.opencode/plugins/`:
+
+- `grind-loop.ts` — listens to `session.idle` events, runs `check-completion.sh`, and re-prompts the agent if incomplete (equivalent to Claude's `Stop` hook)
+- `plan-first.ts` — intercepts `tool.execute.before` on write/edit tools and blocks code writes until a plan file exists in `docs/plans/` (equivalent to Claude's `PreToolUse` hook)
+
+Plugins are loaded automatically by OpenCode at startup. No manual setup needed.
+
+Fallback: `.agents/hooks/opencode-grind-loop.sh` can wrap `opencode --prompt` in a bash loop for headless/CI use.
+
+### Completion Criteria (shared)
+
+Both tools use `.agents/hooks/check-completion.sh` which checks:
+
+1. Tests pass (`uv run pytest tests`)
+2. No Critical/High findings in `CODE_REVIEW_*.md`
+3. Blind review requested if PR exists but no review file (non-trivial PRs only)
+4. Scratchpad signals DONE (`.agents/scratchpad.md`)
+5. Iteration cap (default 5) prevents infinite loops
+
 ## Closing a Pull Request
 
 When the feature is approved and ready to merge:

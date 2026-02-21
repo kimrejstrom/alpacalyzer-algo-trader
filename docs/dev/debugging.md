@@ -26,7 +26,7 @@ uv run pytest tests/test_failing_module.py -vv
 
 - Log files are stored in `logs/`
 - Use structured JSON logging via the `events/` module
-- Parse logs with `scripts/agent-metrics-summary.py` for metrics
+- Parse logs with `scripts/agent_metrics_summary.py` for metrics
 
 ### Common Issues
 

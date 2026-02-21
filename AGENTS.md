@@ -100,6 +100,8 @@ git branch --show-current
 
 ## 🔄 Development Flow
 
+**Plan First**: Before writing ANY code, create `docs/plans/issue-{NUMBER}.md` using the template at `docs/templates/plan-template.md`. The PreToolUse hook enforces this — code writes are blocked until a plan exists.
+
 See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for:
 
 - Starting work on an issue
