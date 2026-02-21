@@ -214,6 +214,13 @@ class BreakoutStrategy(BaseStrategy):
 
         # Check for bullish breakout
         if current_high > resistance + buffer:
+            # Validate agent recommendation direction matches breakout
+            if agent_recommendation is not None and agent_recommendation.trade_type != "long":
+                return EntryDecision(
+                    should_enter=False,
+                    reason=f"Agent trade_type mismatch: agent proposed {agent_recommendation.trade_type} but breakout is bullish",
+                )
+
             # Determine trade values based on agent recommendation
             if agent_recommendation is not None:
                 # Use agent's values (agents propose, strategies validate)
@@ -249,6 +256,13 @@ class BreakoutStrategy(BaseStrategy):
 
         # Check for bearish breakout
         if current_low < support - buffer:
+            # Validate agent recommendation direction matches breakout
+            if agent_recommendation is not None and agent_recommendation.trade_type != "short":
+                return EntryDecision(
+                    should_enter=False,
+                    reason=f"Agent trade_type mismatch: agent proposed {agent_recommendation.trade_type} but breakout is bearish",
+                )
+
             # Determine trade values based on agent recommendation
             if agent_recommendation is not None:
                 # Use agent's values (agents propose, strategies validate)
