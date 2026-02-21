@@ -1,6 +1,7 @@
 import json
 import operator
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
@@ -8,7 +9,7 @@ from typing_extensions import TypedDict
 
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def merge_dicts(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
@@ -23,8 +24,6 @@ class AgentState(TypedDict):
 
 
 def show_agent_reasoning(output, agent_name):
-    logger.debug(f"\n{'=' * 10} {agent_name.center(28)} {'=' * 10}")
-
     def convert_to_serializable(obj):
         if hasattr(obj, "to_dict"):  # Handle Pandas Series/DataFrame
             return obj.to_dict()
@@ -39,16 +38,57 @@ def show_agent_reasoning(output, agent_name):
         return str(obj)  # Fallback to string representation
 
     if isinstance(output, dict | list):
-        # Convert the output to JSON-serializable format
         serializable_output = convert_to_serializable(output)
-        logger.debug(json.dumps(serializable_output, indent=2))
     else:
         try:
-            # Parse the string as JSON and pretty logger.debug it
-            parsed_output = json.loads(output)
-            logger.debug(json.dumps(parsed_output, indent=2))
+            serializable_output = json.loads(output)
         except json.JSONDecodeError:
-            # Fallback to original string if not valid JSON
-            logger.debug(output)
+            serializable_output = {"raw": str(output)}
 
-    logger.debug("=" * 48)
+    # Route summaries through the Rich Live display (progress) so they don't
+    # get overwritten by the agent status table re-renders.
+    from alpacalyzer.utils.progress import progress
+
+    if isinstance(serializable_output, dict):
+        for ticker, data in serializable_output.items():
+            if isinstance(data, dict):
+                signal = str(data.get("signal", data.get("action", "?")))
+                confidence = data.get("confidence", "?")
+                reasoning = data.get("reasoning", "")
+                if isinstance(reasoning, dict):
+                    reasoning = ", ".join(f"{k}: {v}" for k, v in reasoning.items() if isinstance(v, str))
+                reasoning_str = str(reasoning)[:120]
+                if progress.started:
+                    progress.add_reasoning(agent_name, ticker, signal, confidence, reasoning_str)
+                else:
+                    logger.info(f"[{agent_name}] {ticker} | {signal} | confidence={confidence} | {reasoning_str}")
+            else:
+                if progress.started:
+                    progress.add_reasoning(agent_name, ticker, str(data), "?", "")
+                else:
+                    logger.info(f"[{agent_name}] {ticker} | {data}")
+    else:
+        if not progress.started:
+            logger.info(f"[{agent_name}] {serializable_output}")
+
+    # Emit structured event for observability tooling (full detail goes to events.jsonl)
+    try:
+        from alpacalyzer.events import AgentReasoningEvent, emit_event
+
+        reasoning_dict = serializable_output if isinstance(serializable_output, dict) else {"data": serializable_output}
+
+        # Extract tickers from reasoning if available
+        tickers: list[str] = []
+        if isinstance(reasoning_dict, dict):
+            tickers = [k for k in reasoning_dict if isinstance(k, str) and k.isupper() and len(k) <= 5]
+
+        emit_event(
+            AgentReasoningEvent(
+                timestamp=datetime.now(tz=UTC),
+                agent=agent_name,
+                tickers=tickers,
+                reasoning=reasoning_dict,
+            )
+        )
+    except Exception:
+        logger.debug("Failed to emit agent reasoning event", exc_info=True)

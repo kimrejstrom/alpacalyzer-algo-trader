@@ -18,7 +18,7 @@ class TestCompleteStructured:
 
         from alpacalyzer.llm.structured import complete_structured
 
-        result = complete_structured(
+        result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
@@ -41,7 +41,7 @@ class TestCompleteStructured:
 
         from alpacalyzer.llm.structured import complete_structured
 
-        result = complete_structured(
+        result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
@@ -52,7 +52,7 @@ class TestCompleteStructured:
         assert result.name == "fallback"
         assert result.value == 100
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert "plugins" in call_kwargs
+        assert call_kwargs["extra_body"] == {"plugins": [{"id": "response-healing"}]}
 
     def test_json_mode_fallback_on_invalid_first_response(self):
         mock_client = MagicMock()
@@ -73,7 +73,7 @@ class TestCompleteStructured:
 
         from alpacalyzer.llm.structured import complete_structured
 
-        result = complete_structured(
+        result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
@@ -121,6 +121,55 @@ class TestCompleteStructured:
         assert messages[0]["role"] == "system"
         assert "json" in messages[0]["content"].lower()
         assert messages[1]["role"] == "user"
+
+
+class DecisionItem(BaseModel):
+    ticker: str
+    action: str
+    quantity: int = 0
+    confidence: float = 50.0
+    reasoning: str = ""
+
+
+class DecisionList(BaseModel):
+    decisions: list[DecisionItem]
+
+
+class TestCoerceDictLists:
+    def test_converts_dict_to_list(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"decisions": {"NVDA": {"action": "hold", "quantity": 0, "reasoning": "test"}, "AAPL": {"action": "buy", "quantity": 10, "reasoning": "test2"}}}'
+        result = _coerce_dict_lists(raw)
+        import json
+
+        parsed = json.loads(result)
+        assert isinstance(parsed["decisions"], list)
+        assert len(parsed["decisions"]) == 2
+        tickers = {d["ticker"] for d in parsed["decisions"]}
+        assert tickers == {"NVDA", "AAPL"}
+
+    def test_leaves_list_unchanged(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"decisions": [{"ticker": "NVDA", "action": "hold"}]}'
+        assert _coerce_dict_lists(raw) == raw
+
+    def test_leaves_invalid_json_unchanged(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = "not json"
+        assert _coerce_dict_lists(raw) == raw
+
+    def test_coerced_dict_validates_as_pydantic_model(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"decisions": {"NVDA": {"action": "hold", "quantity": 0, "confidence": 80.0, "reasoning": "strong"}}}'
+        coerced = _coerce_dict_lists(raw)
+        result = DecisionList.model_validate_json(coerced)
+        assert len(result.decisions) == 1
+        assert result.decisions[0].ticker == "NVDA"
+        assert result.decisions[0].action == "hold"
 
 
 class TestLLMClientStructured:

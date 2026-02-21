@@ -15,7 +15,7 @@ from alpacalyzer.utils.progress import progress
 class QuantSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 ##### Quant Agent #####
@@ -127,4 +127,4 @@ def get_quant_analysis(
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]
     client = get_llm_client()
-    return client.complete_structured(messages, QuantSignal, tier=LLMTier.DEEP)
+    return client.complete_structured(messages, QuantSignal, tier=LLMTier.DEEP, caller="quant")

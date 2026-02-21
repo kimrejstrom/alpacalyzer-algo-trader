@@ -203,6 +203,42 @@ class CycleCompleteEvent(BaseModel):
     duration_seconds: float = Field(description="Cycle duration in seconds")
 
 
+class LLMCallEvent(BaseModel):
+    """Emitted when an LLM call completes."""
+
+    event_type: str = "LLM_CALL"
+    timestamp: datetime = Field(description="When the call completed")
+    agent: str = Field(description="Agent/caller that made the LLM call")
+    model: str = Field(description="Model name used")
+    tier: str = Field(description="LLM tier (fast, standard, deep)")
+    latency_ms: float = Field(description="Call latency in milliseconds")
+    prompt_tokens: int = Field(default=0, description="Prompt token count")
+    completion_tokens: int = Field(default=0, description="Completion token count")
+    total_tokens: int = Field(default=0, description="Total token count")
+    cost_usd: float | None = Field(default=None, description="Estimated cost in USD")
+
+
+class ErrorEvent(BaseModel):
+    """Emitted when a notable error occurs."""
+
+    event_type: str = "ERROR"
+    timestamp: datetime = Field(description="When the error occurred")
+    error_type: str = Field(description="Error category (rate_limit, api_error, llm_error, order_error)")
+    component: str = Field(description="Component that raised the error")
+    message: str = Field(description="Error message")
+    ticker: str | None = Field(default=None, description="Related ticker if applicable")
+
+
+class AgentReasoningEvent(BaseModel):
+    """Emitted when an agent produces reasoning output."""
+
+    event_type: str = "AGENT_REASONING"
+    timestamp: datetime = Field(description="When the reasoning was produced")
+    agent: str = Field(description="Agent name (e.g., Technical Analyst, Portfolio Management Agent)")
+    tickers: list[str] = Field(default_factory=list, description="Tickers analyzed")
+    reasoning: dict = Field(description="Full reasoning output from the agent")
+
+
 # Union type for all events
 TradingEvent = (
     ScanCompleteEvent
@@ -220,4 +256,7 @@ TradingEvent = (
     | CooldownStartedEvent
     | CooldownEndedEvent
     | CycleCompleteEvent
+    | LLMCallEvent
+    | ErrorEvent
+    | AgentReasoningEvent
 )

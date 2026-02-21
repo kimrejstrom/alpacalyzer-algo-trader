@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TypedDict, cast
 
 import pandas as pd
+import pandas_ta  # noqa: F401  # registers .ta accessor on DataFrames
 from alpaca.data.enums import Adjustment
 from alpaca.data.models import Bar, BarSet
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
@@ -14,7 +15,7 @@ from alpacalyzer.trading.alpaca_client import get_market_status, history_client
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class TradingSignals(TypedDict):
@@ -99,73 +100,110 @@ class TechnicalAnalyzer:
             logger.error(f"Error fetching historical data for {symbol}: {str(e)}", exc_info=True)
             return None
 
+    @staticmethod
+    def _detect_engulfing(df: pd.DataFrame, bullish: bool = True) -> pd.Series:
+        """
+        Detect engulfing candlestick patterns without TA-Lib.
+
+        Returns TA-Lib-compatible values: 100 for bullish, -100 for bearish, 0 otherwise.
+        """
+        prev_open = df["open"].shift(1)
+        prev_close = df["close"].shift(1)
+        cur_open = df["open"]
+        cur_close = df["close"]
+
+        if bullish:
+            # Previous candle bearish, current candle bullish and engulfs previous body
+            pattern = (prev_close < prev_open) & (cur_close > cur_open) & (cur_open <= prev_close) & (cur_close >= prev_open)
+            return pattern.astype(int) * 100
+        # Previous candle bullish, current candle bearish and engulfs previous body
+        pattern = (prev_close > prev_open) & (cur_close < cur_open) & (cur_open >= prev_close) & (cur_close <= prev_open)
+        return pattern.astype(int) * -100
+
+    @staticmethod
+    def _detect_shooting_star(df: pd.DataFrame) -> pd.Series:
+        """Detect shooting star pattern: small body at bottom, long upper shadow."""
+        body = abs(df["close"] - df["open"])
+        candle_range = df["high"] - df["low"]
+        upper_shadow = df["high"] - df[["open", "close"]].max(axis=1)
+
+        pattern = (candle_range > 0) & (upper_shadow > 2 * body) & (body < candle_range * 0.3)
+        return pattern.astype(int) * -100
+
+    @staticmethod
+    def _detect_hammer(df: pd.DataFrame) -> pd.Series:
+        """Detect hammer pattern: small body at top, long lower shadow."""
+        body = abs(df["close"] - df["open"])
+        candle_range = df["high"] - df["low"]
+        lower_shadow = df[["open", "close"]].min(axis=1) - df["low"]
+
+        pattern = (candle_range > 0) & (lower_shadow > 2 * body) & (body < candle_range * 0.3)
+        return pattern.astype(int) * 100
+
     def calculate_intraday_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate intraday technical indicators using pandas-ta."""
+        if len(df) < 31:
+            return df
+
         # ATR
         df.ta.atr(length=30, append=True)
         df.rename(columns={"ATRr_30": "ATR"}, inplace=True)
 
-        # MACD
-        macd = df.ta.macd(append=False)
-        df["MACD"] = macd["MACD_12_26_9"]
-        df["MACD_Signal"] = macd["MACDs_12_26_9"]
+        # MACD (append=True to avoid pandas_ta stdout printing)
+        df.ta.macd(append=True)
+        df["MACD"] = df.get("MACD_12_26_9", 0)
+        df["MACD_Signal"] = df.get("MACDs_12_26_9", 0)
 
         # Volume
-        df["Volume_MA"] = df.ta.sma(close="volume", length=30, append=False)
+        df["Volume_MA"] = df["volume"].rolling(window=30).mean()
         df["RVOL"] = df["volume"] / df["Volume_MA"]
 
         # Bollinger Bands
-        bbands = df.ta.bbands(length=20, std=2, append=False)
-        df["BB_Upper"] = bbands["BBU_20_2.0"]
-        df["BB_Middle"] = bbands["BBM_20_2.0"]
-        df["BB_Lower"] = bbands["BBL_20_2.0"]
+        df.ta.bbands(length=20, std=2, append=True)
+        df["BB_Upper"] = df.get("BBU_20_2.0_2.0", df["close"])
+        df["BB_Middle"] = df.get("BBM_20_2.0_2.0", df["close"])
+        df["BB_Lower"] = df.get("BBL_20_2.0_2.0", df["close"])
 
-        # Candlestick patterns using pandas-ta
-        df.ta.cdl_pattern(name="engulfing", append=True)
-        df.ta.cdl_pattern(name="shootingstar", append=True)
-        df.ta.cdl_pattern(name="hammer", append=True)
+        # Candlestick patterns (pure Python, no TA-Lib dependency)
+        df["Bullish_Engulfing"] = self._detect_engulfing(df, bullish=True)
+        df["Bearish_Engulfing"] = self._detect_engulfing(df, bullish=False)
+        df["Shooting_Star"] = self._detect_shooting_star(df)
+        df["Hammer"] = self._detect_hammer(df)
         df.ta.cdl_pattern(name="doji", append=True)
-
-        # Rename to match TA-Lib naming
-        df["Bullish_Engulfing"] = df.get("CDL_ENGULFING", 0)
-        df["Bearish_Engulfing"] = df.get("CDL_ENGULFING", 0)  # Same pattern, sign indicates direction
-        df["Shooting_Star"] = df.get("CDL_SHOOTINGSTAR", 0)
-        df["Hammer"] = df.get("CDL_HAMMER", 0)
-        df["Doji"] = df.get("CDL_DOJI", 0)
+        df["Doji"] = df.get("CDL_DOJI_10_0.1", 0)
 
         return df
 
     def calculate_daily_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate daily technical indicators using pandas-ta."""
-        # Basic indicators
-        df["SMA_20"] = df.ta.sma(length=20, append=False)
-        df["SMA_50"] = df.ta.sma(length=50, append=False)
-        df["RSI"] = df.ta.rsi(length=14, append=False)
+        if len(df) < 51:
+            return df
+
+        # Basic indicators (append=True to avoid pandas_ta stdout printing)
+        df.ta.sma(length=20, append=True)
+        df.ta.sma(length=50, append=True)
+        df.ta.rsi(length=14, append=True)
+        df.rename(columns={"RSI_14": "RSI"}, inplace=True)
 
         # ATR
         df.ta.atr(length=14, append=True)
         df.rename(columns={"ATRr_14": "ATR"}, inplace=True)
 
-        # Volume
-        df["Volume_MA"] = df.ta.sma(close="volume", length=20, append=False)
+        # Volume (compute before appending to avoid SMA_20 name collision)
+        df["Volume_MA"] = df["volume"].rolling(window=20).mean()
         df["RVOL"] = df["volume"] / df["Volume_MA"]
 
         # ADX (Trend Strength)
-        adx = df.ta.adx(length=14, append=False)
-        df["ADX"] = adx["ADX_14"]
+        df.ta.adx(length=14, append=True)
+        df["ADX"] = df.get("ADX_14", 0)
 
-        # Candlestick patterns
-        df.ta.cdl_pattern(name="engulfing", append=True)
-        df.ta.cdl_pattern(name="shootingstar", append=True)
-        df.ta.cdl_pattern(name="hammer", append=True)
+        # Candlestick patterns (pure Python, no TA-Lib dependency)
+        df["Bullish_Engulfing"] = self._detect_engulfing(df, bullish=True)
+        df["Bearish_Engulfing"] = self._detect_engulfing(df, bullish=False)
+        df["Shooting_Star"] = self._detect_shooting_star(df)
+        df["Hammer"] = self._detect_hammer(df)
         df.ta.cdl_pattern(name="doji", append=True)
-
-        # Rename to match TA-Lib naming
-        df["Bullish_Engulfing"] = df.get("CDL_ENGULFING", 0)
-        df["Bearish_Engulfing"] = df.get("CDL_ENGULFING", 0)
-        df["Shooting_Star"] = df.get("CDL_SHOOTINGSTAR", 0)
-        df["Hammer"] = df.get("CDL_HAMMER", 0)
-        df["Doji"] = df.get("CDL_DOJI", 0)
+        df["Doji"] = df.get("CDL_DOJI_10_0.1", 0)
 
         return df
 
@@ -174,14 +212,23 @@ class TechnicalAnalyzer:
         df = self.get_historical_data(symbol, "minute")
         if df is None or df.empty:
             return None
-        return self.calculate_intraday_indicators(df)
+        df = df.copy()  # avoid mutating cached DataFrame (causes duplicate columns)
+        df = self.calculate_intraday_indicators(df)
+        # Verify required columns exist (insufficient data produces no indicators)
+        if "ATR" not in df.columns or "MACD" not in df.columns:
+            return None
+        return df
 
     def analyze_stock_daily(self, symbol) -> pd.DataFrame | None:
         """Analyze a stock and return trading signals."""
         df = self.get_historical_data(symbol, "day")
         if df is None or df.empty:
             return None
-        return self.calculate_daily_indicators(df)
+        df = df.copy()  # avoid mutating cached DataFrame (causes duplicate columns)
+        df = self.calculate_daily_indicators(df)
+        if "SMA_20" not in df.columns or "RSI" not in df.columns:
+            return None
+        return df
 
     def calculate_technical_analysis_score(self, symbol: str, daily_df: pd.DataFrame, intraday_df: pd.DataFrame, target_side: str = "long") -> TradingSignals | None:
         """

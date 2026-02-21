@@ -7,7 +7,7 @@ from alpacalyzer.graph.state import AgentState, show_agent_reasoning
 from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 ##### Fundamental Agent #####

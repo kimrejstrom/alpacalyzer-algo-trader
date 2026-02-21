@@ -117,18 +117,19 @@ def generate_trading_decision(
         "Current Margin Requirement ($): {margin_requirement}\n\n"
         "Output strictly in JSON with the following structure:\n"
         "{{\n"
-        '  "decisions": {{\n'
-        '    "TICKER1": {{\n'
+        '  "decisions": [\n'
+        "    {{\n"
+        '      "ticker": "TICKER1",\n'
         '      "action": "buy/sell/short/cover/hold",\n'
         '      "quantity": integer (shares),\n'
         '      "confidence": float (0-100%),\n'
         '      "reasoning": "string"\n'
         "    }},\n"
-        '    "TICKER2": {{\n'
+        "    {{\n"
+        '      "ticker": "TICKER2",\n'
         "      ...\n"
-        "    }},\n"
-        "    ...\n"
-        "  }}\n"
+        "    }}\n"
+        "  ]\n"
         "}}"
     )
 
@@ -158,4 +159,4 @@ def generate_trading_decision(
     # Combine the messages into a list that you can send to your API
     messages = [system_message, human_message]
     client = get_llm_client()
-    return client.complete_structured(messages, PortfolioManagerOutput, tier=LLMTier.STANDARD)
+    return client.complete_structured(messages, PortfolioManagerOutput, tier=LLMTier.STANDARD, caller="portfolio_manager")

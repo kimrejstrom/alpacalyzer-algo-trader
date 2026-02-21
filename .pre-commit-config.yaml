@@ -54,6 +54,16 @@ repos:
   #           tests,
   #         ]
 
+  # architecture boundary linter
+  - repo: local
+    hooks:
+      - id: lint-architecture
+        name: lint-architecture
+        entry: uv run python scripts/lint_architecture.py
+        language: system
+        types: [python]
+        pass_filenames: false
+
   # bandit - find common security issues
   - repo: https://github.com/pycqa/bandit
     rev: 1.8.2

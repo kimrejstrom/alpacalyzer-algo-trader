@@ -71,7 +71,7 @@ from alpacalyzer.execution.state import STATE_VERSION, EngineState
 from alpacalyzer.strategies.base import EntryDecision, ExitDecision, MarketContext
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 STATE_FILE = Path(".alpacalyzer-state.json")
 
@@ -247,9 +247,7 @@ class ExecutionEngine:
 
             # Re-check after sync - bracket order may have been canceled
             if position.has_bracket_order:
-                logger.debug(
-                    f"[EXIT PRECEDENCE] Skipping dynamic exit for {position.ticker}: bracket order active (stop={position.stop_loss}, target={position.target}). Broker will manage exit automatically."
-                )
+                logger.debug(f"exit skipped, bracket active | ticker={position.ticker} stop={position.stop_loss} target={position.target}")
                 return
             # If bracket order is gone, fall through to dynamic exit evaluation
 
@@ -259,12 +257,12 @@ class ExecutionEngine:
             signals = self._ta.analyze_stock(position.ticker)
             if signals is not None:
                 self._cache_signal(position.ticker, signals)
-                logger.debug(f"Cache miss for {position.ticker}, fetched fresh signals")
+                logger.debug(f"signal cache miss | ticker={position.ticker}")
             else:
-                logger.warning(f"Failed to analyze {position.ticker}")
+                logger.warning(f"technical analysis failed | ticker={position.ticker}")
                 return
 
-        logger.debug(f"Cache hit for {position.ticker}")
+        logger.debug(f"signal cache hit | ticker={position.ticker}")
 
         context = self._build_market_context()
         decision = self.strategy.evaluate_exit(position, signals, context)
@@ -280,12 +278,12 @@ class ExecutionEngine:
             ta_signals = self._ta.analyze_stock(signal.ticker)
             if ta_signals is not None:
                 self._cache_signal(signal.ticker, ta_signals)
-                logger.debug(f"Cache miss for {signal.ticker}, fetched fresh signals")
+                logger.debug(f"signal cache miss | ticker={signal.ticker}")
             else:
-                logger.warning(f"Failed to analyze {signal.ticker}")
+                logger.warning(f"technical analysis failed | ticker={signal.ticker}")
                 return
 
-        logger.debug(f"Cache hit for {signal.ticker}")
+        logger.debug(f"signal cache hit | ticker={signal.ticker}")
 
         decision = self.strategy.evaluate_entry(
             ta_signals,
@@ -322,7 +320,7 @@ class ExecutionEngine:
         2. Close the position via market order
         3. Apply cooldown to prevent immediate re-entry
         """
-        logger.info(f"[DYNAMIC EXIT] Triggering manual exit for {position.ticker}: reason='{decision.reason}', urgency={decision.urgency}")
+        logger.info(f"dynamic exit triggered | ticker={position.ticker} reason={decision.reason} urgency={decision.urgency}")
 
         result = self.orders.close_position(position.ticker)
         if result:
@@ -387,7 +385,7 @@ class ExecutionEngine:
         market_status = get_market_status()
 
         if vix and vix > 30.0:
-            logger.warning(f"Elevated VIX detected: {vix:.2f}")
+            logger.warning(f"elevated VIX detected | vix={vix:.2f}")
 
         return MarketContext(
             vix=vix if vix is not None else 20.0,
@@ -472,9 +470,9 @@ class ExecutionEngine:
             )
 
             STATE_FILE.write_text(state.to_json(), encoding="utf-8")
-            logger.debug(f"State saved to {STATE_FILE}")
+            logger.debug(f"state saved | path={STATE_FILE}")
         except Exception as e:
-            logger.error(f"Failed to save state: {e}")
+            logger.error(f"state save failed | error={e}")
 
     def load_state(self, reset: bool = False) -> None:
         """
@@ -484,7 +482,7 @@ class ExecutionEngine:
             reset: If True, ignore saved state and start fresh
         """
         if reset or not STATE_FILE.exists():
-            logger.info("Starting with fresh state")
+            logger.info("starting with fresh state")
             return
 
         try:
@@ -494,13 +492,13 @@ class ExecutionEngine:
             # Handle version migration: v1.0.0 -> v1.1.0
             # v1.0.0 states don't have strategy_state, from_json defaults it to {}
             if state.version == "1.0.0":
-                logger.info("Migrating state from v1.0.0 to v1.1.0 (adding strategy_state)")
+                logger.info("migrating state | from=v1.0.0 to=v1.1.0")
                 # Continue loading - strategy_state will be empty dict
             elif state.version != STATE_VERSION:
-                logger.warning(f"State version mismatch: {state.version} != {STATE_VERSION}. Starting with fresh state.")
+                logger.warning(f"state version mismatch | saved={state.version} expected={STATE_VERSION}")
                 return
 
-            logger.info(f"Loading state from {state.timestamp}")
+            logger.info(f"loading state | timestamp={state.timestamp}")
 
             self.signal_queue = SignalQueue.from_dict(state.signal_queue)
             self.positions = PositionTracker.from_dict(state.positions)
@@ -510,6 +508,6 @@ class ExecutionEngine:
             # Restore strategy state (Issue #98)
             self.strategy.from_dict(state.strategy_state)
 
-            logger.info(f"State loaded: {len(self.signal_queue._heap)} signals, {len(self.positions._positions)} positions, {len(self.cooldowns._cooldowns)} cooldowns")
+            logger.info(f"state loaded | signals={len(self.signal_queue._heap)} positions={len(self.positions._positions)} cooldowns={len(self.cooldowns._cooldowns)}")
         except Exception as e:
-            logger.error(f"Failed to load state: {e}. Starting fresh.")
+            logger.error(f"state load failed, starting fresh | error={e}")

@@ -25,7 +25,7 @@ from alpacalyzer.events import (
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -46,50 +46,19 @@ __all__ = ["trading_client", "history_client"]
 
 def log_order(order: Order) -> None:
     """Logs key details of an Alpaca order in a readable format."""
-    log_message = f"""
-======================================
-Order Summary - {order.symbol}
-======================================
-Order ID: {order.id}
-Client Order ID: {order.client_order_id}
-Order Type: {order.order_type or "N/A"}
-Order Class: {order.order_class.value}
-Side: {order.side}
-Quantity: {order.qty}
-Limit Price: {order.limit_price or "N/A"}
-Stop Price: {order.stop_price or "N/A"}
-Time in Force: {order.time_in_force.value}
-Status: {order.status.value}
-Created At: {order.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-Updated At: {order.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-Filled Quantity: {order.filled_qty}
-Filled Avg Price: {order.filled_avg_price or "N/A"}
-Expiration: {order.expires_at.strftime("%Y-%m-%d %H:%M:%S %Z") if order.expires_at else "N/A"}
-Extended Hours: {"Yes" if order.extended_hours else "No"}
-
-Bracket Order Details:
---------------------------------------
-"""
-
-    # Log bracket orders if present
+    legs_info = ""
     if order.legs:
         for leg in order.legs:
-            log_message += f"""
-Leg Order: {leg.side}
-Order Type: {leg.order_type}
-Quantity: {leg.qty}
-Limit Price: {leg.limit_price or "N/A"}
-Stop Price: {leg.stop_price or "N/A"}
-Status: {leg.status.value}
-Client Order ID: {leg.client_order_id}
-Created At: {leg.created_at.strftime("%Y-%m-%d %H:%M:%S %Z")}
-            """
-    else:
-        log_message += "No bracket legs found.\n"
+            legs_info += f" leg={leg.side} type={leg.order_type} qty={leg.qty} limit={leg.limit_price or 'N/A'} stop={leg.stop_price or 'N/A'} status={leg.status.value}"
 
-    log_message += "\n======================================="
-
-    logger.info(log_message)  # Log the formatted message
+    logger.info(
+        f"order submitted | ticker={order.symbol} side={order.side} qty={order.qty}"
+        f" type={order.order_type or 'N/A'} class={order.order_class.value}"
+        f" limit={order.limit_price or 'N/A'} stop={order.stop_price or 'N/A'}"
+        f" tif={order.time_in_force.value} status={order.status.value}"
+        f" filled_qty={order.filled_qty} filled_avg={order.filled_avg_price or 'N/A'}"
+        f" order_id={order.id}{legs_info}"
+    )
 
 
 @timed_lru_cache(seconds=60, maxsize=128)
@@ -113,7 +82,7 @@ def get_market_status() -> str:
     trading_days = trading_client.get_calendar(GetCalendarRequest(start=current_time.date(), end=current_time.date()))
     trading_days_instance = cast(list[Calendar], trading_days)
     if not trading_days:
-        logger.info(f"{current_time.date()} is not a trading day. Next market open: {market_open_time}")
+        logger.info(f"not a trading day | date={current_time.date()} next_open={market_open_time}")
         return "closed"  # No market data available, assume closed
 
     today_market_close = trading_days_instance[0].close.replace(tzinfo=UTC)
@@ -152,7 +121,7 @@ def get_current_price(ticker: str) -> float | None:
         response = history_client.get_stock_latest_trade(StockLatestTradeRequest(symbol_or_symbols=ticker))
         return float(response[ticker].price)
     except Exception as e:
-        logger.debug(f"Error fetching price for {ticker}: {str(e)}", exc_info=True)
+        logger.debug(f"price fetch failed | ticker={ticker} error={e}", exc_info=True)
         return None
 
 
@@ -203,11 +172,11 @@ def get_stock_bars(symbol, request_type="minute") -> pd.DataFrame | None:
             return bars_to_df(candles)
 
         except Exception as e:
-            logger.error(f"Error fetching stock bars for {symbol}: {str(e)}", exc_info=True)
+            logger.error(f"stock bars fetch failed | ticker={symbol} error={e}", exc_info=True)
             return None
 
     except Exception as e:
-        logger.error(f"Error fetching historical data for {symbol}: {str(e)}", exc_info=True)
+        logger.error(f"historical data fetch failed | ticker={symbol} error={e}", exc_info=True)
         return None
 
 
@@ -250,7 +219,7 @@ def get_positions() -> list[Position]:
         positions = trading_client.get_all_positions()
         return cast(list[Position], positions)
     except Exception as e:
-        logger.error(f"Error fetching positions: {str(e)}", exc_info=True)
+        logger.error(f"fetch positions failed | error={e}", exc_info=True)
         return []
 
 
@@ -274,23 +243,23 @@ def get_market_close_time() -> datetime | None:
             market_close_time_et = market_close_time_naive.replace(tzinfo=ZoneInfo("America/New_York"))
             # Convert to UTC
             market_close_time_utc = market_close_time_et.astimezone(UTC)
-            logger.info(f"Market close time for {today} (UTC): {market_close_time_utc}")
+            logger.info(f"market close time | date={today} utc={market_close_time_utc}")
             return market_close_time_utc
-        logger.info(f"{today} is not a trading day.")
+        logger.info(f"not a trading day | date={today}")
         return None
     except Exception as e:
-        logger.error(f"Error fetching market calendar: {e}", exc_info=True)
+        logger.error(f"market calendar fetch failed | error={e}", exc_info=True)
         return None
 
 
 def liquidate_all_positions() -> None:
     """Liquidates all open positions and cancels any open orders."""
-    logger.info("Starting liquidation of all positions...")
+    logger.info("liquidating all positions")
     try:
         trading_client.close_all_positions(cancel_orders=True)
-        logger.info("Successfully liquidated all positions and canceled open orders.")
+        logger.info("liquidation complete")
     except Exception as e:
-        logger.error(f"An error occurred during liquidation: {e}", exc_info=True)
+        logger.error(f"liquidation failed | error={e}", exc_info=True)
 
 
 def parse_strategy_from_client_order_id(client_order_id: str) -> str:
@@ -311,8 +280,9 @@ async def trade_updates_handler(update: TradeUpdate):
     """
     Listen to Alpaca trade updates and emit standardized analytics execution logs.
 
-    We write compact one-line [EXECUTION] entries into analytics_log.log that EOD analysis can parse to
-    reconstruct actual entries/exits, partial fills, cancels and rejections.
+    We emit structured events via emit_event() and also write compact one-line [EXECUTION] entries
+    into trading_logs.log that legacy EOD analysis can parse to reconstruct actual entries/exits,
+    partial fills, cancels and rejections.
 
     Format examples:
       [EXECUTION] Ticker: NVDA, Side: BUY, Cum: 27/27 @ 179.87, OrderType: limit, OrderId: e806..., ClientOrderId: hedge_NVDA_BUY_xxx, Status: fill
@@ -349,7 +319,7 @@ async def trade_updates_handler(update: TradeUpdate):
     # Some TradeUpdate payloads include a last fill price
     last_px = _to_float(getattr(update, "price", None))
 
-    logger.info(f"\nTrade Update: {event} for ticker: {symbol} - Strategy: {strategy} ({side_str})")
+    logger.info(f"trade update | event={event} ticker={symbol} strategy={strategy} side={side_str}")
 
     # Include cumulative fill snapshot for fill/partial_fill
     if event in {"fill", "partial_fill"}:
@@ -363,7 +333,7 @@ async def trade_updates_handler(update: TradeUpdate):
         elif px is not None:
             cum_seg = f"Px: {px}"
 
-        logger.info(f"Order update for {symbol}: {cum_seg} ({event})")
+        logger.info(f"order fill | ticker={symbol} {cum_seg} event={event}")
 
         # Emit OrderFilledEvent for analytics (skip for invalid orders)
         if order_id != "N/A" and ord_qty is not None and filled_qty is not None and px is not None and symbol is not None:
@@ -412,7 +382,7 @@ async def trade_updates_handler(update: TradeUpdate):
 def consume_trade_updates():
     """Start listening to trade updates from Alpaca."""
     trading_stream.subscribe_trade_updates(trade_updates_handler)
-    logger.info("Listening for trade updates...")
+    logger.info("listening for trade updates")
     trading_stream.run()
 
 

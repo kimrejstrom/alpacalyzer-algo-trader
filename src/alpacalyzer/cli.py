@@ -1,5 +1,7 @@
 import argparse
+import json
 import os
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -20,7 +22,7 @@ from alpacalyzer.trading.alpaca_client import (
 from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.scheduler import start_scheduler
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def schedule_daily_liquidation():
@@ -31,9 +33,9 @@ def schedule_daily_liquidation():
         liquidation_time_local = liquidation_time_utc.astimezone()
         liquidation_time_str = liquidation_time_local.strftime("%H:%M")
         schedule.every().day.at(liquidation_time_str).do(liquidate_all_positions)
-        logger.info(f"Scheduled daily liquidation at {liquidation_time_str} local time")
+        logger.info(f"daily liquidation scheduled | time={liquidation_time_str}")
     else:
-        logger.info("Not a trading day, no liquidation scheduled.")
+        logger.info("not a trading day, no liquidation scheduled")
 
 
 def main():  # pragma: no cover
@@ -67,43 +69,48 @@ def main():  # pragma: no cover
     parser.add_argument("--days", type=int, default=30, help="Number of days of historical data for dashboard")
     parser.add_argument("--conditions", action="store_true", help="Show market conditions analysis in dashboard")
     parser.add_argument("--reset-state", action="store_true", help="Reset execution engine state and start fresh")
+    parser.add_argument("--dry-run", action="store_true", help="Run one analysis cycle and exit (use with --analyze)")
+    parser.add_argument("--json", action="store_true", dest="json_output", help="Output structured JSON to stdout (use with --dry-run)")
     args = parser.parse_args()
 
     try:
         if args.dashboard:
-            logger.info("Running Strategy Performance Dashboard")
+            logger.info("running strategy performance dashboard")
             dashboard_command(
                 ticker=args.ticker,
                 strategy=args.strategy_dashboard,
                 days=args.days,
                 conditions=args.conditions,
             )
-            return
+            return None
 
         if args.eod_analyze:
-            logger.info("Running End-of-Day Performance Analyzer")
+            logger.info("running end-of-day performance analyzer")
             target_date = None
             if args.eod_date:
                 try:
                     target_date = datetime.strptime(args.eod_date, "%Y-%m-%d").date()
                 except ValueError:
-                    logger.error("Invalid --eod-date format. Use YYYY-MM-DD.")
-                    return
+                    logger.error("invalid eod-date format, use YYYY-MM-DD")
+                    return None
             analyzer = EODPerformanceAnalyzer(
                 threshold_pct=args.eod_threshold,
                 timeframe=args.eod_timeframe,
             )
             report_path = analyzer.run(target_date)
-            logger.info(f"EOD analysis complete: {report_path}")
-            return
+            logger.info(f"eod analysis complete | report={report_path}")
+            return None
+
+        if args.dry_run:
+            return _run_dry_run(args)
 
         if args.analyze:
-            logger.info("ANALYZE MODE: Trading actions are disabled")
+            logger.info("analyze mode enabled, trading actions disabled")
 
         direct_tickers = []
         if args.tickers:
             direct_tickers = [ticker.strip().upper() for ticker in args.tickers.split(",")]
-            logger.info(f"Analyzing provided tickers: {', '.join(direct_tickers)}")
+            logger.info(f"analyzing provided tickers | tickers={', '.join(direct_tickers)}")
 
         strategy = StrategyRegistry.get(args.strategy)
 
@@ -130,15 +137,16 @@ def main():  # pragma: no cover
             if opportunities:
                 orchestrator.analyze(opportunities)
 
-        safe_execute(lambda: orchestrator.analyze(orchestrator.scan()))
-        schedule.every(5).minutes.do(lambda: safe_execute(lambda: orchestrator.analyze(orchestrator.scan())))
+        if not direct_tickers:
+            safe_execute(lambda: orchestrator.analyze(orchestrator.scan()))
+            schedule.every(5).minutes.do(lambda: safe_execute(lambda: orchestrator.analyze(orchestrator.scan())))
 
         if not args.analyze:
             safe_execute(orchestrator.execute_cycles)
             schedule.every(2).minutes.do(lambda: safe_execute(orchestrator.execute_cycles))
 
         if args.stream:
-            logger.info("Websocket Streaming Enabled")
+            logger.info("websocket streaming enabled")
             stream_thread = threading.Thread(target=consume_trade_updates, daemon=True)
             stream_thread.start()
 
@@ -148,11 +156,53 @@ def main():  # pragma: no cover
             time.sleep(10)
 
     except KeyboardInterrupt:
-        logger.info("\nTrading bot stopped by user.")
+        logger.info("trading bot stopped by user")
     except Exception as e:
-        logger.error(f"\nUnexpected error in main: {str(e)}", exc_info=True)
+        logger.error(f"unexpected error in main | error={e}", exc_info=True)
     finally:
-        logger.info("Shutting down trading bot safely...")
+        logger.info("shutting down trading bot")
+
+
+def _run_dry_run(args):
+    """Run one analysis cycle and exit. Outputs JSON to stdout if --json is set."""
+    result = {"status": "ok", "mode": "dry_run", "tickers_scanned": [], "opportunities": 0, "strategies_generated": 0, "signals_queued": 0, "errors": []}
+    try:
+        direct_tickers = []
+        if args.tickers:
+            direct_tickers = [t.strip().upper() for t in args.tickers.split(",")]
+
+        strategy = StrategyRegistry.get(args.strategy)
+        registry = get_scanner_registry()
+        registry.register(RedditScannerAdapter())
+        registry.register(SocialScannerAdapter())
+
+        orchestrator = TradingOrchestrator(
+            strategy=strategy,
+            analyze_mode=True,
+            direct_tickers=direct_tickers,
+            agents=args.agents,
+            ignore_market_status=args.ignore_market_status,
+            reset_state=False,
+        )
+
+        opportunities = orchestrator.scan()
+        result["tickers_scanned"] = [opp.ticker for opp in opportunities]
+        result["opportunities"] = len(opportunities)
+
+        if opportunities:
+            strategies = orchestrator.analyze(opportunities)
+            result["strategies_generated"] = len(strategies)
+            result["signals_queued"] = len(strategies)
+
+    except Exception as e:
+        result["status"] = "error"
+        result["errors"].append(str(e))
+
+    if args.json_output:
+        json.dump(result, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        logger.info(f"dry run complete | opportunities={result['opportunities']} strategies={result['strategies_generated']}")
 
 
 def safe_execute(trading_function):
@@ -164,8 +214,8 @@ def safe_execute(trading_function):
     try:
         trading_function()
     except Exception as e:
-        logger.error(f"Error in trading function: {str(e)}", exc_info=True)
-        logger.info("Retrying in 30 seconds...")
+        logger.error(f"trading function error | error={e}", exc_info=True)
+        logger.info("retrying in 30 seconds")
         time.sleep(30)
 
 

@@ -1,5 +1,6 @@
+"""Tests for standardized logger."""
+
 import logging
-from unittest import mock
 
 import pytest
 
@@ -7,51 +8,38 @@ import alpacalyzer.utils.logger as logger_module
 
 
 @pytest.fixture
-def logger(tmp_path, monkeypatch):
-    """
-    Provides a cleanly initialized logger instance for testing, with logs directed to a temporary path.
-
-    This fixture ensures that each test runs in isolation by creating a new logger and patching
-    the module's get_logger() function to return it.
-    """
-    # Patch the log directory to our temporary test directory
+def _clean_logger(tmp_path, monkeypatch):
+    """Provides a cleanly initialized logger for testing."""
     monkeypatch.setattr(logger_module, "LOGS_DIR", str(tmp_path))
+    # Reset the cached root logger so setup_logger creates fresh
+    monkeypatch.setattr(logger_module, "_root_logger", None)
+    root = logger_module.setup_logger()
+    monkeypatch.setattr(logger_module, "_root_logger", root)
 
-    # Create a new, isolated logger instance for this specific test
-    test_logger = logger_module.setup_logger()
+    yield root
 
-    # Patch the get_logger function to return our test-specific logger
-    monkeypatch.setattr(logger_module, "get_logger", lambda: test_logger)
-
-    yield test_logger
-
-    # Teardown: clean up our test_logger's handlers to release file locks etc.
-    for handler in test_logger.handlers[:]:
-        test_logger.removeHandler(handler)
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
         handler.close()
-    if hasattr(test_logger, "_analytics_logger"):
-        analytics_log = test_logger._analytics_logger
-        for handler in analytics_log.handlers[:]:
-            analytics_log.removeHandler(handler)
-            handler.close()
 
 
-def test_logger_is_customlogger_instance(logger):
-    """Verify that the logger is an instance of the custom logger class."""
-    assert isinstance(logger, logger_module.CustomLogger)
+def test_logger_is_standard_logger(_clean_logger):
+    """Logger is a standard logging.Logger instance."""
+    assert isinstance(_clean_logger, logging.Logger)
 
 
-def test_logger_has_analyze_method(logger):
-    """Verify that the logger has the custom 'analyze' method."""
-    assert hasattr(logger, "analyze")
+def test_logger_has_file_and_console_handlers(_clean_logger):
+    """Logger has exactly two handlers: file and console."""
+    assert len(_clean_logger.handlers) == 2
+    handler_types = {type(h).__name__ for h in _clean_logger.handlers}
+    assert "TimedRotatingFileHandler" in handler_types
+    assert "StreamHandler" in handler_types
 
 
-def test_no_traceback_filter_functionality(logger):
-    """Test that NoTracebackConsoleFilter actually removes exception info."""
-    # Create a filter directly
+def test_no_traceback_filter_functionality():
+    """NoTracebackConsoleFilter removes exception info from console output."""
     ntf = logger_module.NoTracebackConsoleFilter()
 
-    # Create a test record with exception info
     record = logging.LogRecord(
         name="test",
         level=logging.ERROR,
@@ -62,46 +50,97 @@ def test_no_traceback_filter_functionality(logger):
         exc_info=(Exception, Exception("Test exception"), None),
     )
 
-    # Apply the filter
     result = ntf.filter(record)
 
-    # Verify filter returns True (allowing record) but clears exception info
     assert result is True
     assert record.exc_info is None
     assert record.exc_text is None
 
 
-def test_analyze_method_with_complex_arguments(logger):
-    """Test that analyze method correctly forwards complex arguments to the analytics logger."""
-    with mock.patch.object(logger._analytics_logger, "debug") as mock_debug:
-        test_args = ("arg1", "arg2")
-        test_kwargs = {"key1": "value1", "key2": "value2"}
-
-        logger.analyze("Test with %s and %s", *test_args, **test_kwargs)
-
-        mock_debug.assert_called_once_with("Test with %s and %s", *test_args, **test_kwargs)
+def test_get_logger_returns_root_when_no_name():
+    """get_logger() with no name returns the root app logger."""
+    logger1 = logger_module.get_logger()
+    logger2 = logger_module.get_logger()
+    assert logger1 is logger2
+    assert logger1.name == "app"
 
 
-def test_analytics_logger_initialization(logger):
-    """Test that the analytics logger is correctly initialized."""
-    # Verify analytics logger exists and has correct configuration
-    assert hasattr(logger, "_analytics_logger")
-    assert logger._analytics_logger.name == "app.analytics"
-    assert logger._analytics_logger.propagate is False
-    assert logger._analytics_logger.level == logging.DEBUG
+def test_get_logger_with_name_returns_child():
+    """get_logger('component') returns a child logger under 'app'."""
+    child = logger_module.get_logger("engine")
+    assert child.name == "app.engine"
+    assert isinstance(child, logging.Logger)
 
 
-def test_setup_analytics_handler(logger):
-    """Test adding a custom handler to analytics logger."""
-    # Create a test handler
-    test_handler = logging.StreamHandler()
+def test_child_logger_inherits_handlers(_clean_logger):
+    """Child loggers propagate to the root app logger's handlers."""
+    child = logger_module.get_logger("scanner")
+    # Child should have no handlers of its own (propagates to parent)
+    assert len(child.handlers) == 0
+    assert child.propagate is True
 
-    # Add it to analytics logger
-    logger.setup_analytics_handler(test_handler)
 
-    # Verify it was added
-    assert test_handler in logger._analytics_logger.handlers
+def test_file_format_includes_component(_clean_logger, tmp_path):
+    """File handler format includes component name, level, and timestamp."""
+    file_handler = next(h for h in _clean_logger.handlers if isinstance(h, logging.handlers.TimedRotatingFileHandler))
+    formatter = file_handler.formatter
+    assert formatter is not None
 
-    # Clean up
-    logger._analytics_logger.removeHandler(test_handler)
-    test_handler.close()
+    # Format a record and check structure
+    record = logging.LogRecord(
+        name="app.engine",
+        level=logging.INFO,
+        pathname="engine.py",
+        lineno=42,
+        msg="Processing signal",
+        args=(),
+        exc_info=None,
+    )
+    formatted = formatter.format(record)
+
+    # Should contain: timestamp, level, component, message
+    assert "INFO" in formatted
+    assert "engine" in formatted
+    assert "Processing signal" in formatted
+
+
+def test_console_format_includes_component(_clean_logger):
+    """Console handler format includes component name."""
+    console_handler = next(h for h in _clean_logger.handlers if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler))
+    formatter = console_handler.formatter
+    assert formatter is not None
+
+    record = logging.LogRecord(
+        name="app.scanner",
+        level=logging.INFO,
+        pathname="scanner.py",
+        lineno=10,
+        msg="Found 5 tickers",
+        args=(),
+        exc_info=None,
+    )
+    formatted = formatter.format(record)
+
+    assert "scanner" in formatted
+    assert "Found 5 tickers" in formatted
+
+
+def test_root_logger_shows_app_as_component(_clean_logger):
+    """Root logger (no child name) shows 'app' as component."""
+    file_handler = next(h for h in _clean_logger.handlers if isinstance(h, logging.handlers.TimedRotatingFileHandler))
+    formatter = file_handler.formatter
+
+    record = logging.LogRecord(
+        name="app",
+        level=logging.WARNING,
+        pathname="main.py",
+        lineno=1,
+        msg="Something happened",
+        args=(),
+        exc_info=None,
+    )
+    formatted = formatter.format(record)
+
+    assert "WARNING" in formatted
+    assert "app" in formatted
+    assert "Something happened" in formatted

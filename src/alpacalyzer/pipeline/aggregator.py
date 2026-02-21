@@ -8,6 +8,9 @@ from alpacalyzer.events.emitter import emit_event
 from alpacalyzer.events.models import ScanCompleteEvent
 from alpacalyzer.pipeline.registry import get_scanner_registry
 from alpacalyzer.pipeline.scanner_protocol import ScanResult
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -23,6 +26,9 @@ class Opportunity:
     upvotes: int = 0
     best_rank: int = 999
     technical_match: bool = False
+    signal: str = "neutral"
+    confidence: float = 50.0
+    reasoning: list[str] = field(default_factory=list)
 
     @property
     def age_hours(self) -> float:
@@ -81,6 +87,8 @@ class OpportunityAggregator:
                         duration_seconds=result.duration_seconds,
                     )
                 )
+            else:
+                logger.warning(f"scanner failed | source={result.source} error={result.error}")
 
         for result in scan_results:
             if not result.success:
@@ -108,6 +116,13 @@ class OpportunityAggregator:
             opp.upvotes += ticker.upvotes
             if ticker.rank > 0:
                 opp.best_rank = min(opp.best_rank, ticker.rank)
+            # Upgrade signal if new source has a stronger one
+            if ticker.signal in ("bullish", "bearish") and opp.signal == "neutral":
+                opp.signal = ticker.signal
+            if ticker.confidence > opp.confidence:
+                opp.confidence = ticker.confidence
+            if ticker.reasoning:
+                opp.reasoning.append(f"[{source}] {ticker.reasoning}")
         else:
             self._opportunities[symbol] = Opportunity(
                 ticker=symbol,
@@ -118,6 +133,9 @@ class OpportunityAggregator:
                 mentions=ticker.mentions,
                 upvotes=ticker.upvotes,
                 best_rank=ticker.rank if ticker.rank > 0 else 999,
+                signal=ticker.signal,
+                confidence=ticker.confidence,
+                reasoning=[f"[{source}] {ticker.reasoning}"] if ticker.reasoning else [],
             )
 
     def _prune_stale(self) -> None:

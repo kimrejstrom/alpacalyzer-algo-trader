@@ -293,6 +293,9 @@ test-output.txt
 # But track steering documents
 !AGENTS.md
 
+# Track versioned plans
+!docs/plans/*.md
+
 # Project specific
 position_times.txt
 logs/

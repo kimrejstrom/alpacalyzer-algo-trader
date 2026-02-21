@@ -15,7 +15,7 @@ from alpacalyzer.utils.progress import progress
 class CathieWoodSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 def cathie_wood_agent(state: AgentState):
@@ -456,4 +456,4 @@ def generate_cathie_wood_output(
 
     messages = [system_message, human_message]
     client = get_llm_client()
-    return client.complete_structured(messages, CathieWoodSignal, tier=LLMTier.STANDARD)
+    return client.complete_structured(messages, CathieWoodSignal, tier=LLMTier.STANDARD, caller="cathie_wood")

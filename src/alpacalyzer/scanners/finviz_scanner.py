@@ -4,7 +4,7 @@ from finviz.screener import Screener
 from alpacalyzer.utils.cache_utils import timed_lru_cache
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class FinvizScanner:

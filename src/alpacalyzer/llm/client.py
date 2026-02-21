@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import os
+import time
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel
 
+from alpacalyzer.events.emitter import emit_event
+from alpacalyzer.events.models import LLMCallEvent
 from alpacalyzer.llm.config import LLMTier, get_model_for_tier
 from alpacalyzer.llm.structured import complete_structured
 
@@ -42,6 +46,25 @@ class LLMClient:
         response_model: type[T],
         tier: LLMTier = LLMTier.STANDARD,
         use_response_healing: bool = True,
+        caller: str = "unknown",
     ) -> T:
         model = get_model_for_tier(tier)
-        return complete_structured(self.client, messages, response_model, model, use_response_healing)
+        start = time.monotonic()
+        result, response = complete_structured(self.client, messages, response_model, model, use_response_healing)
+        elapsed_ms = (time.monotonic() - start) * 1000
+
+        usage = getattr(response, "usage", None)
+        emit_event(
+            LLMCallEvent(
+                timestamp=datetime.now(tz=UTC),
+                agent=caller,
+                model=model,
+                tier=tier.value,
+                latency_ms=round(elapsed_ms, 2),
+                prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+                completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
+                total_tokens=getattr(usage, "total_tokens", 0) or 0,
+            )
+        )
+
+        return result

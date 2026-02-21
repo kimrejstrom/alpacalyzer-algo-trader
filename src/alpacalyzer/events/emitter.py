@@ -4,10 +4,10 @@ import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
-from alpacalyzer.events.models import OrderFilledEvent, PositionClosedEvent, TradingEvent
+from alpacalyzer.events.models import TradingEvent
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class EventHandler(ABC):
@@ -30,8 +30,15 @@ class ConsoleEventHandler(EventHandler):
         if self.event_types and event.event_type not in self.event_types:
             return
 
+        # AGENT_REASONING is rendered via the progress display, not the logger
+        if event.event_type == "AGENT_REASONING":
+            return
+
         message = self._format_event(event)
-        logger.info(message)
+        if event.event_type in ("LLM_CALL",):
+            logger.debug(message)
+        else:
+            logger.info(message)
 
     def _format_event(self, event: TradingEvent) -> str:
         """Format event for console output."""
@@ -57,57 +64,83 @@ class ConsoleEventHandler(EventHandler):
             return f"💰 Filled: {getattr(event, 'ticker', '?')} {getattr(event, 'side', '?').upper()} {getattr(event, 'filled_qty', 0)}x @ ${getattr(event, 'avg_price', 0):.2f}"
         if event_type == "CYCLE_COMPLETE":
             return f"🔄 Cycle: {getattr(event, 'entries_triggered', 0)} entries, {getattr(event, 'exits_triggered', 0)} exits, {getattr(event, 'positions_open', 0)} positions"
-        return f"[{event_type}] {getattr(event, 'ticker', 'system')}"
+        if event_type == "LLM_CALL":
+            agent = getattr(event, "agent", "unknown")
+            model = getattr(event, "model", "?")
+            latency = getattr(event, "latency_ms", 0)
+            tokens = getattr(event, "total_tokens", 0)
+            return f"🤖 LLM: {agent} | model={model} latency={latency:.0f}ms tokens={tokens}"
+        if event_type == "ERROR":
+            component = getattr(event, "component", "?")
+            error_type = getattr(event, "error_type", "?")
+            return f"⚠️ Error: {component} | type={error_type} msg={getattr(event, 'message', '?')}"
+        if event_type == "AGENT_REASONING":
+            agent = getattr(event, "agent", "unknown")
+            tickers = getattr(event, "tickers", [])
+            tickers_str = ", ".join(tickers) if tickers else "N/A"
+            return f"[{agent}] tickers={tickers_str}"
+        return f"[{event_type}] {getattr(event, 'ticker', getattr(event, 'agent', 'system'))}"
 
 
 class FileEventHandler(EventHandler):
-    """Writes events as JSON lines to a file."""
+    """
+    Writes events as JSON lines to a file with size-based rotation.
 
-    def __init__(self, file_path: str | None = None):
+    Rotates when the file exceeds max_bytes. Keeps up to backup_count
+    rotated files (events.jsonl.1, events.jsonl.2, etc.).
+    """
+
+    def __init__(
+        self,
+        file_path: str | None = None,
+        max_bytes: int = 10 * 1024 * 1024,  # 10 MB
+        backup_count: int = 3,
+    ):
         from pathlib import Path
 
         self.file_path = file_path or "logs/events.jsonl"
+        self.max_bytes = max_bytes
+        self.backup_count = backup_count
+        self._lock = threading.Lock()
         # Ensure directory exists
         Path(self.file_path).parent.mkdir(parents=True, exist_ok=True)
 
     def handle(self, event: TradingEvent) -> None:
         json_line = event.model_dump_json()
 
-        with open(self.file_path, "a") as f:
-            f.write(json_line + "\n")
+        with self._lock:
+            self._rotate_if_needed()
+            with open(self.file_path, "a") as f:
+                f.write(json_line + "\n")
 
+    def _rotate_if_needed(self) -> None:
+        """Rotate the log file if it exceeds max_bytes."""
+        from pathlib import Path
 
-class AnalyticsEventHandler(EventHandler):
-    """Writes events to analytics log for EOD analysis."""
-
-    ANALYTICS_EVENTS = [
-        "ENTRY_TRIGGERED",
-        "EXIT_TRIGGERED",
-        "ORDER_FILLED",
-        "ORDER_CANCELED",
-        "POSITION_OPENED",
-        "POSITION_CLOSED",
-    ]
-
-    def handle(self, event: TradingEvent) -> None:
-        if event.event_type not in self.ANALYTICS_EVENTS:
+        path = Path(self.file_path)
+        if not path.exists():
             return
 
-        line = self._format_analytics_line(event)
-        logger.analyze(line)
+        try:
+            if path.stat().st_size < self.max_bytes:
+                return
+        except OSError:
+            return
 
-    def _format_analytics_line(self, event: TradingEvent) -> str:
-        """Format event for analytics log (backwards compatible)."""
-        if isinstance(event, OrderFilledEvent):
-            return (
-                f"[EXECUTION] Ticker: {event.ticker}, Side: {event.side.upper()}, "
-                f"Cum: {event.filled_qty}/{event.quantity} @ {event.avg_price}, "
-                f"OrderType: limit, OrderId: {event.order_id}, "
-                f"ClientOrderId: {event.client_order_id}, Status: fill"
-            )
-        if isinstance(event, PositionClosedEvent):
-            return f"[EXIT] Ticker: {event.ticker}, Side: {event.side}, Entry: {event.entry_price}, Exit: {event.exit_price}, P/L: {event.pnl_pct:.2%}, Reason: {event.exit_reason}"
-        return event.model_dump_json()
+        # Rotate: events.jsonl.3 → deleted, .2 → .3, .1 → .2, current → .1
+        for i in range(self.backup_count, 0, -1):
+            src = Path(f"{self.file_path}.{i}")
+            if i == self.backup_count:
+                src.unlink(missing_ok=True)
+            else:
+                dst = Path(f"{self.file_path}.{i + 1}")
+                if src.exists():
+                    src.rename(dst)
+
+        # Move current to .1
+        backup_1 = Path(f"{self.file_path}.1")
+        if path.exists():
+            path.rename(backup_1)
 
 
 class CallbackEventHandler(EventHandler):
@@ -147,7 +180,7 @@ class EventEmitter:
                 if cls._instance is None:
                     cls._instance = cls()
                     cls._instance.add_handler(ConsoleEventHandler())
-                    cls._instance.add_handler(AnalyticsEventHandler())
+                    cls._instance.add_handler(FileEventHandler())
         assert cls._instance is not None
         return cls._instance
 
@@ -165,7 +198,7 @@ class EventEmitter:
             try:
                 handler.handle(event)
             except Exception as e:
-                logger.error(f"Event handler error: {e}", exc_info=True)
+                logger.error(f"event handler error | error={e}", exc_info=True)
 
     def clear_handlers(self) -> None:
         """Remove all handlers."""

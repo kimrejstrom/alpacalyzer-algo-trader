@@ -15,7 +15,7 @@ from alpacalyzer.events import OrderSubmittedEvent, PositionClosedEvent, emit_ev
 from alpacalyzer.trading.alpaca_client import log_order, trading_client
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -110,13 +110,13 @@ class OrderManager:
         Returns the Order object if successful, None otherwise.
         """
         if self.analyze_mode:
-            logger.info(f"[ANALYZE MODE] Would submit bracket order: {params}")
+            logger.info(f"analyze mode, skipping bracket order | ticker={params.ticker} side={params.side} qty={params.quantity}")
             return None
 
         # Validate asset first
         is_valid, reason = self.validate_asset(params.ticker, params.side)
         if not is_valid:
-            logger.warning(f"Order rejected: {reason}")
+            logger.warning(f"order rejected | ticker={params.ticker} reason={reason}")
             return None
 
         # Round prices appropriately
@@ -166,7 +166,7 @@ class OrderManager:
             return order
 
         except Exception as e:
-            logger.error(f"Failed to submit order for {params.ticker}: {str(e)}", exc_info=True)
+            logger.error(f"order submission failed | ticker={params.ticker} error={e}", exc_info=True)
             return None
 
     def close_position(
@@ -196,14 +196,14 @@ class OrderManager:
         Returns the close order if successful.
         """
         if self.analyze_mode:
-            logger.info(f"[ANALYZE MODE] Would close position: {ticker}")
+            logger.info(f"analyze mode, skipping close | ticker={ticker}")
             return None
 
         try:
             if cancel_orders:
                 self._cancel_orders_for_ticker(ticker, timeout_seconds)
 
-            logger.info(f"Closing position for {ticker}")
+            logger.info(f"closing position | ticker={ticker}")
             order_response = trading_client.close_position(ticker)
             order = cast(Order, order_response)
 
@@ -233,7 +233,7 @@ class OrderManager:
             return order
 
         except Exception as e:
-            logger.error(f"Failed to close position for {ticker}: {str(e)}", exc_info=True)
+            logger.error(f"close position failed | ticker={ticker} error={e}", exc_info=True)
             return None
 
     def _cancel_orders_for_ticker(self, ticker: str, timeout_seconds: int) -> bool:
@@ -250,7 +250,7 @@ class OrderManager:
             if not open_orders:
                 return True
 
-            logger.info(f"Canceling {len(open_orders)} open orders for {ticker}")
+            logger.info(f"canceling open orders | ticker={ticker} count={len(open_orders)}")
 
             # Request cancellation for each order
             for order in open_orders:
@@ -275,16 +275,16 @@ class OrderManager:
                 remaining = trading_client.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker]))
 
                 if not cast(list[Order], remaining):
-                    logger.debug(f"All orders for {ticker} canceled")
+                    logger.debug(f"all orders canceled | ticker={ticker}")
                     return True
 
-                logger.debug(f"Waiting for order cancellation for {ticker}...")
+                logger.debug(f"waiting for order cancellation | ticker={ticker}")
 
-            logger.error(f"Timed out waiting for order cancellation for {ticker}")
+            logger.error(f"order cancellation timed out | ticker={ticker}")
             return False
 
         except Exception as e:
-            logger.error(f"Error canceling orders for {ticker}: {str(e)}", exc_info=True)
+            logger.error(f"cancel orders failed | ticker={ticker} error={e}", exc_info=True)
             return False
 
     def get_pending_orders(self) -> list[Order]:

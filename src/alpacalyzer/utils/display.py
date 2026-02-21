@@ -8,7 +8,7 @@ from alpacalyzer.agents.agents import ANALYST_ORDER
 from alpacalyzer.data.models import TradingStrategy
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def sort_agent_signals(signals):
@@ -194,7 +194,7 @@ def print_trading_output(result: dict[str, Any]) -> None:
 
         print(f"\n{Fore.WHITE}{Style.BRIGHT}TRADING DECISION:{Style.RESET_ALL} [{Fore.CYAN}{ticker}{Style.RESET_ALL}]")
         print(tabulate(decision_data, tablefmt="grid", colalign=("left", "left")))
-        logger.analyze(f"Ticker: {ticker}, Action: {action}, Quantity: {decision.get('quantity')}, Confidence: {decision.get('confidence'):.1f}%, Reasoning: {reasoning}")
+        logger.info(f"Ticker: {ticker}, Action: {action}, Quantity: {decision.get('quantity')}, Confidence: {decision.get('confidence'):.1f}%, Reasoning: {reasoning}")
 
     # Print Portfolio Summary
     print(f"\n{Fore.WHITE}{Style.BRIGHT}PORTFOLIO SUMMARY:{Style.RESET_ALL}")

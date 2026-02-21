@@ -14,7 +14,7 @@ from alpacalyzer.utils.progress import progress
 class WarrenBuffettSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 def warren_buffett_agent(state: AgentState):
@@ -356,4 +356,4 @@ def generate_buffett_output(
     # Combine messages into a list
     messages = [system_message, human_message]
     client = get_llm_client()
-    return client.complete_structured(messages, WarrenBuffettSignal, tier=LLMTier.STANDARD)
+    return client.complete_structured(messages, WarrenBuffettSignal, tier=LLMTier.STANDARD, caller="warren_buffett")

@@ -63,6 +63,9 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning:websockets.legacy",
+]
 
 [tool.pytest_asyncio]
 default_fixture_scope = "function"

@@ -3,7 +3,7 @@ import requests
 
 from alpacalyzer.utils.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class WSBScanner:
@@ -21,7 +21,7 @@ class WSBScanner:
             response = requests.get(url, headers=self.headers, timeout=15)
 
             if response.status_code != 200:
-                logger.error(f"Error: ApeWisdom API returned status code {response.status_code}")
+                logger.error(f"apewisdom api error | status={response.status_code}")
                 return pd.DataFrame()
 
             data = response.json()
@@ -43,7 +43,7 @@ class WSBScanner:
             return df.head(limit)
 
         except Exception as e:
-            logger.error(f"Error fetching ApeWisdom data: {str(e)}", exc_info=True)
+            logger.error(f"apewisdom fetch failed | error={e}", exc_info=True)
             return pd.DataFrame()
 
 
@@ -52,13 +52,11 @@ def main():
     df = scanner.get_trending_stocks()
 
     if not df.empty:
-        logger.info("\nTop Trending Stocks:")
+        logger.info("top trending stocks:")
         for _, row in df.iterrows():
-            logger.info(f"\n{row['ticker']}:")
-            logger.info(f"Mentions: {row['mentions']}")
-            logger.info(f"Rank: {row['rank']}")
+            logger.info(f"{row['ticker']} | mentions={row['mentions']} rank={row['rank']}")
     else:
-        logger.info("No trending stocks found")
+        logger.info("no trending stocks found")
 
 
 if __name__ == "__main__":

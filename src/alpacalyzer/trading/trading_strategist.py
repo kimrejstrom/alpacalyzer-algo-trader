@@ -118,4 +118,4 @@ def get_trading_strategies(trading_signals: TradingSignals, decision: PortfolioD
     messages = [system_message, human_message]
 
     client = get_llm_client()
-    return client.complete_structured(messages, TradingStrategyResponse, tier=LLMTier.DEEP)
+    return client.complete_structured(messages, TradingStrategyResponse, tier=LLMTier.DEEP, caller="trading_strategist")

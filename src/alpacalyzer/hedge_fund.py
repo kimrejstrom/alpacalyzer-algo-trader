@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 from alpacalyzer.agents.agents import get_analyst_nodes
 from alpacalyzer.data.models import TopTicker
 from alpacalyzer.graph.state import AgentState
+from alpacalyzer.trading.alpaca_client import get_account_info, get_positions
 from alpacalyzer.trading.portfolio_manager import portfolio_management_agent
 from alpacalyzer.trading.risk_manager import risk_management_agent
 from alpacalyzer.trading.trading_strategist import trading_strategist_agent
@@ -17,7 +18,7 @@ from alpacalyzer.utils.logger import get_logger
 from alpacalyzer.utils.progress import progress
 
 # Initialize logger
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,6 +42,27 @@ def parse_hedge_fund_response(response):
 
 
 ##### Run the Hedge Fund #####
+
+
+def _build_portfolio() -> dict:
+    """Build portfolio dict from live Alpaca account data."""
+    try:
+        account = get_account_info()
+        positions = get_positions()
+        pos_dict = {}
+        for p in positions:
+            side = "short" if hasattr(p, "side") and str(p.side) == "short" else "long"
+            qty = abs(int(float(p.qty))) if p.qty else 0
+            avg_price = float(p.avg_entry_price) if p.avg_entry_price else 0.0
+            pos_dict[p.symbol] = {"shares": qty, "side": side, "avg_price": avg_price}
+        return {
+            "cash": account.get("buying_power", 0),
+            "positions": pos_dict,
+            "margin_requirement": account.get("initial_margin", 0),
+        }
+    except Exception as e:
+        logger.warning(f"portfolio fetch failed, using empty | error={e}")
+        return {"cash": 0, "positions": {}, "margin_requirement": 0}
 
 
 def call_hedge_fund_agents(
@@ -98,7 +120,7 @@ def call_hedge_fund_agents(
                     "end_date": datetime.now(UTC).isoformat(),
                     "start_date": (datetime.now(UTC) - timedelta(days=30)).isoformat(),
                     "analyst_signals": {"potential_candidates_agent": potential_candidates},
-                    "portfolio": {},
+                    "portfolio": _build_portfolio(),
                 },
                 "metadata": {
                     "show_reasoning": show_reasoning,
