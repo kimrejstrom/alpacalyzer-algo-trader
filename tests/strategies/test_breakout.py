@@ -1468,3 +1468,111 @@ class TestBreakoutStrategyAgentIntegration:
 
         assert decision.should_enter is False
         assert "false breakout" in decision.reason.lower()
+
+    def test_entry_with_agent_recommendation_rejects_bullish_breakout_short(self):
+        """Test that breakout rejects when agent proposes short but breakout is bullish."""
+        config = BreakoutConfig(consolidation_periods=10, min_volume_ratio=1.5)
+        strategy = BreakoutStrategy(config)
+
+        # Create valid bullish breakout setup
+        pre_consolidation_prices = [100.0] * 20
+        pre_consolidation_highs = [100.5] * 20
+        pre_consolidation_lows = [99.5] * 20
+        pre_consolidation_volumes = [1_000_000] * 20
+
+        consolidation_prices = [100.0] * 10
+        consolidation_highs = [100.5] * 10
+        consolidation_lows = [99.5] * 10
+        consolidation_volumes = [1_000_000] * 10
+
+        breakout_prices = [101.5]
+        breakout_highs = [102.0]
+        breakout_lows = [100.8]
+        breakout_volumes = [2_000_000]
+
+        prices = pre_consolidation_prices + consolidation_prices + breakout_prices
+        highs = pre_consolidation_highs + consolidation_highs + breakout_highs
+        lows = pre_consolidation_lows + consolidation_lows + breakout_lows
+        volumes = pre_consolidation_volumes + consolidation_volumes + breakout_volumes
+
+        df = create_mock_data(prices, highs, lows, volumes)
+        signal = create_trading_signals("TEST", 101.5, df)
+
+        context = MarketContext(
+            vix=15.0,
+            market_status="open",
+            account_equity=100000.0,
+            buying_power=50000.0,
+            existing_positions=[],
+            cooldown_tickers=[],
+        )
+
+        # Agent provides SHORT recommendation but breakout is BULLISH
+        agent_rec = self.create_agent_recommendation(
+            ticker="TEST",
+            quantity=50,
+            entry_point=101.5,
+            stop_loss=103.0,
+            target_price=98.0,
+            trade_type="short",  # Mismatch: breakout is bullish
+        )
+
+        decision = strategy.evaluate_entry(signal, context, agent_recommendation=agent_rec)
+
+        assert decision.should_enter is False
+        assert "trade_type mismatch" in decision.reason.lower()
+        assert "bullish" in decision.reason.lower()
+
+    def test_entry_with_agent_recommendation_rejects_bearish_breakout_long(self):
+        """Test that breakout rejects when agent proposes long but breakout is bearish."""
+        config = BreakoutConfig(consolidation_periods=10, min_volume_ratio=1.5)
+        strategy = BreakoutStrategy(config)
+
+        # Create valid bearish breakout setup
+        pre_consolidation_prices = [100.0] * 20
+        pre_consolidation_highs = [100.5] * 20
+        pre_consolidation_lows = [99.5] * 20
+        pre_consolidation_volumes = [1_000_000] * 20
+
+        consolidation_prices = [100.0] * 10
+        consolidation_highs = [100.5] * 10
+        consolidation_lows = [99.5] * 10
+        consolidation_volumes = [1_000_000] * 10
+
+        breakout_prices = [98.5]
+        breakout_highs = [99.0]
+        breakout_lows = [97.0]
+        breakout_volumes = [2_000_000]
+
+        prices = pre_consolidation_prices + consolidation_prices + breakout_prices
+        highs = pre_consolidation_highs + consolidation_highs + breakout_highs
+        lows = pre_consolidation_lows + consolidation_lows + breakout_lows
+        volumes = pre_consolidation_volumes + consolidation_volumes + breakout_volumes
+
+        df = create_mock_data(prices, highs, lows, volumes)
+        signal = create_trading_signals("TEST", 98.5, df)
+
+        context = MarketContext(
+            vix=15.0,
+            market_status="open",
+            account_equity=100000.0,
+            buying_power=50000.0,
+            existing_positions=[],
+            cooldown_tickers=[],
+        )
+
+        # Agent provides LONG recommendation but breakout is BEARISH
+        agent_rec = self.create_agent_recommendation(
+            ticker="TEST",
+            quantity=50,
+            entry_point=98.5,
+            stop_loss=96.0,
+            target_price=103.0,
+            trade_type="long",  # Mismatch: breakout is bearish
+        )
+
+        decision = strategy.evaluate_entry(signal, context, agent_recommendation=agent_rec)
+
+        assert decision.should_enter is False
+        assert "trade_type mismatch" in decision.reason.lower()
+        assert "bearish" in decision.reason.lower()

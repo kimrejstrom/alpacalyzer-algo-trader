@@ -651,3 +651,49 @@ class TestMeanReversionAgentIntegration:
 
         assert not decision.should_enter
         assert "closed" in decision.reason.lower()
+
+    def test_entry_with_agent_rejects_oversold_signal_short(self, relaxed_strategy, oversold_signal_for_agent, market_context):
+        """Test entry rejects when agent proposes short but signal is oversold (long)."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        # Agent recommends SHORT but signal is oversold (should be long)
+        agent_rec = TradingStrategy(
+            ticker="AAPL",
+            trade_type="short",
+            entry_point=120.0,
+            stop_loss=125.0,
+            target_price=110.0,
+            quantity=50,
+            risk_reward_ratio=2.0,
+            strategy_notes="Agent recommends short",
+            entry_criteria=[],
+        )
+
+        decision = relaxed_strategy.evaluate_entry(oversold_signal_for_agent, market_context, agent_rec)
+
+        assert not decision.should_enter
+        assert "trade_type mismatch" in decision.reason.lower()
+        assert "long" in decision.reason.lower() or "oversold" in decision.reason.lower()
+
+    def test_entry_with_agent_rejects_overbought_signal_long(self, relaxed_strategy, overbought_signal_for_agent, market_context):
+        """Test entry rejects when agent proposes long but signal is overbought (short)."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        # Agent recommends LONG but signal is overbought (should be short)
+        agent_rec = TradingStrategy(
+            ticker="AAPL",
+            trade_type="long",
+            entry_point=160.0,
+            stop_loss=155.0,
+            target_price=170.0,
+            quantity=50,
+            risk_reward_ratio=2.0,
+            strategy_notes="Agent recommends long",
+            entry_criteria=[],
+        )
+
+        decision = relaxed_strategy.evaluate_entry(overbought_signal_for_agent, market_context, agent_rec)
+
+        assert not decision.should_enter
+        assert "trade_type mismatch" in decision.reason.lower()
+        assert "short" in decision.reason.lower() or "overbought" in decision.reason.lower()

@@ -190,6 +190,13 @@ class MeanReversionStrategy(BaseStrategy):
             target = bb_middle.iloc[-1]
             confidence = self._calculate_confidence(current_rsi, z_score, "oversold")
 
+            # Validate agent recommendation direction matches mean reversion signal
+            if agent_recommendation is not None and agent_recommendation.trade_type != "long":
+                return EntryDecision(
+                    should_enter=False,
+                    reason=f"Agent trade_type mismatch: agent proposed {agent_recommendation.trade_type} but mean reversion signal is long (oversold)",
+                )
+
             should_enter = True
             mr_signal = MeanReversionSignal(
                 ticker=signal["symbol"],
@@ -206,6 +213,13 @@ class MeanReversionStrategy(BaseStrategy):
             stop_loss = price + (std * self.config.stop_loss_std)
             target = bb_middle.iloc[-1]
             confidence = self._calculate_confidence(current_rsi, z_score, "overbought")
+
+            # Validate agent recommendation direction matches mean reversion signal
+            if agent_recommendation is not None and agent_recommendation.trade_type != "short":
+                return EntryDecision(
+                    should_enter=False,
+                    reason=f"Agent trade_type mismatch: agent proposed {agent_recommendation.trade_type} but mean reversion signal is short (overbought)",
+                )
 
             should_enter = True
             mr_signal = MeanReversionSignal(
