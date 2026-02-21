@@ -65,6 +65,7 @@ markers = [
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:websockets.legacy",
+    "ignore::pandas.errors.Pandas4Warning:pandas_ta",
 ]
 
 [tool.pytest_asyncio]
