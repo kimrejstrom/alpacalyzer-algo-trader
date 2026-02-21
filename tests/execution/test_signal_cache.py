@@ -271,6 +271,7 @@ class TestCacheIntegration:
         """Test that cache is cleared at start of run_cycle."""
         engine.config.analyze_mode = False
         engine.positions.sync_from_broker = MagicMock()
+        engine.positions._positions.clear()  # ensure no positions trigger cache adds
         engine._build_market_context = MagicMock(return_value=MagicMock())
 
         aapl_signal = create_mock_signal("AAPL")
@@ -287,6 +288,7 @@ class TestCacheIntegration:
     def test_cache_cleared_in_analyze_cycle(self, engine):
         """Test that cache is cleared at start of analyze cycle."""
         engine.positions.sync_from_broker = MagicMock()
+        engine.positions._positions.clear()  # ensure no positions trigger cache adds
         engine._build_market_context = MagicMock(return_value=MagicMock())
 
         aapl_signal = create_mock_signal("AAPL")

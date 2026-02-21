@@ -137,7 +137,14 @@ class TestTradingOrchestratorScan:
     def test_scan_returns_opportunities(self, orchestrator, mock_aggregator):
         """Test that scan() returns opportunities from aggregator."""
         # The scan method creates TopTicker objects from aggregator output
-        mock_opportunity = MagicMock(ticker="AAPL", score=100.0, sources=["test"])
+        mock_opportunity = MagicMock(
+            ticker="AAPL",
+            score=100.0,
+            sources=["test"],
+            signal="bullish",
+            confidence=85.0,
+            reasoning=["[test] Strong momentum"],
+        )
         mock_aggregator.top.return_value = [mock_opportunity]
 
         result = orchestrator.scan()

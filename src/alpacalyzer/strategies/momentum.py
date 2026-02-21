@@ -265,7 +265,8 @@ class MomentumStrategy(BaseStrategy):
         momentum = signal["momentum"]
         score = signal["score"]
         is_long = position.side == "long"
-        unrealized_plpc = float(position.unrealized_plpc or 0.0)
+        # Support both Alpaca Position (unrealized_plpc) and TrackedPosition (unrealized_pnl_pct)
+        unrealized_plpc = float(getattr(position, "unrealized_plpc", None) or getattr(position, "unrealized_pnl_pct", None) or 0.0)
         is_profitable = unrealized_plpc > 0
 
         exit_signals = []
@@ -311,7 +312,8 @@ class MomentumStrategy(BaseStrategy):
         if exit_signals:
             reason_str = ", ".join(exit_signals)
             urgency = self._determine_exit_urgency(exit_signals)
-            logger.info(f"\nDYNAMIC EXIT FOR {position.symbol} due to: {reason_str}")
+            symbol = getattr(position, "symbol", None) or getattr(position, "ticker", "?")
+            logger.info(f"\nDYNAMIC EXIT FOR {symbol} due to: {reason_str}")
             logger.debug(f"Position details: {position}")
             if unrealized_plpc < 0:
                 logger.info(f"LOSS: {unrealized_plpc:.2%} P&L on trade")

@@ -12,7 +12,7 @@ from alpacalyzer.utils.progress import progress
 class WebSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 ##### Web Agent #####

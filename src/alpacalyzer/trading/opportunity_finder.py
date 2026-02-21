@@ -46,9 +46,7 @@ def get_reddit_insights() -> TopTickersResponse | None:
     messages = [system_message, human_message]
 
     client = get_llm_client()
-    top_tickers_response = client.complete_structured(messages, TopTickersResponse, tier=LLMTier.FAST)
-    logger.debug(f"Reddit insights output: {top_tickers_response}")
-    return top_tickers_response
+    return client.complete_structured(messages, TopTickersResponse, tier=LLMTier.FAST, caller="opportunity_finder_reddit")
 
 
 def format_top_tickers(tickers: list[TopTicker]) -> str:
@@ -88,6 +86,4 @@ def get_top_candidates(top_tickers: list[TopTicker], finviz_df: DataFrame) -> To
 
     messages = [system_message, human_message]
     client = get_llm_client()
-    top_tickers_response = client.complete_structured(messages, TopTickersResponse, tier=LLMTier.FAST)
-    logger.debug(f"Top candidates output: {top_tickers_response}")
-    return top_tickers_response
+    return client.complete_structured(messages, TopTickersResponse, tier=LLMTier.FAST, caller="opportunity_finder_candidates")

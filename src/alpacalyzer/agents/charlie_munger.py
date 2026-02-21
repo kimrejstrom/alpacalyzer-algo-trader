@@ -20,7 +20,7 @@ from alpacalyzer.utils.progress import progress
 class CharlieMungerSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 def charlie_munger_agent(state: AgentState):
@@ -682,4 +682,4 @@ def generate_munger_output(
 
     messages = [system_message, human_message]
     client = get_llm_client()
-    return client.complete_structured(messages, CharlieMungerSignal, tier=LLMTier.STANDARD)
+    return client.complete_structured(messages, CharlieMungerSignal, tier=LLMTier.STANDARD, caller="charlie_munger")

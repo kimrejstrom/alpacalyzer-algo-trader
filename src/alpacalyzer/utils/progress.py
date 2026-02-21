@@ -27,6 +27,7 @@ class AgentProgress:
         if self.started:
             self.live.stop()
             self.started = False
+            console.print()  # ensure clean newline after spinner output
 
     def update_status(self, agent_name: str, ticker: str | None = None, status: str = ""):
         """Update the status of an agent."""

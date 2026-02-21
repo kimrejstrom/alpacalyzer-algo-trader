@@ -28,7 +28,7 @@ def complete_structured[T: BaseModel](
     schema = response_model.model_json_schema()
 
     try:
-        extra_body = {}
+        extra_body: dict = {}
         if use_response_healing:
             extra_body["plugins"] = [{"id": "response-healing"}]
 
@@ -43,9 +43,10 @@ def complete_structured[T: BaseModel](
                     "schema": schema,
                 },
             },
-            **extra_body,
+            extra_body=extra_body if extra_body else None,
         )
         content = response.choices[0].message.content
+        content = _coerce_dict_lists(content)
         return response_model.model_validate_json(content), response
     except (ValidationError, json.JSONDecodeError) as e:
         logger.debug(f"Strict JSON schema failed for {response_model.__name__}: {e}")
@@ -72,4 +73,27 @@ def _fallback_json_mode[T: BaseModel](
         response_format={"type": "json_object"},
     )
     content = response.choices[0].message.content
+    content = _coerce_dict_lists(content)
     return response_model.model_validate_json(content), response
+
+
+def _coerce_dict_lists(content: str) -> str:
+    """
+    Coerce dict-valued fields into lists when the schema expects arrays.
+
+    LLMs sometimes return ``{"decisions": {"TICKER": {...}}}`` instead of
+    ``{"decisions": [{"ticker": "TICKER", ...}]}``.  This helper detects that
+    pattern and converts the dict into a list so Pydantic validation succeeds.
+    """
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return content
+
+    changed = False
+    for key, value in data.items():
+        if isinstance(value, dict) and value and all(isinstance(v, dict) for v in value.values()):
+            data[key] = [{**v, "ticker": k} if "ticker" not in v else v for k, v in value.items()]
+            changed = True
+
+    return json.dumps(data) if changed else content

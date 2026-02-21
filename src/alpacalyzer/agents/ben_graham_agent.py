@@ -15,7 +15,7 @@ from alpacalyzer.utils.progress import progress
 class BenGrahamSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 def ben_graham_agent(state: AgentState):
@@ -411,4 +411,4 @@ def generate_graham_output(
     messages = [system_message, human_message]
 
     client = get_llm_client()
-    return client.complete_structured(messages, BenGrahamSignal, tier=LLMTier.STANDARD)
+    return client.complete_structured(messages, BenGrahamSignal, tier=LLMTier.STANDARD, caller="ben_graham")

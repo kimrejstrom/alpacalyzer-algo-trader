@@ -1,13 +1,10 @@
 """Scanner adapters implementing BaseScanner protocol."""
 
-from datetime import UTC, datetime
-
 import pandas as pd
 from alpaca.trading.enums import OrderSide
 
 from alpacalyzer.analysis.technical_analysis import TechnicalAnalyzer
 from alpacalyzer.data.models import TopTicker
-from alpacalyzer.events import ScanCompleteEvent, emit_event
 from alpacalyzer.pipeline.scanner_protocol import BaseScanner
 from alpacalyzer.scanners.finviz_scanner import FinvizScanner
 from alpacalyzer.scanners.social_scanner import SocialScanner
@@ -28,26 +25,23 @@ class RedditScannerAdapter(BaseScanner):
     def _execute_scan(self) -> list[TopTicker]:
         insights = get_reddit_insights()
         if not insights or not insights.top_tickers:
+            logger.info("reddit scan found no insights from LLM")
             return []
 
         tickers = [x.ticker for x in insights.top_tickers]
+        logger.info(f"reddit LLM extracted tickers | count={len(tickers)} tickers={', '.join(tickers)}")
+
         ta_df = self._finviz.fetch_stock_data(tuple(tickers))
         if ta_df.empty:
+            logger.info("reddit finviz data empty for extracted tickers")
             return []
 
         candidates = get_top_candidates(insights.top_tickers, ta_df)
         if not candidates or not candidates.top_tickers:
+            logger.info("reddit candidate filtering returned no tickers")
             return []
 
-        emit_event(
-            ScanCompleteEvent(
-                timestamp=datetime.now(UTC),
-                source="reddit",
-                tickers_found=[t.ticker for t in candidates.top_tickers],
-                duration_seconds=0.0,
-            )
-        )
-
+        logger.info(f"reddit scan complete | candidates={len(candidates.top_tickers)}")
         return candidates.top_tickers
 
 
@@ -63,14 +57,6 @@ class SocialScannerAdapter(BaseScanner):
     def _execute_scan(self) -> list[TopTicker]:
         df = self._scanner.get_trending_stocks(10)
         if df.empty:
-            emit_event(
-                ScanCompleteEvent(
-                    timestamp=datetime.now(UTC),
-                    source="social",
-                    tickers_found=[],
-                    duration_seconds=0.0,
-                )
-            )
             return []
 
         vix = self._yfinance.get_vix()
@@ -93,15 +79,6 @@ class SocialScannerAdapter(BaseScanner):
                     reasoning=f"Technical Score: {signals['score']:.2f}",
                 )
             )
-
-        emit_event(
-            ScanCompleteEvent(
-                timestamp=datetime.now(UTC),
-                source="social",
-                tickers_found=[t.ticker for t in opportunities],
-                duration_seconds=0.0,
-            )
-        )
 
         return opportunities
 

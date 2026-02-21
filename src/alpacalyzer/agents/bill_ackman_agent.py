@@ -14,7 +14,7 @@ from alpacalyzer.utils.progress import progress
 class BillAckmanSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
-    reasoning: str
+    reasoning: str = ""
 
 
 def bill_ackman_agent(state: AgentState):
@@ -412,4 +412,4 @@ def generate_ackman_output(
     # Combine messages into a list
     messages = [system_message, human_message]
     client = get_llm_client()
-    return client.complete_structured(messages, BillAckmanSignal, tier=LLMTier.STANDARD)
+    return client.complete_structured(messages, BillAckmanSignal, tier=LLMTier.STANDARD, caller="bill_ackman")

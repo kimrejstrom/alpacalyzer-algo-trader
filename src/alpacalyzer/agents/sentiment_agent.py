@@ -160,4 +160,4 @@ def calculate_sentiment_signals(news_items: list[dict[str, Any]]) -> SentimentAn
     messages = [system_message, human_message]
 
     client = get_llm_client()
-    return client.complete_structured(messages, SentimentAnalysisResponse, tier=LLMTier.FAST)
+    return client.complete_structured(messages, SentimentAnalysisResponse, tier=LLMTier.FAST, caller="sentiment")

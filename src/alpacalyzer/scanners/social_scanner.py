@@ -114,6 +114,9 @@ class SocialScanner:
         # Combine the ranked results
         combined_df = pd.DataFrame({"ticker": tickers_list})
 
+        has_st = False
+        has_finviz = False
+
         if not st_ranked.empty:
             combined_df = pd.merge(
                 combined_df,
@@ -121,6 +124,7 @@ class SocialScanner:
                 on="ticker",
                 how="left",
             ).rename(columns={"rank": "st_rank", "score": "st_score"})
+            has_st = True
 
         if not finviz_ranked.empty:
             combined_df = pd.merge(
@@ -129,24 +133,34 @@ class SocialScanner:
                 on="ticker",
                 how="left",
             ).rename(columns={"rank": "finviz_rank", "score": "finviz_score"})
+            has_finviz = True
 
-        combined_df = combined_df.dropna(subset=["st_rank", "finviz_rank", "st_score", "finviz_score"])
+        if not has_st and not has_finviz:
+            logger.info("no ranking data from any source")
+            return pd.DataFrame()
+
+        # Drop rows missing data from available sources only
+        required_cols = []
+        if has_st:
+            required_cols += ["st_rank", "st_score"]
+        if has_finviz:
+            required_cols += ["finviz_rank", "finviz_score"]
+        combined_df = combined_df.dropna(subset=required_cols)
 
         if combined_df.empty:
             logger.info("no stocks to combine from sources")
             return pd.DataFrame()
 
-        # Calculate sentiment rank
-        combined_df["sentiment_rank"] = combined_df.apply(
-            lambda row: ((row["st_rank"] + row["finviz_rank"]) / 2),
-            axis=1,
-        )
-
-        # Calculate sentiment score
-        combined_df["sentiment_score"] = combined_df.apply(
-            lambda row: ((row["st_score"] + row["finviz_score"]) / 2),
-            axis=1,
-        )
+        # Calculate sentiment rank/score from available sources
+        if has_st and has_finviz:
+            combined_df["sentiment_rank"] = (combined_df["st_rank"] + combined_df["finviz_rank"]) / 2
+            combined_df["sentiment_score"] = (combined_df["st_score"] + combined_df["finviz_score"]) / 2
+        elif has_st:
+            combined_df["sentiment_rank"] = combined_df["st_rank"]
+            combined_df["sentiment_score"] = combined_df["st_score"]
+        else:
+            combined_df["sentiment_rank"] = combined_df["finviz_rank"]
+            combined_df["sentiment_score"] = combined_df["finviz_score"]
 
         # Run technical analysis silently
         logger.info("running technical analysis")

@@ -19,6 +19,7 @@ class StocktwitsScanner:
             response = requests.get(url, headers=self.headers, timeout=15)
 
             if response.status_code != 200:
+                logger.debug(f"stocktwits API unavailable | status={response.status_code}")
                 return pd.DataFrame()
 
             try:

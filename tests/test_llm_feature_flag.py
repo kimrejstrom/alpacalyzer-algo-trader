@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from alpacalyzer.llm import complete_structured, use_new_llm
 
 
-class TestModel(BaseModel):
+class SampleModel(BaseModel):
     name: str
     value: int
 
@@ -39,13 +39,13 @@ class TestCompleteStructured:
         monkeypatch.setenv("USE_NEW_LLM", "true")
 
         mock_client = MagicMock()
-        mock_response = TestModel(name="test", value=42)
+        mock_response = SampleModel(name="test", value=42)
         mock_client.complete_structured.return_value = mock_response
 
         with patch("alpacalyzer.llm.get_llm_client", return_value=mock_client):
             result = complete_structured(
                 messages=[{"role": "user", "content": "test"}],
-                response_model=TestModel,
+                response_model=SampleModel,
             )
 
             assert result == mock_response
@@ -54,12 +54,12 @@ class TestCompleteStructured:
     def test_routes_to_legacy_when_flag_false(self, monkeypatch):
         monkeypatch.setenv("USE_NEW_LLM", "false")
 
-        mock_response = TestModel(name="legacy", value=99)
+        mock_response = SampleModel(name="legacy", value=99)
 
         with patch("alpacalyzer.llm.legacy_complete_structured", return_value=mock_response) as mock_legacy:
             result = complete_structured(
                 messages=[{"role": "user", "content": "test"}],
-                response_model=TestModel,
+                response_model=SampleModel,
             )
 
             assert result == mock_response
@@ -72,5 +72,5 @@ class TestCompleteStructured:
             with pytest.raises(ValueError, match="Legacy LLM implementation returned None"):
                 complete_structured(
                     messages=[{"role": "user", "content": "test"}],
-                    response_model=TestModel,
+                    response_model=SampleModel,
                 )

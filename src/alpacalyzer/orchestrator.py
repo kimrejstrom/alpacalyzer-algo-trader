@@ -117,13 +117,13 @@ class TradingOrchestrator:
         self.aggregator.aggregate()
         opportunities = self.aggregator.top(10)
 
-        # Convert Opportunity to TopTicker
+        # Convert Opportunity to TopTicker, preserving scanner signals
         return [
             TopTicker(
                 ticker=opp.ticker,
-                confidence=min(opp.score, 100),
-                signal="neutral",
-                reasoning=f"Score: {opp.score:.2f}, Sources: {', '.join(opp.sources)}",
+                confidence=min(max(opp.confidence, opp.score), 100),
+                signal=opp.signal,
+                reasoning=" | ".join(opp.reasoning) if opp.reasoning else f"Score: {opp.score:.2f}, Sources: {', '.join(opp.sources)}",
             )
             for opp in opportunities
         ]

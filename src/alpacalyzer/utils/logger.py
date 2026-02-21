@@ -40,12 +40,90 @@ def _extract_component(name: str) -> str:
     return name
 
 
+# Catppuccin Mocha palette (true-color ANSI escapes)
+_CATPPUCCIN = {
+    "rosewater": "\033[38;2;245;224;220m",
+    "flamingo": "\033[38;2;242;205;205m",
+    "pink": "\033[38;2;245;194;231m",
+    "mauve": "\033[38;2;203;166;247m",
+    "red": "\033[38;2;243;139;168m",
+    "maroon": "\033[38;2;235;160;172m",
+    "peach": "\033[38;2;250;179;135m",
+    "yellow": "\033[38;2;249;226;175m",
+    "green": "\033[38;2;166;227;161m",
+    "teal": "\033[38;2;148;226;213m",
+    "sky": "\033[38;2;137;220;235m",
+    "sapphire": "\033[38;2;116;199;236m",
+    "blue": "\033[38;2;137;180;250m",
+    "lavender": "\033[38;2;180;190;254m",
+}
+_RESET = "\033[0m"
+
+# Map component names to Catppuccin colors
+_COMPONENT_COLORS: dict[str, str] = {
+    "cli": _CATPPUCCIN["mauve"],
+    "orchestrator": _CATPPUCCIN["blue"],
+    "engine": _CATPPUCCIN["sapphire"],
+    "registry": _CATPPUCCIN["teal"],
+    "aggregator": _CATPPUCCIN["green"],
+    "scheduler": _CATPPUCCIN["green"],
+    "adapters": _CATPPUCCIN["sky"],
+    "social_scanner": _CATPPUCCIN["flamingo"],
+    "stocktwits_scanner": _CATPPUCCIN["flamingo"],
+    "finviz_scanner": _CATPPUCCIN["flamingo"],
+    "wsb_scanner": _CATPPUCCIN["flamingo"],
+    "emitter": _CATPPUCCIN["lavender"],
+    "momentum": _CATPPUCCIN["peach"],
+    "breakout": _CATPPUCCIN["peach"],
+    "mean_reversion": _CATPPUCCIN["peach"],
+    "alpaca_client": _CATPPUCCIN["yellow"],
+    "yfinance_client": _CATPPUCCIN["yellow"],
+    "api": _CATPPUCCIN["yellow"],
+    "technical_analysis": _CATPPUCCIN["rosewater"],
+    "dashboard": _CATPPUCCIN["rosewater"],
+    "structured": _CATPPUCCIN["pink"],
+    "__init__": _CATPPUCCIN["pink"],
+    "hedge_fund": _CATPPUCCIN["red"],
+    "state": _CATPPUCCIN["maroon"],
+    "risk_manager": _CATPPUCCIN["red"],
+    "portfolio_manager": _CATPPUCCIN["red"],
+    "opportunity_finder": _CATPPUCCIN["maroon"],
+    "trading_strategist": _CATPPUCCIN["maroon"],
+    "fundamentals_agent": _CATPPUCCIN["teal"],
+    "sentiment_agent": _CATPPUCCIN["teal"],
+    "order_manager": _CATPPUCCIN["sapphire"],
+    "position_tracker": _CATPPUCCIN["sapphire"],
+    "display": _CATPPUCCIN["lavender"],
+    "backtester": _CATPPUCCIN["sky"],
+}
+
+# Cycle through palette for unknown components
+_PALETTE_CYCLE = list(_CATPPUCCIN.values())
+
+
 class ComponentFormatter(logging.Formatter):
     """Formatter that injects a short component name from the logger name."""
 
+    _color_index = 0
+
     def format(self, record: logging.LogRecord) -> str:
-        record.component = _extract_component(record.name)  # type: ignore[attr-defined]
+        component = _extract_component(record.name)
+        record.component = component  # type: ignore[attr-defined]
+
+        # Apply Catppuccin color to console bracket prefix
+        if self._use_color:
+            color = _COMPONENT_COLORS.get(component)
+            if color is None:
+                color = _PALETTE_CYCLE[ComponentFormatter._color_index % len(_PALETTE_CYCLE)]
+                _COMPONENT_COLORS[component] = color
+                ComponentFormatter._color_index += 1
+            record.colored_prefix = f"{color}[{component}]{_RESET}"  # type: ignore[attr-defined]
+
         return super().format(record)
+
+    def __init__(self, fmt: str | None = None, datefmt: str | None = None, use_color: bool = False) -> None:
+        super().__init__(fmt, datefmt)
+        self._use_color = use_color
 
 
 class NoTracebackConsoleFilter(logging.Filter):
@@ -85,10 +163,10 @@ def setup_logger() -> logging.Logger:
     )
     logger.addHandler(file_handler)
 
-    # Console handler
+    # Console handler (Catppuccin Mocha colored brackets)
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(ComponentFormatter("[%(component)s] %(message)s"))
+    console_handler.setFormatter(ComponentFormatter("%(colored_prefix)s %(message)s", use_color=True))
     console_handler.addFilter(NoTracebackConsoleFilter())
     logger.addHandler(console_handler)
 

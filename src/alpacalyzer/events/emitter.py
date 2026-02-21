@@ -31,7 +31,10 @@ class ConsoleEventHandler(EventHandler):
             return
 
         message = self._format_event(event)
-        logger.info(message)
+        if event.event_type in ("LLM_CALL",):
+            logger.debug(message)
+        else:
+            logger.info(message)
 
     def _format_event(self, event: TradingEvent) -> str:
         """Format event for console output."""
@@ -57,7 +60,17 @@ class ConsoleEventHandler(EventHandler):
             return f"💰 Filled: {getattr(event, 'ticker', '?')} {getattr(event, 'side', '?').upper()} {getattr(event, 'filled_qty', 0)}x @ ${getattr(event, 'avg_price', 0):.2f}"
         if event_type == "CYCLE_COMPLETE":
             return f"🔄 Cycle: {getattr(event, 'entries_triggered', 0)} entries, {getattr(event, 'exits_triggered', 0)} exits, {getattr(event, 'positions_open', 0)} positions"
-        return f"[{event_type}] {getattr(event, 'ticker', 'system')}"
+        if event_type == "LLM_CALL":
+            agent = getattr(event, "agent", "unknown")
+            model = getattr(event, "model", "?")
+            latency = getattr(event, "latency_ms", 0)
+            tokens = getattr(event, "total_tokens", 0)
+            return f"🤖 LLM: {agent} | model={model} latency={latency:.0f}ms tokens={tokens}"
+        if event_type == "ERROR":
+            component = getattr(event, "component", "?")
+            error_type = getattr(event, "error_type", "?")
+            return f"⚠️ Error: {component} | type={error_type} msg={getattr(event, 'message', '?')}"
+        return f"[{event_type}] {getattr(event, 'ticker', getattr(event, 'agent', 'system'))}"
 
 
 class FileEventHandler(EventHandler):
