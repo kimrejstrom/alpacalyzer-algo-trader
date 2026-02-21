@@ -511,17 +511,17 @@ agent-links = "bash scripts/setup-agent-links.sh"
 
 ## Implementation Roadmap
 
-### Wave 1 (High Impact, Foundation)
+### Wave 1 (High Impact, Foundation) ✅ Complete
 
-| #   | Issue                                                                     | Task                                                                                   | Priority | Effort | Source |
-| --- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------- | ------ | ------ |
-| 1   | [#137](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/137) | Create `.agents/` directory structure + symlink setup script + `wt.toml` hook          | P1       | M      | Gap 15 |
-| 2   | [#138](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/138) | Migrate skills from `.claude/skills/` → `.agents/skills/`                              | P1       | S      | Gap 15 |
-| 3   | [#139](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/139) | Migrate `code-reviewer` to `.agents/agents/` with shared prompt + per-tool frontmatter | P1       | S      | Gap 15 |
-| 4   | [#140](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/140) | Restructure AGENTS.md → slim entry point + `docs/dev/` for procedures                  | P1       | M      | Gap 2  |
-| 5   | [#141](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/141) | Create `docs/architecture/overview.md` with domain map and layer rules                 | P1       | S      | Gap 2  |
-| 6   | [#142](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/142) | Build `scripts/agent-metrics-summary.py` + observability skill                         | P1       | M      | Gap 1  |
-| 7   | [#143](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/143) | Create reusable commands (`start-issue`, `create-pr`, `fix-issue`)                     | P1       | M      | Gap 9  |
+| #   | Issue                                                                     | Task                                                                                   | Priority | Effort | Source | Status |
+| --- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------- | ------ | ------ | ------ |
+| 1   | [#137](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/137) | Create `.agents/` directory structure + symlink setup script + `wt.toml` hook          | P1       | M      | Gap 15 | ✅     |
+| 2   | [#138](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/138) | Migrate skills from `.claude/skills/` → `.agents/skills/`                              | P1       | S      | Gap 15 | ✅     |
+| 3   | [#139](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/139) | Migrate `code-reviewer` to `.agents/agents/` with shared prompt + per-tool frontmatter | P1       | S      | Gap 15 | ✅     |
+| 4   | [#140](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/140) | Restructure AGENTS.md → slim entry point + `docs/dev/` for procedures                  | P1       | M      | Gap 2  | ✅     |
+| 5   | [#141](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/141) | Create `docs/architecture/overview.md` with domain map and layer rules                 | P1       | S      | Gap 2  | ✅     |
+| 6   | [#142](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/142) | Build `scripts/agent-metrics-summary.py` + observability skill                         | P1       | M      | Gap 1  | ✅     |
+| 7   | [#143](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/143) | Create reusable commands (`start-issue`, `create-pr`, `fix-issue`)                     | P1       | M      | Gap 9  | ✅     |
 
 ### Wave 2 (Enforcement & Autonomy) ✅ Complete
 
@@ -534,16 +534,16 @@ agent-links = "bash scripts/setup-agent-links.sh"
 | 12  | [#148](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/148) | Add CI job to validate doc cross-references                                  | P2       | S      | Gap 4  | ✅     |
 | 13  | [#149](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/149) | Slim down skill files — replace inline templates with file references        | P2       | M      | Gap 13 | ✅     |
 
-### Wave 3 (Compounding Improvements)
+### Wave 3 (Compounding Improvements) ✅ Complete
 
-| #   | Issue                                                                     | Task                                                                | Priority | Effort | Source |
-| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------- | ------ | ------ |
-| 14  | [#150](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/150) | Add structured JSON output to `--analyze` mode + validate-e2e skill | P3       | M      | Gap 6  |
-| 15  | [#151](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/151) | Define golden principles in `docs/principles.md` + audit script     | P3       | M      | Gap 7  |
-| 16  | [#152](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/152) | Restructure plans into `docs/plans/` as versioned artifacts         | P3       | S      | Gap 8  |
-| 17  | [#153](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/153) | Add doc-gardening periodic task                                     | P3       | M      | Gap 4  |
-| 18  | [#154](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/154) | Document parallel exploration pattern                               | P3       | S      | Gap 12 |
-| 19  | [#155](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/155) | Add hypothesis-driven debugging guide                               | P3       | S      | Gap 14 |
+| #   | Issue                                                                     | Task                                                                | Priority | Effort | Source | Status |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------- | ------ | ------ | ------ |
+| 14  | [#150](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/150) | Add structured JSON output to `--analyze` mode + validate-e2e skill | P3       | M      | Gap 6  | ✅     |
+| 15  | [#151](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/151) | Define golden principles in `docs/principles.md` + audit script     | P3       | M      | Gap 7  | ✅     |
+| 16  | [#152](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/152) | Restructure plans into `docs/plans/` as versioned artifacts         | P3       | S      | Gap 8  | ✅     |
+| 17  | [#153](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/153) | Add doc-gardening periodic task                                     | P3       | M      | Gap 4  | ✅     |
+| 18  | [#154](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/154) | Document parallel exploration pattern                               | P3       | S      | Gap 12 | ✅     |
+| 19  | [#155](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues/155) | Add hypothesis-driven debugging guide                               | P3       | S      | Gap 14 | ✅     |
 
 ---
 

@@ -119,3 +119,12 @@ client.complete_structured(messages, MyModel, tier=LLMTier.STANDARD, caller="MyA
 
 - `logs/events.jsonl` - Structured event log (machine-readable, source of truth)
 - `logs/trading_logs.log` - Human-readable trading activity
+
+## Agent Reasoning Display
+
+Agent reasoning is rendered in two ways:
+
+1. **Terminal**: Compact one-line summaries printed above the Rich Live progress table via `AgentProgress.add_reasoning()`. Color-coded by signal (red=bearish, green=bullish, yellow=neutral). Displayed at INFO level during `--analyze` runs.
+2. **Structured events**: Full reasoning dict emitted as `AGENT_REASONING` events to `events.jsonl` via `emit_event()`. The `ConsoleEventHandler` skips this event type to avoid duplicate terminal output.
+
+The `show_agent_reasoning()` function in `graph/state.py` handles both paths — routing to the progress display when Live is active, falling back to `logger.info()` otherwise.
