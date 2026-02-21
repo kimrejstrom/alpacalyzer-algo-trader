@@ -39,7 +39,7 @@ uv run alpacalyzer            # Full trading mode
 5. **No Secrets** - Use environment variables, never hardcode credentials.
 6. **Debug Efficiently** - Run tests once, save output, analyze. Never run full test suite repeatedly.
 
-See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for detailed workflow.
+See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for detailed workflow. For code invariants, see [docs/principles.md](docs/principles.md).
 
 ## 🏗️ Architecture Overview
 

@@ -229,6 +229,16 @@ class ErrorEvent(BaseModel):
     ticker: str | None = Field(default=None, description="Related ticker if applicable")
 
 
+class AgentReasoningEvent(BaseModel):
+    """Emitted when an agent produces reasoning output."""
+
+    event_type: str = "AGENT_REASONING"
+    timestamp: datetime = Field(description="When the reasoning was produced")
+    agent: str = Field(description="Agent name (e.g., Technical Analyst, Portfolio Management Agent)")
+    tickers: list[str] = Field(default_factory=list, description="Tickers analyzed")
+    reasoning: dict = Field(description="Full reasoning output from the agent")
+
+
 # Union type for all events
 TradingEvent = (
     ScanCompleteEvent
@@ -248,4 +258,5 @@ TradingEvent = (
     | CycleCompleteEvent
     | LLMCallEvent
     | ErrorEvent
+    | AgentReasoningEvent
 )

@@ -1,5 +1,7 @@
 # Debugging Procedures
 
+> For complex bugs (especially trading logic), see [Hypothesis-Driven Debugging Guide](debugging-guide.md).
+
 ## Debugging Test Failures
 
 **CRITICAL: Follow this exact process!**

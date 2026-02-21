@@ -14,6 +14,7 @@ from alpacalyzer.events.emitter import (
     emit_event,
 )
 from alpacalyzer.events.models import (
+    AgentReasoningEvent,
     EntryBlockedEvent,
     EntryTriggeredEvent,
     ExitTriggeredEvent,
@@ -205,6 +206,76 @@ def test_file_handler_append_mode(tmp_path):
     assert len(lines) == 2
     assert "ENTRY_TRIGGERED" in lines[0]
     assert "SCAN_COMPLETE" in lines[1]
+
+
+def test_file_handler_rotates_when_exceeding_max_bytes(tmp_path):
+    """Test FileEventHandler rotates file when it exceeds max_bytes."""
+    file_path = tmp_path / "events.jsonl"
+    # Set tiny max_bytes so rotation triggers quickly
+    handler = FileEventHandler(file_path=str(file_path), max_bytes=100, backup_count=2)
+
+    event = EntryTriggeredEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        ticker="AAPL",
+        strategy="momentum",
+        side="long",
+        quantity=100,
+        entry_price=150.0,
+        stop_loss=145.0,
+        target=165.0,
+        reason="Entry triggered",
+    )
+
+    # Write enough events to trigger rotation
+    for _ in range(5):
+        handler.handle(event)
+
+    # Should have rotated — backup files should exist
+    backup_1 = tmp_path / "events.jsonl.1"
+    assert backup_1.exists(), "Backup .1 should exist after rotation"
+    # Current file should still be writable and small
+    assert file_path.exists()
+
+
+def test_file_handler_respects_backup_count(tmp_path):
+    """Test FileEventHandler deletes oldest backup beyond backup_count."""
+    file_path = tmp_path / "events.jsonl"
+    handler = FileEventHandler(file_path=str(file_path), max_bytes=50, backup_count=2)
+
+    event = ScanCompleteEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        source="reddit",
+        tickers_found=["TSLA"],
+        duration_seconds=5.0,
+    )
+
+    # Write many events to trigger multiple rotations
+    for _ in range(20):
+        handler.handle(event)
+
+    # Should have at most backup_count backups
+    assert file_path.exists()
+    assert (tmp_path / "events.jsonl.1").exists()
+    assert (tmp_path / "events.jsonl.2").exists()
+    assert not (tmp_path / "events.jsonl.3").exists(), "Should not exceed backup_count"
+
+
+def test_file_handler_no_rotation_under_limit(tmp_path):
+    """Test FileEventHandler does not rotate when under max_bytes."""
+    file_path = tmp_path / "events.jsonl"
+    handler = FileEventHandler(file_path=str(file_path), max_bytes=10 * 1024 * 1024, backup_count=3)
+
+    event = ScanCompleteEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        source="reddit",
+        tickers_found=["TSLA"],
+        duration_seconds=5.0,
+    )
+
+    handler.handle(event)
+
+    assert file_path.exists()
+    assert not (tmp_path / "events.jsonl.1").exists(), "Should not rotate under limit"
 
 
 def test_callback_handler():
@@ -536,3 +607,120 @@ def test_emit_event_signal_generated():
     assert len(received) == 1
     assert received[0].ticker == "TSLA"
     assert received[0].event_type == "SIGNAL_GENERATED"
+
+
+# =============================================================================
+# Agent Reasoning Event Tests
+# =============================================================================
+
+
+def test_console_handler_formats_agent_reasoning_event():
+    """Test ConsoleEventHandler formats AgentReasoningEvent correctly."""
+    handler = ConsoleEventHandler()
+
+    event = AgentReasoningEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        agent="Technical Analyst",
+        tickers=["AAPL", "TSLA"],
+        reasoning={"AAPL": {"signal": "bullish"}, "TSLA": {"signal": "bearish"}},
+    )
+
+    formatted = handler._format_event(event)
+
+    assert "Technical Analyst" in formatted
+    assert "AAPL" in formatted
+    assert "TSLA" in formatted
+
+
+def test_console_handler_formats_agent_reasoning_no_tickers():
+    """Test ConsoleEventHandler formats AgentReasoningEvent with no tickers."""
+    handler = ConsoleEventHandler()
+
+    event = AgentReasoningEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        agent="Risk Manager",
+        tickers=[],
+        reasoning={"risk_level": "low"},
+    )
+
+    formatted = handler._format_event(event)
+
+    assert "Risk Manager" in formatted
+    assert "N/A" in formatted
+
+
+def test_emit_agent_reasoning_event():
+    """Test that AgentReasoningEvent is emitted and received correctly."""
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    event = AgentReasoningEvent(
+        timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
+        agent="Portfolio Management Agent",
+        tickers=["NVDA", "AMD"],
+        reasoning={"NVDA": {"action": "buy", "confidence": 0.85}},
+    )
+
+    emit_event(event)
+
+    assert len(received) == 1
+    assert received[0].event_type == "AGENT_REASONING"
+    assert received[0].agent == "Portfolio Management Agent"
+    assert received[0].tickers == ["NVDA", "AMD"]
+
+
+def test_show_agent_reasoning_emits_event():
+    """Test that show_agent_reasoning() emits an AgentReasoningEvent."""
+    from alpacalyzer.graph.state import show_agent_reasoning
+
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    reasoning = {"AAPL": {"signal": "bullish", "confidence": 0.9}}
+    show_agent_reasoning(reasoning, "Technical Analyst")
+
+    # The event handler receives the AgentReasoningEvent (not the console log)
+    assert len(received) == 1
+    assert received[0].event_type == "AGENT_REASONING"
+    assert received[0].agent == "Technical Analyst"
+    assert "AAPL" in received[0].tickers
+    assert received[0].reasoning == reasoning
+
+
+def test_show_agent_reasoning_emits_event_with_string_input():
+    """Test show_agent_reasoning() handles string JSON input."""
+    from alpacalyzer.graph.state import show_agent_reasoning
+
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    reasoning_str = '{"TSLA": {"action": "sell"}}'
+    show_agent_reasoning(reasoning_str, "Risk Manager")
+
+    assert len(received) == 1
+    assert received[0].event_type == "AGENT_REASONING"
+    assert received[0].agent == "Risk Manager"
+    assert "TSLA" in received[0].tickers
+
+
+def test_show_agent_reasoning_emits_event_with_plain_string():
+    """Test show_agent_reasoning() handles non-JSON string input."""
+    from alpacalyzer.graph.state import show_agent_reasoning
+
+    received = []
+    emitter = EventEmitter.get_instance()
+    emitter.clear_handlers()
+    emitter.add_handler(CallbackEventHandler(lambda e: received.append(e)))
+
+    show_agent_reasoning("Some plain text reasoning", "Portfolio Manager")
+
+    assert len(received) == 1
+    assert received[0].event_type == "AGENT_REASONING"
+    assert received[0].agent == "Portfolio Manager"
+    assert received[0].reasoning == {"raw": "Some plain text reasoning"}

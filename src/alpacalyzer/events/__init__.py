@@ -9,6 +9,7 @@ from alpacalyzer.events.emitter import (
     emit_event,
 )
 from alpacalyzer.events.models import (
+    AgentReasoningEvent,
     CooldownEndedEvent,
     CooldownStartedEvent,
     CycleCompleteEvent,
@@ -31,6 +32,7 @@ from alpacalyzer.events.models import (
 
 __all__ = [
     # Event models
+    "AgentReasoningEvent",
     "ScanCompleteEvent",
     "SignalGeneratedEvent",
     "SignalExpiredEvent",

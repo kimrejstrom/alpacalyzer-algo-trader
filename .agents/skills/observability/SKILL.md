@@ -29,6 +29,7 @@ This outputs structured JSON with:
 
 | Event             | Source                            | Key Fields                                   |
 | ----------------- | --------------------------------- | -------------------------------------------- |
+| `AGENT_REASONING` | `show_agent_reasoning()`          | agent, tickers, reasoning                    |
 | `LLM_CALL`        | `LLMClient.complete_structured()` | agent, model, tier, latency_ms, tokens, cost |
 | `ORDER_FILLED`    | Trade update handler              | ticker, side, filled_qty, avg_price          |
 | `ORDER_REJECTED`  | Trade update handler              | ticker, reason                               |

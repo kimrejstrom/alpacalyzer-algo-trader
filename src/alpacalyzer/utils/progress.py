@@ -12,13 +12,13 @@ class AgentProgress:
 
     def __init__(self):
         self.agent_status: dict[str, dict[str, str]] = {}
-        self.table = Table(show_header=False, box=None, padding=(0, 1))
-        self.live = Live(self.table, console=console, refresh_per_second=4)
+        self.live = Live(Table(), console=console, refresh_per_second=4)
         self.started = False
 
     def start(self):
         """Start the progress display."""
         if not self.started:
+            self.agent_status.clear()
             self.live.start()
             self.started = True
 
@@ -28,6 +28,34 @@ class AgentProgress:
             self.live.stop()
             self.started = False
             console.print()  # ensure clean newline after spinner output
+
+    def add_reasoning(self, agent_name: str, ticker: str, signal: str, confidence, reasoning_snippet: str):
+        """
+        Print a reasoning summary line above the Live display.
+
+        Uses Live.console.print() which correctly inserts the line above
+        the live-updating status table without getting overwritten.
+        """
+        line = Text()
+        signal_lower = signal.lower()
+        if signal_lower == "bearish":
+            sig_style = Style(color="red")
+        elif signal_lower == "bullish":
+            sig_style = Style(color="green")
+        else:
+            sig_style = Style(color="yellow")
+
+        line.append(f"[{agent_name}] ", style=Style(color="white", dim=True))
+        line.append(f"{ticker} ", style=Style(color="cyan"))
+        line.append(f"{signal} ", style=sig_style)
+        line.append(f"({confidence}%) ", style=Style(color="white", dim=True))
+        if reasoning_snippet:
+            line.append(reasoning_snippet[:100], style=Style(color="white", dim=True))
+
+        if self.started:
+            self.live.console.print(line)
+        else:
+            console.print(line)
 
     def update_status(self, agent_name: str, ticker: str | None = None, status: str = ""):
         """Update the status of an agent."""
@@ -43,9 +71,8 @@ class AgentProgress:
 
     def _refresh_display(self):
         """Refresh the progress display."""
-        self.table.add_row("")
-        self.table.columns.clear()
-        self.table.add_column(width=100)
+        table = Table(show_header=False, box=None, padding=(0, 1))
+        table.add_column(width=100)
 
         # Sort agents with Risk Management and Portfolio Management at the bottom
         def sort_key(item):
@@ -82,9 +109,10 @@ class AgentProgress:
                 status_text.append(f"[{ticker}] ", style=Style(color="cyan"))
             status_text.append(status, style=style)
 
-            self.table.add_row(status_text)
+            table.add_row(status_text)
 
-        self.table.add_row("")
+        table.add_row("")
+        self.live.update(table)
 
 
 # Create a global instance
