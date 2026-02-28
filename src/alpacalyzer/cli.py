@@ -10,6 +10,7 @@ import schedule
 
 from alpacalyzer.analysis.dashboard import dashboard_command
 from alpacalyzer.analysis.eod_performance import EODPerformanceAnalyzer
+from alpacalyzer.events.emitter import EventEmitter
 from alpacalyzer.orchestrator import TradingOrchestrator
 from alpacalyzer.pipeline.registry import get_scanner_registry
 from alpacalyzer.scanners.adapters import RedditScannerAdapter, SocialScannerAdapter
@@ -126,6 +127,16 @@ def main():  # pragma: no cover
             ignore_market_status=args.ignore_market_status,
             reset_state=args.reset_state,
         )
+
+        if os.getenv("JOURNAL_API_URL"):
+            from alpacalyzer.sync import JournalSyncClient, JournalSyncHandler
+
+            client = JournalSyncClient(
+                base_url=os.environ["JOURNAL_API_URL"],
+                api_key=os.environ.get("JOURNAL_SYNC_API_KEY", ""),
+            )
+            EventEmitter.get_instance().add_handler(JournalSyncHandler(client))
+            logger.info("journal sync handler registered")
 
         schedule_daily_liquidation()
 
