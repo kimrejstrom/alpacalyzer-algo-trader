@@ -56,10 +56,16 @@ def trading_strategist_agent(state: AgentState):
 
     # Print the decision if the flag is set
     if state["metadata"]["show_reasoning"]:
-        show_agent_reasoning(
-            {ticker: strategy.model_dump() for ticker, strategy in trading_strategies.items()},
-            "Trading Strategist Agent",
-        )
+        if trading_strategies:
+            show_agent_reasoning(
+                {ticker: strategy.model_dump() for ticker, strategy in trading_strategies.items()},
+                "Trading Strategist Agent",
+            )
+        else:
+            show_agent_reasoning(
+                {ticker: {"signal": "hold", "confidence": 0, "reasoning": "No actionable decisions from portfolio manager"} for ticker in data},
+                "Trading Strategist Agent",
+            )
 
     progress.update_status("trading_strategist_agent", None, "Done")
 

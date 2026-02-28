@@ -337,13 +337,18 @@ class TestDynamicMarginInRiskAgent:
         from alpacalyzer.graph.state import AgentState
         from alpacalyzer.trading.risk_manager import risk_management_agent
 
+        bearish_signals = {
+            "agent_1": {"AAPL": {"signal": "bearish", "confidence": 80}},
+            "agent_2": {"AAPL": {"signal": "bearish", "confidence": 70}},
+            "agent_3": {"AAPL": {"signal": "neutral", "confidence": 50}},
+        }
+
         state = AgentState(
             messages=[],
             data={
                 "tickers": ["AAPL"],
                 "portfolio": {},
-                "AAPL": {"signal": "bearish"},
-                "analyst_signals": {},
+                "analyst_signals": bearish_signals,
             },
             metadata={"show_reasoning": False},
         )
@@ -394,13 +399,18 @@ class TestDynamicMarginInRiskAgent:
         from alpacalyzer.graph.state import AgentState
         from alpacalyzer.trading.risk_manager import risk_management_agent
 
+        bearish_signals = {
+            "agent_1": {"AAPL": {"signal": "bearish", "confidence": 80}},
+            "agent_2": {"AAPL": {"signal": "bearish", "confidence": 70}},
+            "agent_3": {"AAPL": {"signal": "neutral", "confidence": 50}},
+        }
+
         state = AgentState(
             messages=[],
             data={
                 "tickers": ["AAPL"],
                 "portfolio": {},
-                "AAPL": {"signal": "bearish"},
-                "analyst_signals": {},
+                "analyst_signals": bearish_signals,
             },
             metadata={"show_reasoning": False},
         )

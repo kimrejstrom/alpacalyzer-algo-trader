@@ -19,7 +19,7 @@ class RedditScannerAdapter(BaseScanner):
     """Adapter for Reddit/insight scanning."""
 
     def __init__(self):
-        super().__init__(name="reddit", enabled=True)
+        super().__init__(name="reddit", enabled=True, cache_ttl_seconds=4 * 3600)
         self._finviz = FinvizScanner()
 
     def _execute_scan(self) -> list[TopTicker]:

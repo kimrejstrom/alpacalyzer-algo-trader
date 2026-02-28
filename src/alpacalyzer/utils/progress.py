@@ -50,7 +50,7 @@ class AgentProgress:
         line.append(f"{signal} ", style=sig_style)
         line.append(f"({confidence}%) ", style=Style(color="white", dim=True))
         if reasoning_snippet:
-            line.append(reasoning_snippet[:100], style=Style(color="white", dim=True))
+            line.append(reasoning_snippet[:200], style=Style(color="white", dim=True))
 
         if self.started:
             self.live.console.print(line)

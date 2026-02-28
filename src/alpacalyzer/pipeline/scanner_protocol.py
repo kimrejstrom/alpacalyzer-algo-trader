@@ -4,6 +4,9 @@ from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
 
 from alpacalyzer.data.models import TopTicker
+from alpacalyzer.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -56,9 +59,10 @@ class BaseScanner(ABC):
     - _execute_scan() - the actual scanning logic
     """
 
-    def __init__(self, name: str, enabled: bool = True):
+    def __init__(self, name: str, enabled: bool = True, cache_ttl_seconds: int = 0):
         self._name = name
         self._enabled = enabled
+        self._cache_ttl_seconds = cache_ttl_seconds
         self._last_scan: ScanResult | None = None
 
     @property
@@ -78,7 +82,14 @@ class BaseScanner(ABC):
         return self._last_scan
 
     def scan(self) -> ScanResult:
-        """Run the scanner with timing and error handling."""
+        """Run the scanner with timing, error handling, and optional caching."""
+        if self._cache_ttl_seconds > 0 and self._last_scan is not None and self._last_scan.success:
+            age = (datetime.now(UTC) - self._last_scan.scanned_at).total_seconds()
+            if age < self._cache_ttl_seconds:
+                remaining = self._cache_ttl_seconds - age
+                logger.debug(f"returning cached result | scanner={self.name} age={age:.0f}s ttl_remaining={remaining:.0f}s")
+                return self._last_scan
+
         start_time = datetime.now(UTC)
 
         try:

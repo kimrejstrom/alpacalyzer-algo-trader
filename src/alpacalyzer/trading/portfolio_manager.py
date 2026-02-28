@@ -114,7 +114,9 @@ def generate_trading_decision(
         "Maximum Shares Allowed For Purchases:\n{max_shares}\n\n"
         "Portfolio Cash ($): {portfolio_cash}\n"
         "Current Positions: {portfolio_positions}\n"
-        "Current Margin Requirement ($): {margin_requirement}\n\n"
+        "Margin Used ($): {margin_used}\n"
+        "Margin Limit ($): {margin_limit}\n"
+        "Shorting Buying Power ($): {shorting_buying_power}\n\n"
         "Output strictly in JSON with the following structure:\n"
         "{{\n"
         '  "decisions": [\n'
@@ -141,7 +143,9 @@ def generate_trading_decision(
     max_shares_str = json.dumps(max_shares_formatted, indent=2)
     portfolio_cash_str = f"${portfolio.get('cash', 0):,.2f}"
     portfolio_positions_str = json.dumps(portfolio.get("positions", {}), indent=2)
-    margin_requirement_str = f"${portfolio.get('margin_requirement', 0):,.2f}"
+    margin_used_str = f"${portfolio.get('margin_used', 0):,.2f}"
+    margin_limit_str = f"${portfolio.get('margin_limit', 0):,.2f}"
+    shorting_buying_power_str = f"${portfolio.get('shorting_buying_power', 0):,.2f}"
 
     # Format the human message using the template
     human_message = {
@@ -152,7 +156,9 @@ def generate_trading_decision(
             max_shares=max_shares_str,
             portfolio_cash=portfolio_cash_str,
             portfolio_positions=portfolio_positions_str,
-            margin_requirement=margin_requirement_str,
+            margin_used=margin_used_str,
+            margin_limit=margin_limit_str,
+            shorting_buying_power=shorting_buying_power_str,
         ),
     }
 
