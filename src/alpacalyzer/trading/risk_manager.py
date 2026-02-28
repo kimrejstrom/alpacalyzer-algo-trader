@@ -221,7 +221,26 @@ def risk_management_agent(state: AgentState):
         safety_factor = 0.9
 
         ticker_data = data.get(ticker, {})
-        is_bearish = ticker_data.get("suggested_side") == "bearish" or ticker_data.get("signal") == "bearish"
+        analyst_signals = data.get("analyst_signals", {})
+
+        # Determine bearish consensus from analyst signals (excluding risk_management_agent itself)
+        bearish_count = 0
+        total_count = 0
+        for agent_name, agent_signals in analyst_signals.items():
+            if agent_name == "risk_management_agent":
+                continue
+            ticker_signal = agent_signals.get(ticker, {})
+            signal = ticker_signal.get("signal", "")
+            if isinstance(signal, str) and signal:
+                total_count += 1
+                if signal.lower() == "bearish":
+                    bearish_count += 1
+
+        if total_count == 0:
+            # Fallback to per-ticker signal when no analyst data available
+            is_bearish = ticker_data.get("suggested_side") == "bearish" or ticker_data.get("signal") == "bearish"
+        else:
+            is_bearish = bearish_count > total_count / 2
 
         if remaining_position_limit > 0:
             if is_bearish:

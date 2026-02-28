@@ -97,10 +97,10 @@ class StrategyDashboard:
         for name in strategies:
             try:
                 strategy = self.registry.get(name)
-                config = strategy.config
+                config = getattr(strategy, "config", None)
 
                 strategy_type = type(strategy).__name__
-                risk_pct = f"{config.risk_pct_per_trade:.1%}" if config.risk_pct_per_trade else "N/A"
+                risk_pct = f"{config.risk_pct_per_trade:.1%}" if config and config.risk_pct_per_trade else "N/A"
                 status = "Active" if getattr(strategy, "enabled", True) else "Disabled"
 
                 rows.append([name, strategy_type, risk_pct, status])
