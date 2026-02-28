@@ -57,14 +57,18 @@ def show_agent_reasoning(output, agent_name):
                 reasoning = data.get("reasoning", "")
                 if isinstance(reasoning, dict):
                     reasoning = ", ".join(f"{k}: {v}" for k, v in reasoning.items() if isinstance(v, str))
-                reasoning_str = str(reasoning)[:120]
+                reasoning_str = str(reasoning)[:200]
+
                 if progress.started:
                     progress.add_reasoning(agent_name, ticker, signal, confidence, reasoning_str)
+                    # Log to file only (progress handles console display)
+                    logger.debug(f"[{agent_name}] {ticker} {signal} ({confidence}%) {reasoning_str}")
                 else:
                     logger.info(f"[{agent_name}] {ticker} | {signal} | confidence={confidence} | {reasoning_str}")
             else:
                 if progress.started:
                     progress.add_reasoning(agent_name, ticker, str(data), "?", "")
+                    logger.debug(f"[{agent_name}] {ticker} | {data}")
                 else:
                     logger.info(f"[{agent_name}] {ticker} | {data}")
     else:

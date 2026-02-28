@@ -127,3 +127,61 @@ class TestBaseScanner:
         result2 = scanner.scan()
         assert scanner.last_scan is result2
         assert result2.scanned_at > result1.scanned_at
+
+
+class CachingScanner(BaseScanner):
+    """Scanner with cache TTL for testing."""
+
+    def __init__(self, cache_ttl_seconds: int = 60):
+        super().__init__(name="caching", enabled=True, cache_ttl_seconds=cache_ttl_seconds)
+        self.scan_count = 0
+
+    def _execute_scan(self) -> list[TopTicker]:
+        self.scan_count += 1
+        return [TopTicker(ticker="AAPL", signal="bullish", confidence=0.8, reasoning="test")]
+
+
+class TestScannerCaching:
+    def test_cache_returns_same_result_within_ttl(self):
+        scanner = CachingScanner(cache_ttl_seconds=3600)
+        result1 = scanner.scan()
+        result2 = scanner.scan()
+
+        assert scanner.scan_count == 1
+        assert result1 is result2
+
+    def test_no_cache_when_ttl_is_zero(self):
+        scanner = CachingScanner(cache_ttl_seconds=0)
+        scanner.scan()
+        scanner.scan()
+
+        assert scanner.scan_count == 2
+
+    def test_cache_expires_after_ttl(self):
+        scanner = CachingScanner(cache_ttl_seconds=1)
+        result1 = scanner.scan()
+
+        # Backdate the cached result so it appears expired
+        from datetime import timedelta
+
+        result1.scanned_at = result1.scanned_at - timedelta(seconds=2)
+
+        result2 = scanner.scan()
+        assert scanner.scan_count == 2
+        assert result2 is not result1
+
+    def test_cache_skipped_on_error(self):
+        """Failed scans should not be cached."""
+        scanner = CachingScanner(cache_ttl_seconds=3600)
+
+        # Force an error result into last_scan
+        error_result = ScanResult(source="caching", tickers=[], error="boom")
+        scanner._last_scan = error_result
+
+        result = scanner.scan()
+        assert result.success is True
+        assert scanner.scan_count == 1
+
+    def test_default_cache_ttl_is_zero(self):
+        scanner = MockScanner()
+        assert scanner._cache_ttl_seconds == 0

@@ -173,7 +173,7 @@ def analyze_disruptive_potential(metrics: list[Any], financial_line_items: list[
         details.append("Insufficient revenue data for growth analysis")
 
     # 2. Gross Margin Analysis - Check for expanding margins
-    gross_margins = [item.gross_margin for item in financial_line_items if hasattr(item, "gross_margin") and item.gross_margin is not None]
+    gross_margins: list[float] = [float(item.gross_margin) for item in financial_line_items if hasattr(item, "gross_margin") and item.gross_margin is not None]
     if len(gross_margins) >= 2:
         margin_trend = gross_margins[0] - gross_margins[-1]
         if margin_trend > 0.05:  # 5% improvement

@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock, patch
 
 from pydantic import BaseModel, Field
@@ -261,3 +262,60 @@ class TestLLMTierConfig:
         finally:
             for k, v in original_env.items():
                 os.environ[k] = v
+
+
+class StrategyItem(BaseModel):
+    ticker: str
+    quantity: int = 0
+    strategy_notes: str = ""
+
+
+class StrategyList(BaseModel):
+    strategies: list[StrategyItem]
+
+
+class TestCoerceMissingWrapper:
+    def test_wraps_flat_object_in_list_field(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"ticker": "GILD", "quantity": 10, "strategy_notes": "test"}'
+        result = _coerce_dict_lists(raw, StrategyList)
+
+        parsed = json.loads(result)
+        assert "strategies" in parsed
+        assert isinstance(parsed["strategies"], list)
+        assert len(parsed["strategies"]) == 1
+        assert parsed["strategies"][0]["ticker"] == "GILD"
+
+    def test_wrapped_result_validates_as_pydantic(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"ticker": "GILD", "quantity": 10, "strategy_notes": "buy dip"}'
+        coerced = _coerce_dict_lists(raw, StrategyList)
+        result = StrategyList.model_validate_json(coerced)
+        assert len(result.strategies) == 1
+        assert result.strategies[0].ticker == "GILD"
+
+    def test_no_wrap_when_key_already_present(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"strategies": [{"ticker": "GILD", "quantity": 10, "strategy_notes": "ok"}]}'
+        result = _coerce_dict_lists(raw, StrategyList)
+        assert result == raw
+
+    def test_no_wrap_without_response_model(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"ticker": "GILD", "quantity": 10}'
+        result = _coerce_dict_lists(raw)
+        assert result == raw
+
+    def test_dict_coercion_still_works_with_response_model(self):
+        from alpacalyzer.llm.structured import _coerce_dict_lists
+
+        raw = '{"decisions": {"NVDA": {"action": "hold", "quantity": 0, "reasoning": "test"}}}'
+        result = _coerce_dict_lists(raw, DecisionList)
+
+        parsed = json.loads(result)
+        assert isinstance(parsed["decisions"], list)
+        assert parsed["decisions"][0]["ticker"] == "NVDA"

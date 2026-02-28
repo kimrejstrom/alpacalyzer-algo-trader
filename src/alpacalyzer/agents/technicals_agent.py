@@ -351,12 +351,13 @@ def calculate_stat_arb_signals(prices_df):
 
 
 def weighted_signal_combination(signals, weights):
-    """Combines multiple trading signals using a weighted approach"""
-    # Convert signals to numeric values
+    """Combines multiple trading signals using a weighted approach."""
     signal_values = {"bullish": 1, "neutral": 0, "bearish": -1}
 
     weighted_sum = 0
-    total_confidence = 0
+    total_weight = 0
+    directional_confidence = {"bullish": 0, "bearish": 0, "neutral": 0}
+    directional_weight = {"bullish": 0, "bearish": 0, "neutral": 0}
 
     for strategy, signal in signals.items():
         numeric_signal = signal_values[signal["signal"]]
@@ -364,27 +365,48 @@ def weighted_signal_combination(signals, weights):
         confidence = signal["confidence"]
 
         weighted_sum += numeric_signal * weight * confidence
-        total_confidence += weight * confidence
+        total_weight += weight * confidence
+
+        # Track confidence by direction
+        direction = signal["signal"]
+        directional_confidence[direction] += weight * confidence
+        directional_weight[direction] += weight
 
     # Normalize the weighted sum
-    if total_confidence > 0:
-        final_score = weighted_sum / total_confidence
+    if total_weight > 0:
+        final_score = weighted_sum / total_weight
     else:
         final_score = 0
 
-    # Convert back to signal and calculate appropriate confidence
+    # Determine signal direction
     if final_score > 0.2:
         signal = "bullish"
-        confidence = min(abs(final_score), 1.0)
     elif final_score < -0.2:
         signal = "bearish"
-        confidence = min(abs(final_score), 1.0)
     else:
         signal = "neutral"
-        # For neutral signals, use the average confidence of all strategies
-        confidence = total_confidence / sum(weights.values()) if sum(weights.values()) > 0 else 0.5
 
-    return {"signal": signal, "confidence": confidence}
+    # Calculate confidence based on the winning direction's strength
+    # rather than the net score magnitude (which gets diluted by cancellation)
+    if signal in ("bullish", "bearish"):
+        winning_conf = directional_confidence[signal]
+        winning_weight = directional_weight[signal]
+        if winning_weight > 0:
+            # Average confidence of sub-signals agreeing with the winning direction
+            avg_winning_confidence = winning_conf / winning_weight
+            # Scale by proportion of weight that agrees
+            total_possible_weight = sum(weights.values())
+            agreement_ratio = winning_weight / total_possible_weight
+            # Blend: strong agreement among aligned signals, penalized by disagreement
+            confidence = avg_winning_confidence * (0.5 + 0.5 * agreement_ratio)
+        else:
+            confidence = abs(final_score)
+    else:
+        # Neutral: use average confidence across all strategies
+        total_possible_weight = sum(weights.values())
+        confidence = total_weight / total_possible_weight if total_possible_weight > 0 else 0.5
+
+    return {"signal": signal, "confidence": min(confidence, 1.0)}
 
 
 def normalize_pandas(obj):

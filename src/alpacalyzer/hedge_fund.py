@@ -55,10 +55,15 @@ def _build_portfolio() -> dict:
             qty = abs(int(float(p.qty))) if p.qty else 0
             avg_price = float(p.avg_entry_price) if p.avg_entry_price else 0.0
             pos_dict[p.symbol] = {"shares": qty, "side": side, "avg_price": avg_price}
+        equity = account.get("equity", 0)
+        initial_margin = account.get("initial_margin", 0)
         return {
             "cash": account.get("buying_power", 0),
             "positions": pos_dict,
-            "margin_requirement": account.get("initial_margin", 0),
+            "margin_requirement": initial_margin,
+            "margin_used": initial_margin,
+            "margin_limit": equity,
+            "shorting_buying_power": account.get("daytrading_buying_power", 0),
         }
     except Exception as e:
         logger.warning(f"portfolio fetch failed, using empty | error={e}")

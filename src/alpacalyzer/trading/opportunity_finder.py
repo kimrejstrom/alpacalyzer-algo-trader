@@ -21,11 +21,16 @@ def get_reddit_insights() -> TopTickersResponse | None:
 
         {ideas}
 
-        "Return the trading signal in this JSON format:"
+        Return a JSON object with a "top_tickers" array. Each element MUST include a "ticker" field:
             {{
-              "signal": "bullish/bearish/neutral",
-              "confidence": float (0-100),
-              "reasoning": "string"
+              "top_tickers": [
+                {{
+                  "ticker": "SYMBOL",
+                  "signal": "bullish/bearish/neutral",
+                  "confidence": float (0-100),
+                  "reasoning": "string"
+                }}
+              ]
             }}
         """
 
@@ -68,11 +73,16 @@ def get_top_candidates(top_tickers: list[TopTicker], finviz_df: DataFrame) -> To
 
         "Stock data: {stock_data}"
 
-        "Return the trading signal in this JSON format:"
+        Return a JSON object with a "top_tickers" array. Each element MUST include a "ticker" field:
             {{
-              "signal": "bullish/bearish/neutral",
-              "confidence": float (0-100),
-              "reasoning": "string"
+              "top_tickers": [
+                {{
+                  "ticker": "SYMBOL",
+                  "signal": "bullish/bearish/neutral",
+                  "confidence": float (0-100),
+                  "reasoning": "string"
+                }}
+              ]
             }}
         """
 

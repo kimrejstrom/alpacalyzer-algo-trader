@@ -531,7 +531,7 @@ class EODPerformanceAnalyzer:
         req = GetCalendarRequest(start=et_day, end=et_day)
         try:
             calendars = trading_client.get_calendar(req)
-            if not calendars:
+            if not calendars or not isinstance(calendars, list):
                 return None
             # Alpaca returns naive ET times; attach ET tz then convert to UTC
             close_naive = calendars[0].close

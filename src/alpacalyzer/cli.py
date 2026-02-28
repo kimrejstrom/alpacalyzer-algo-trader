@@ -129,17 +129,13 @@ def main():  # pragma: no cover
 
         schedule_daily_liquidation()
 
-        if not direct_tickers:
-            safe_execute(orchestrator.scan)
-            schedule.every(15).minutes.do(lambda: safe_execute(orchestrator.scan))
-        else:
+        if direct_tickers:
             opportunities = orchestrator.scan()
             if opportunities:
                 orchestrator.analyze(opportunities)
-
-        if not direct_tickers:
+        else:
             safe_execute(lambda: orchestrator.analyze(orchestrator.scan()))
-            schedule.every(5).minutes.do(lambda: safe_execute(lambda: orchestrator.analyze(orchestrator.scan())))
+            schedule.every(15).minutes.do(lambda: safe_execute(lambda: orchestrator.analyze(orchestrator.scan())))
 
         if not args.analyze:
             safe_execute(orchestrator.execute_cycles)
