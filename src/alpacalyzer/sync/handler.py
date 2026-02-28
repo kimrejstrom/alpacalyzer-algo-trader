@@ -26,6 +26,8 @@ class JournalSyncHandler(EventHandler):
         self._client = client
         self._pending_context: dict[str, DecisionContext] = {}
         self._synced_trades: dict[str, str] = {}
+        self._entry_times: dict[str, str] = {}
+        self._llm_costs: list[dict] = []
 
     def handle(self, event: TradingEvent) -> None:
         """Handle an event by accumulating context or syncing trades."""
@@ -84,11 +86,8 @@ class JournalSyncHandler(EventHandler):
             ctx.scanner_source = event.source
 
     def _handle_llm_call(self, event: LLMCallEvent) -> None:
-        """Handle LLMCallEvent by appending cost data to context."""
-        ctx = self._ensure_context(event.agent)
-        if ctx.llm_costs is None:
-            ctx.llm_costs = []
-        ctx.llm_costs.append(
+        """Handle LLMCallEvent by storing cost data globally, to attach at entry."""
+        self._llm_costs.append(
             {
                 "agent": event.agent,
                 "model": event.model,
@@ -102,9 +101,17 @@ class JournalSyncHandler(EventHandler):
         """Handle EntryTriggeredEvent by syncing trade record."""
         ctx = self._pending_context.get(event.ticker, DecisionContext())
 
+        if self._llm_costs:
+            ctx.llm_costs = self._llm_costs.copy()
+            self._llm_costs.clear()
+
         side_upper = event.side.upper()
         if side_upper not in ("LONG", "SHORT"):
+            logger.warning(f"Invalid side '{event.side}' for {event.ticker}, defaulting to LONG")
             side_upper = "LONG"
+
+        entry_time = event.timestamp.isoformat()
+        self._entry_times[event.ticker] = entry_time
 
         record = TradeDecisionRecord(
             ticker=event.ticker,
@@ -113,7 +120,7 @@ class JournalSyncHandler(EventHandler):
             entry_price=str(event.entry_price),
             target_price=str(event.target) if event.target else None,
             stop_price=str(event.stop_loss) if event.stop_loss else None,
-            entry_date=event.timestamp.isoformat(),
+            entry_date=entry_time,
             status="OPEN",
             decision_context=ctx,
             strategy_name=event.strategy,
@@ -131,10 +138,16 @@ class JournalSyncHandler(EventHandler):
         """Handle ExitTriggeredEvent by syncing updated trade record."""
         ctx = self._pending_context.get(event.ticker, DecisionContext())
 
+        if self._llm_costs:
+            ctx.llm_costs = self._llm_costs.copy()
+            self._llm_costs.clear()
+
+        entry_time = self._entry_times.get(event.ticker)
         status = "WIN" if event.pnl >= 0 else "LOSS"
 
         side_upper = event.side.upper()
         if side_upper not in ("LONG", "SHORT"):
+            logger.warning(f"Invalid side '{event.side}' for {event.ticker}, defaulting to LONG")
             side_upper = "LONG"
 
         record = TradeDecisionRecord(
@@ -143,7 +156,7 @@ class JournalSyncHandler(EventHandler):
             shares=event.quantity,
             entry_price=str(event.entry_price),
             exit_price=str(event.exit_price),
-            entry_date=event.timestamp.isoformat(),
+            entry_date=entry_time or event.timestamp.isoformat(),
             exit_date=event.timestamp.isoformat(),
             status=status,
             realized_pnl=event.pnl,
@@ -159,6 +172,8 @@ class JournalSyncHandler(EventHandler):
 
         if event.ticker in self._synced_trades:
             del self._synced_trades[event.ticker]
+        if event.ticker in self._entry_times:
+            del self._entry_times[event.ticker]
         if event.ticker in self._pending_context:
             del self._pending_context[event.ticker]
 
@@ -166,10 +181,16 @@ class JournalSyncHandler(EventHandler):
         """Handle PositionClosedEvent by syncing updated trade record."""
         ctx = self._pending_context.get(event.ticker, DecisionContext())
 
+        if self._llm_costs:
+            ctx.llm_costs = self._llm_costs.copy()
+            self._llm_costs.clear()
+
+        entry_time = self._entry_times.get(event.ticker)
         status = "WIN" if event.pnl >= 0 else "LOSS"
 
         side_upper = event.side.upper()
         if side_upper not in ("LONG", "SHORT"):
+            logger.warning(f"Invalid side '{event.side}' for {event.ticker}, defaulting to LONG")
             side_upper = "LONG"
 
         record = TradeDecisionRecord(
@@ -178,7 +199,7 @@ class JournalSyncHandler(EventHandler):
             shares=event.quantity,
             entry_price=str(event.entry_price),
             exit_price=str(event.exit_price),
-            entry_date=event.timestamp.isoformat(),
+            entry_date=entry_time or event.timestamp.isoformat(),
             exit_date=event.timestamp.isoformat(),
             status=status,
             realized_pnl=event.pnl,
@@ -193,5 +214,7 @@ class JournalSyncHandler(EventHandler):
 
         if event.ticker in self._synced_trades:
             del self._synced_trades[event.ticker]
+        if event.ticker in self._entry_times:
+            del self._entry_times[event.ticker]
         if event.ticker in self._pending_context:
             del self._pending_context[event.ticker]

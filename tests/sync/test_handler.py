@@ -99,7 +99,7 @@ class TestJournalSyncHandler:
         assert ctx.scanner_source == "reddit"
 
     def test_llm_call_event_accumulates(self, handler):
-        """Test that LLMCallEvent appends to llm_costs."""
+        """Test that LLMCallEvent appends to llm_costs list globally."""
         event = LLMCallEvent(
             timestamp=datetime.now(UTC),
             agent="technical_analyst",
@@ -113,10 +113,42 @@ class TestJournalSyncHandler:
         )
         handler.handle(event)
 
-        ctx = handler._pending_context["technical_analyst"]
-        assert ctx.llm_costs is not None
-        assert len(ctx.llm_costs) == 1
-        assert ctx.llm_costs[0]["agent"] == "technical_analyst"
+        assert len(handler._llm_costs) == 1
+        assert handler._llm_costs[0]["agent"] == "technical_analyst"
+        assert handler._llm_costs[0]["model"] == "claude-3.5-sonnet"
+
+    def test_llm_call_attached_at_entry(self, handler, mock_client):
+        """Test that LLM costs are attached to context at entry time."""
+        llm_event = LLMCallEvent(
+            timestamp=datetime.now(UTC),
+            agent="technical_analyst",
+            model="claude-3.5-sonnet",
+            tier="standard",
+            latency_ms=1500,
+            prompt_tokens=500,
+            completion_tokens=200,
+            total_tokens=700,
+            cost_usd=0.02,
+        )
+        handler.handle(llm_event)
+
+        entry_event = EntryTriggeredEvent(
+            timestamp=datetime.now(UTC),
+            ticker="AAPL",
+            strategy="momentum",
+            side="long",
+            quantity=100,
+            entry_price=150.0,
+            stop_loss=145.0,
+            target=160.0,
+            reason="Test",
+        )
+        handler.handle(entry_event)
+
+        call_args = mock_client.sync_trade.call_args[0][0]
+        assert call_args.decision_context.llm_costs is not None
+        assert len(call_args.decision_context.llm_costs) == 1
+        assert call_args.decision_context.llm_costs[0]["agent"] == "technical_analyst"
 
     def test_entry_triggered_event_syncs_and_clears(self, handler, mock_client):
         """Test that EntryTriggeredEvent triggers sync and clears context."""
