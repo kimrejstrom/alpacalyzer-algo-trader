@@ -109,6 +109,28 @@ See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for:
 - Completing a feature
 - Closing a pull request
 
+## ✅ Code Review Flow
+
+**When your implementation is done (tests pass, lint clean, typecheck clean) — YOU ARE NOT DONE YET.**
+
+1. **Trigger code review** on local changes using the code-reviewer subagent:
+
+   ```
+   @code-reviewer Review local changes for issue #167
+   OWNER: kimrejstrom
+   REPO: alpacalyzer-algo-trader
+   ISSUE_NUMBER: 167
+   FEATURE_DESCRIPTION: JournalSyncClient HTTP client
+   ```
+
+2. **Fix any Critical/High issues** the reviewer identifies
+
+3. **Repeat** until reviewer says "Ready to merge"
+
+4. **Only then create PR** — push branch and create PR
+
+> **Critical**: Step 1 is mandatory. Do not skip code review and do not create PR before the reviewer approves.
+
 ## Testing
 
 See [docs/dev/testing.md](docs/dev/testing.md) for:

@@ -1,3 +1,4 @@
+from alpacalyzer.sync.client import JournalSyncClient
 from alpacalyzer.sync.models import (
     AgentSignalRecord,
     DecisionContext,
@@ -7,5 +8,6 @@ from alpacalyzer.sync.models import (
 __all__ = [
     "AgentSignalRecord",
     "DecisionContext",
+    "JournalSyncClient",
     "TradeDecisionRecord",
 ]
