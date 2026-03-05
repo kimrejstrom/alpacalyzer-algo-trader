@@ -46,6 +46,7 @@ def complete_structured[T: BaseModel](
             extra_body=extra_body if extra_body else None,
         )
         content = response.choices[0].message.content
+        content = _strip_code_fences(content)
         content = _coerce_dict_lists(content, response_model)
         return response_model.model_validate_json(content), response
     except (ValidationError, json.JSONDecodeError) as e:
@@ -73,6 +74,7 @@ def _fallback_json_mode[T: BaseModel](
         response_format={"type": "json_object"},
     )
     content = response.choices[0].message.content
+    content = _strip_code_fences(content)
     content = _coerce_dict_lists(content, response_model)
     return response_model.model_validate_json(content), response
 
@@ -138,3 +140,51 @@ def _coerce_dict_lists(content: str, response_model: type | None = None) -> str:
                     changed = True
 
     return json.dumps(data) if changed else content
+
+
+def _strip_code_fences(content: str) -> str:
+    """
+    Strip markdown code fences and extract JSON from mixed text/JSON responses.
+
+    Handles three LLM output patterns:
+    1. ```json\n{...}\n``` — markdown code fences
+    2. "Some reasoning text... {json}" — prose preamble before JSON
+    3. Clean JSON — returned as-is
+    """
+    stripped = content.strip()
+
+    # Pattern 1: markdown code fences
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline == -1:
+            return stripped
+        stripped = stripped[first_newline + 1 :]
+        if stripped.rstrip().endswith("```"):
+            stripped = stripped.rstrip()[:-3].rstrip()
+        return stripped
+
+    # Pattern 2: prose preamble before JSON — find the first { or [
+    # that starts a valid JSON structure
+    if stripped and stripped[0] not in ("{", "["):
+        # Try to find JSON object
+        brace_idx = stripped.find("{")
+        bracket_idx = stripped.find("[")
+
+        # Pick the earliest valid JSON start
+        candidates = []
+        if brace_idx != -1:
+            candidates.append(brace_idx)
+        if bracket_idx != -1:
+            candidates.append(bracket_idx)
+
+        if candidates:
+            start = min(candidates)
+            candidate = stripped[start:]
+            # Verify it's actually valid JSON before returning
+            try:
+                json.loads(candidate)
+                return candidate
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    return stripped

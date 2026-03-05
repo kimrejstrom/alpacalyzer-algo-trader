@@ -5,7 +5,7 @@
 📋 **Related Documentation**:
 
 - [Code Review Subagent](.opencode/agent/code-reviewer.md) - Automated PR review agent
-- [Migration Plan](migration_roadmap.md) - Architecture refactoring roadmap
+- [Architecture Overview](docs/architecture/overview.md) - Architecture reference
 - [Superpowers Plugin Integration](SUPERPOWERS_INTEGRATION.md) - How to use superpowers skills with this project
 - [Docs Index](docs/INDEX.md) - Progressive disclosure entry point
 
@@ -23,7 +23,6 @@ cp .env.example .env
 # - ALPACA_API_KEY (Alpaca API)
 # - ALPACA_SECRET_KEY (Alpaca secret)
 # - LLM_API_KEY (OpenAI-compatible LLM provider, e.g., OpenRouter)
-# - USE_NEW_LLM=true (use new LLM abstraction layer)
 
 # 3. Start development
 uv run alpacalyzer --analyze  # Analysis mode (no real trades)
@@ -77,6 +76,14 @@ See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for detailed workflow. For code
 | Hedge Fund   | `src/alpacalyzer/hedge_fund.py`   |
 | Agents       | `src/alpacalyzer/agents/`         |
 | Scanners     | `src/alpacalyzer/scanners/`       |
+| LLM          | `src/alpacalyzer/llm/`            |
+| Trading      | `src/alpacalyzer/trading/`        |
+| Analysis     | `src/alpacalyzer/analysis/`       |
+| Data Models  | `src/alpacalyzer/data/`           |
+| Graph State  | `src/alpacalyzer/graph/`          |
+| Prompts      | `src/alpacalyzer/prompts/`        |
+| Backtesting  | `src/alpacalyzer/backtesting/`    |
+| Sync         | `src/alpacalyzer/sync/`           |
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for full architecture details.
 
@@ -100,7 +107,7 @@ git branch --show-current
 
 ## 🔄 Development Flow
 
-**Plan First**: Before writing ANY code, create `docs/plans/issue-{NUMBER}.md` using the template at `docs/templates/plan-template.md`. The PreToolUse hook enforces this — code writes are blocked until a plan exists.
+**Plan First**: Before writing ANY code, create `docs/plans/_PLAN_issue-{NUMBER}.md` using the template at `docs/templates/plan-template.md`. The PreToolUse hook enforces this — code writes are blocked until a plan exists.
 
 See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for:
 

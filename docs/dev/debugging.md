@@ -40,9 +40,9 @@ uv run pytest tests/test_failing_module.py -vv
 
 **LLM/Agent Errors:**
 
-- Check API key configuration
-- Verify `USE_NEW_LLM=true` in `.env` for new LLM abstraction
-- Review prompts in `src/alpacalyzer/gpt/`
+- Check `LLM_API_KEY` configuration in `.env`
+- Review LLM tier config in [`src/alpacalyzer/llm/config.py`](../../src/alpacalyzer/llm/config.py)
+- Review agent prompts in [`src/alpacalyzer/prompts/`](../../src/alpacalyzer/prompts/)
 
 **Strategy Errors:**
 

@@ -32,7 +32,7 @@ Parse owner and repo name.
 Use GitHub MCP tools to fetch the issue:
 
 ```
-mcp_io_github_git_issue_read(owner, repo, issue_number, method="get")
+mcp_github_issue_read(owner, repo, issue_number, method="get")
 ```
 
 ### 3. Analyze Issue
@@ -111,7 +111,7 @@ git push -u origin fix/issue-XX-description
 ```
 
 ```
-mcp_io_github_git_create_pull_request(
+mcp_github_create_pull_request(
     owner="<owner>",
     repo="<repo>",
     title="fix(scope): description for #XX",

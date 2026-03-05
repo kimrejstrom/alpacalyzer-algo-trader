@@ -31,13 +31,19 @@ Copy `src/alpacalyzer/agents/warren_buffet_agent.py` → `src/alpacalyzer/agents
 - Signal model — reuse or extend `WarrenBuffettSignal` pattern
 - Return key — `<agent>_signal`
 
-## 3. Register in hedge fund workflow
+## 3. Register in agent config and hedge fund workflow
 
-Edit `src/alpacalyzer/hedge_fund.py`:
+Edit `src/alpacalyzer/agents/agents.py` — add to `ANALYST_CONFIG`:
 
-- Import the new agent function
-- Add as a LangGraph node
-- Wire edges (typically after other agents, before risk manager)
+```python
+"<agent>": {
+    "display_name": "<Agent Display Name>",
+    "agent_func": <agent>_agent,
+    "order": <next_number>,
+},
+```
+
+Import the new agent function at the top of the file. The `ANALYST_CONFIG` dict is the single source of truth — `hedge_fund.py` reads from it automatically via `get_analyst_nodes()`.
 
 ## 4. Write tests
 
@@ -60,6 +66,7 @@ uv run pytest tests/test_hedge_fund.py -v  # integration
 | --------------- | ----------------------------------------------- |
 | Reference agent | `src/alpacalyzer/agents/warren_buffet_agent.py` |
 | Second example  | `src/alpacalyzer/agents/cathie_wood_agent.py`   |
+| Agent registry  | `src/alpacalyzer/agents/agents.py`              |
 | LLM integration | `src/alpacalyzer/llm/`                          |
 | Workflow        | `src/alpacalyzer/hedge_fund.py`                 |
 | Graph state     | `src/alpacalyzer/graph/state.py`                |

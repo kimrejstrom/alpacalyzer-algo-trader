@@ -32,7 +32,7 @@ Parse owner and repo name from the output.
 Use GitHub MCP tools to fetch the issue:
 
 ```
-mcp_io_github_git_issue_read(owner, repo, issue_number, method="get")
+mcp_github_issue_read(owner, repo, issue_number, method="get")
 ```
 
 ### 3. Verify/Create Branch
@@ -93,6 +93,10 @@ def test_placeholder():
 ```bash
 uv run pytest tests/test_issue_{issue_number}.py -v
 ```
+
+### 7. Trigger code-review
+
+Once done, call code-review sub-agent and enter in to a review - fix loop until review states PR is ready.
 
 ## Notes
 

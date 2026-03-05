@@ -319,3 +319,102 @@ class TestCoerceMissingWrapper:
         parsed = json.loads(result)
         assert isinstance(parsed["decisions"], list)
         assert parsed["decisions"][0]["ticker"] == "NVDA"
+
+
+class TestStripCodeFences:
+    def test_strips_json_code_fence(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = '```json\n{"name": "test", "value": 42}\n```'
+        assert _strip_code_fences(raw) == '{"name": "test", "value": 42}'
+
+    def test_strips_plain_code_fence(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = '```\n{"name": "test", "value": 42}\n```'
+        assert _strip_code_fences(raw) == '{"name": "test", "value": 42}'
+
+    def test_leaves_plain_json_unchanged(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = '{"name": "test", "value": 42}'
+        assert _strip_code_fences(raw) == raw
+
+    def test_handles_whitespace_around_fences(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = '  ```json\n{"name": "test", "value": 42}\n```  '
+        assert _strip_code_fences(raw) == '{"name": "test", "value": 42}'
+
+    def test_handles_multiline_json_in_fences(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = '```json\n{\n  "top_tickers": [\n    {"ticker": "AAPL", "score": 5}\n  ]\n}\n```'
+        result = _strip_code_fences(raw)
+        parsed = json.loads(result)
+        assert parsed["top_tickers"][0]["ticker"] == "AAPL"
+
+    def test_strips_prose_preamble_before_json(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = 'Looking at AAOI, I need to analyze the data carefully.\n\n{"strategies": [{"ticker": "AAOI", "quantity": 10}]}'
+        result = _strip_code_fences(raw)
+        parsed = json.loads(result)
+        assert parsed["strategies"][0]["ticker"] == "AAOI"
+
+    def test_leaves_invalid_non_json_unchanged(self):
+        from alpacalyzer.llm.structured import _strip_code_fences
+
+        raw = "This is just plain text with no JSON at all."
+        assert _strip_code_fences(raw) == raw
+
+
+class TestCompleteStructuredWithCodeFences:
+    def test_handles_fenced_json_response(self):
+        """Regression test: LLM returns JSON wrapped in markdown code fences."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '```json\n{"name": "fenced", "value": 99}\n```'
+        mock_client.chat.completions.create.return_value = mock_response
+
+        from alpacalyzer.llm.structured import complete_structured
+
+        result, response = complete_structured(
+            mock_client,
+            [{"role": "user", "content": "test"}],
+            SampleSchema,
+            "test-model",
+            use_response_healing=False,
+        )
+
+        assert result.name == "fenced"
+        assert result.value == 99
+
+
+class TestEntryCriteriaNormalization:
+    """Regression tests: LLM generates near-miss EntryType enum values."""
+
+    def test_exact_value_passes(self):
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="above_ma50", value=100.0)
+        assert ec.entry_type == "above_ma50"
+
+    def test_price_prefix_stripped(self):
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="price_above_ma50", value=100.0)
+        assert ec.entry_type == "above_ma50"
+
+    def test_price_near_support_exact(self):
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="price_near_support", value=370.0)
+        assert ec.entry_type == "price_near_support"
+
+    def test_price_below_ma20_normalized(self):
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="price_below_ma20", value=50.0)
+        assert ec.entry_type == "below_ma20"

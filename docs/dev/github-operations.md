@@ -18,7 +18,7 @@ git remote get-url origin
 ### Read Issue
 
 ```
-mcp_io_github_git_issue_read(owner, repo, issue_number, method="get")
+mcp_github_issue_read(owner, repo, issue_number, method="get")
 ```
 
 Parameters:
@@ -31,13 +31,13 @@ Parameters:
 ### Create Issue
 
 ```
-mcp_io_github_git_issue_write(method="create", owner, repo, title, body)
+mcp_github_issue_write(method="create", owner, repo, title, body)
 ```
 
 ### Update Issue
 
 ```
-mcp_io_github_git_issue_write(method="update", owner, repo, issue_number, state="closed")
+mcp_github_issue_write(method="update", owner, repo, issue_number, state="closed")
 ```
 
 ## Pull Requests
@@ -45,19 +45,19 @@ mcp_io_github_git_issue_write(method="update", owner, repo, issue_number, state=
 ### Create PR
 
 ```
-mcp_io_github_git_create_pull_request(owner, repo, title, body, head, base)
+mcp_github_create_pull_request(owner, repo, title, body, head, base)
 ```
 
 ### Update PR
 
 ```
-mcp_io_github_git_update_pull_request(owner, repo, pullNumber, ...)
+mcp_github_update_pull_request(owner, repo, pullNumber, ...)
 ```
 
 ### Merge PR
 
 ```
-mcp_io_github_git_merge_pull_request(owner, repo, pullNumber, merge_method="squash")
+mcp_github_merge_pull_request(owner, repo, pullNumber, merge_method="squash")
 ```
 
 ## Branch Management
@@ -65,7 +65,7 @@ mcp_io_github_git_merge_pull_request(owner, repo, pullNumber, merge_method="squa
 ### Create Branch
 
 ```
-mcp_io_github_git_create_branch(branch, owner, repo, from_branch)
+mcp_github_create_branch(branch, owner, repo, from_branch)
 ```
 
 ## Repository Operations
@@ -73,13 +73,13 @@ mcp_io_github_git_create_branch(branch, owner, repo, from_branch)
 ### Fork Repository
 
 ```
-mcp_io_github_git_fork_repository(owner, repo)
+mcp_github_fork_repository(owner, repo)
 ```
 
 ### Get Latest Release
 
 ```
-mcp_io_github_git_get_latest_release(owner, repo)
+mcp_github_get_latest_release(owner, repo)
 ```
 
 ## Search
@@ -87,17 +87,17 @@ mcp_io_github_git_get_latest_release(owner, repo)
 ### Search Issues
 
 ```
-mcp_io_github_git_search_issues(query, owner, repo)
+mcp_github_search_issues(query, owner, repo)
 ```
 
 ### Search PRs
 
 ```
-mcp_io_github_git_search_pull_requests(query, owner, repo)
+mcp_github_search_pull_requests(query, owner, repo)
 ```
 
 ### Search Code
 
 ```
-mcp_io_github_git_search_code(query)
+mcp_github_search_code(query)
 ```

@@ -27,17 +27,24 @@ This outputs structured JSON with:
 
 ## Event Types
 
-| Event             | Source                            | Key Fields                                   |
-| ----------------- | --------------------------------- | -------------------------------------------- |
-| `AGENT_REASONING` | `show_agent_reasoning()`          | agent, tickers, reasoning                    |
-| `LLM_CALL`        | `LLMClient.complete_structured()` | agent, model, tier, latency_ms, tokens, cost |
-| `ORDER_FILLED`    | Trade update handler              | ticker, side, filled_qty, avg_price          |
-| `ORDER_REJECTED`  | Trade update handler              | ticker, reason                               |
-| `POSITION_OPENED` | Execution engine                  | ticker, side, entry_price, strategy          |
-| `POSITION_CLOSED` | Execution engine                  | ticker, pnl, pnl_pct, exit_reason            |
-| `ERROR`           | Any component                     | error_type, component, message               |
-| `SCAN_COMPLETE`   | Scanners                          | source, tickers_found, duration              |
-| `CYCLE_COMPLETE`  | Execution engine                  | entries/exits triggered, duration            |
+| Event              | Source                            | Key Fields                                     |
+| ------------------ | --------------------------------- | ---------------------------------------------- |
+| `SCAN_COMPLETE`    | Scanners                          | source, tickers_found, duration                |
+| `SIGNAL_GENERATED` | Execution engine                  | ticker, action, confidence, strategy           |
+| `SIGNAL_EXPIRED`   | Signal queue                      | ticker, created_at, reason                     |
+| `ENTRY_TRIGGERED`  | Execution engine                  | ticker, side, quantity, entry_price, stop_loss |
+| `EXIT_TRIGGERED`   | Execution engine                  | ticker, pnl, pnl_pct, reason                   |
+| `ORDER_SUBMITTED`  | Order manager                     | ticker, order_type, quantity                   |
+| `ORDER_FILLED`     | Trade update handler              | ticker, side, filled_qty, avg_price            |
+| `ORDER_REJECTED`   | Trade update handler              | ticker, reason                                 |
+| `POSITION_OPENED`  | Execution engine                  | ticker, side, entry_price, strategy            |
+| `POSITION_CLOSED`  | Execution engine                  | ticker, pnl, pnl_pct, exit_reason              |
+| `COOLDOWN_STARTED` | Cooldown manager                  | ticker, duration                               |
+| `COOLDOWN_ENDED`   | Cooldown manager                  | ticker                                         |
+| `CYCLE_COMPLETE`   | Execution engine                  | entries/exits triggered, duration              |
+| `LLM_CALL`         | `LLMClient.complete_structured()` | agent, model, tier, latency_ms, tokens, cost   |
+| `AGENT_REASONING`  | `show_agent_reasoning()`          | agent, tickers, reasoning                      |
+| `ERROR`            | Any component                     | error_type, component, message                 |
 
 ## Interpreting Output
 

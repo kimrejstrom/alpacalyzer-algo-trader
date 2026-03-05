@@ -69,7 +69,7 @@ git push -u origin feature/issue-XX-description
 Use GitHub MCP tools:
 
 ```
-mcp_io_github_git_create_pull_request(
+mcp_github_create_pull_request(
     owner="<owner>",
     repo="<repo>",
     title="feat(scope): description for #XX",

@@ -41,7 +41,7 @@ Edit `src/alpacalyzer/strategies/registry.py` — add to `_register_builtins()`.
 
 ## 4. Write tests
 
-Follow the pattern in `tests/strategies/test_momentum.py`:
+Create `tests/strategies/test_<strategy>.py` following the pattern in `tests/strategies/test_momentum.py`:
 
 - Test entry with bullish/bearish signals
 - Test market closed, existing position, cooldown rejection
@@ -53,8 +53,8 @@ Follow the pattern in `tests/strategies/test_momentum.py`:
 ## 5. Run and verify
 
 ```bash
-uv run pytest tests/test_<strategy>_strategy.py -vv
-uv run pytest tests/test_*_strategy.py  # regression
+uv run pytest tests/strategies/test_<strategy>.py -vv
+uv run pytest tests/strategies/  # regression
 ```
 
 # Safety invariants

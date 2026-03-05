@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Price(BaseModel):
@@ -200,6 +200,41 @@ class EntryCriteria(BaseModel):
     value: float
 
     model_config = ConfigDict(use_enum_values=True)
+
+    @field_validator("entry_type", mode="before")
+    @classmethod
+    def normalize_entry_type(cls, v: Any) -> Any:
+        """
+        Normalize LLM-generated entry type values to valid enum members.
+
+        LLMs frequently invent plausible-but-wrong enum values like
+        'price_above_ma50' instead of 'above_ma50'. This validator maps
+        common mistakes to valid values before Pydantic rejects them.
+        """
+        if isinstance(v, EntryType):
+            return v
+        if not isinstance(v, str):
+            return v
+
+        # Try exact match first
+        valid_values = {e.value for e in EntryType}
+        if v in valid_values:
+            return v
+
+        # Common LLM prefix mistakes: "price_above_ma50" → "above_ma50"
+        normalized = v.lower().strip()
+        if normalized.startswith("price_"):
+            stripped = normalized[len("price_") :]
+            if stripped in valid_values:
+                return stripped
+
+        # Substring match: find the valid value that's contained in the input
+        for valid in valid_values:
+            if valid in normalized or normalized in valid:
+                return valid
+
+        # Give up — let Pydantic raise the validation error
+        return v
 
 
 # Pydantic model for trading strategy

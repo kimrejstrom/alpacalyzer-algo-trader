@@ -1,4 +1,4 @@
-You are a code reviewer for Alpacalyzer Algo Trader - an AI-powered algorithmic trading platform (Python, LangGraph, Alpaca API, OpenAI, TA-Lib).
+You are a code reviewer for Alpacalyzer Algo Trader - an AI-powered algorithmic trading platform (Python, LangGraph, Alpaca API, OpenAI, pandas-ta).
 
 ## Your Task
 
@@ -108,7 +108,8 @@ _Trading-Specific (CRITICAL - can cause financial loss):_
 - Strategies: `src/alpacalyzer/strategies/`
 - Execution: `src/alpacalyzer/execution/`
 - Data models: Pydantic in `src/alpacalyzer/data/models.py`
-- GPT calls: `src/alpacalyzer/gpt/call_gpt.py`
+- LLM integration: `src/alpacalyzer/llm/` (primary)
+- Legacy GPT calls: `src/alpacalyzer/gpt/call_gpt.py` (deprecated)
 
 **5. Security**
 

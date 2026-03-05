@@ -422,6 +422,68 @@ class TestTradingOrchestratorRunCycle:
 
             mock_execute.assert_called_once_with([strategy])
 
+    def test_run_cycle_strategies_reach_signal_queue(self, mock_aggregator, mock_strategy):
+        """
+        Integration test: run_cycle() wires strategies all the way into the signal queue.
+
+        Unlike other run_cycle tests that mock execute(), this test uses a real
+        SignalQueue to verify the full scan → analyze → execute → signal_queue path.
+        This was the bug fixed in the CLI: strategies were generated but never
+        passed to execute(), so the signal queue stayed empty.
+        """
+        from alpacalyzer.execution.signal_queue import SignalQueue
+
+        strategy_result = TradingStrategy(
+            ticker="AAPL",
+            trade_type="long",
+            entry_point=150.0,
+            target_price=165.0,
+            stop_loss=145.0,
+            quantity=100,
+            risk_reward_ratio=3.0,
+            strategy_notes="Test integration",
+            entry_criteria=[],
+        )
+
+        hedge_fund_response = {
+            "decisions": {
+                "AAPL": {
+                    "strategies": [strategy_result.model_dump()],
+                }
+            },
+            "analyst_signals": {},
+        }
+
+        with (
+            patch("alpacalyzer.orchestrator.OpportunityAggregator", return_value=mock_aggregator),
+            patch("alpacalyzer.orchestrator.get_market_status", return_value="open"),
+            patch("alpacalyzer.orchestrator.ExecutionEngine") as MockEngine,
+            patch("alpacalyzer.orchestrator.call_hedge_fund_agents", return_value=hedge_fund_response),
+            patch("alpacalyzer.orchestrator.get_positions", return_value=[]),
+        ):
+            # Use a real SignalQueue but mock run_cycle to prevent trade execution
+            real_queue = SignalQueue()
+            engine_instance = MockEngine.return_value
+            engine_instance.signal_queue = real_queue
+            engine_instance.add_signal = real_queue.add
+            engine_instance.run_cycle = MagicMock()  # prevent actual execution
+
+            orch = TradingOrchestrator(
+                strategy=mock_strategy,
+                direct_tickers=["AAPL"],
+                agents="TRADE",
+            )
+
+            orch.run_cycle()
+
+            assert real_queue.size() == 1
+            signal = real_queue.pop()
+            assert signal.ticker == "AAPL"
+            assert signal.action == "buy"
+            assert signal.agent_recommendation is not None
+            assert signal.agent_recommendation.target_price == 165.0
+            engine_instance.run_cycle.assert_called_once()
+
 
 class TestTradingOrchestratorCooldowns:
     """Tests for TradingOrchestrator cooldown management."""

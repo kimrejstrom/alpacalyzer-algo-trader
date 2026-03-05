@@ -24,21 +24,35 @@ Read these files:
 2. `src/alpacalyzer/scanners/finviz_scanner.py` — web scraping + fundamental filters
 3. `src/alpacalyzer/scanners/adapters.py` — scanner adapter pattern for pipeline integration
 
-Key patterns: scanners return lists of ticker symbols, handle API failures gracefully (return `[]`), deduplicate results, and filter invalid symbols.
+Key patterns: scanners implement the `Scanner` protocol (or extend `BaseScanner` ABC) from `src/alpacalyzer/pipeline/scanner_protocol.py`. They return `ScanResult` objects containing lists of `TopTicker`, handle API failures gracefully (return empty results), deduplicate results, and filter invalid symbols.
 
 ## 2. Create scanner file
 
-Copy `src/alpacalyzer/scanners/reddit_scanner.py` → `src/alpacalyzer/scanners/<scanner>_scanner.py` and modify:
+Create `src/alpacalyzer/scanners/<scanner>_scanner.py`. Extend `BaseScanner` from `src/alpacalyzer/pipeline/scanner_protocol.py`:
+
+```python
+from alpacalyzer.pipeline.scanner_protocol import BaseScanner
+from alpacalyzer.data.models import TopTicker
+
+class <Scanner>Scanner(BaseScanner):
+    def __init__(self):
+        super().__init__(name="<scanner>", enabled=True, cache_ttl_seconds=300)
+
+    def _execute_scan(self) -> list[TopTicker]:
+        # Fetch data, extract tickers, deduplicate, filter
+        # Return [] on failure, never crash
+        ...
+```
 
 - API client initialization (use env vars for keys, never hardcode)
-- `scan()` method — fetch data, extract tickers, deduplicate, filter
-- Error handling — always return `[]` on failure, never crash
+- `_execute_scan()` method — fetch data, extract tickers, deduplicate, filter
+- Error handling — `BaseScanner.scan()` wraps `_execute_scan()` with timing and error handling automatically
 
-## 3. Register scanner
+## 3. Register scanner in pipeline
 
-Edit `src/alpacalyzer/scanners/__init__.py` to export the new scanner class.
+Create an adapter in `src/alpacalyzer/pipeline/scanner_adapters.py` following the existing `RedditScannerAdapter` or `SocialScannerAdapter` pattern.
 
-For pipeline integration, create an adapter in `src/alpacalyzer/scanners/adapters.py` following the existing `RedditScannerAdapter` pattern.
+Then register the adapter in `src/alpacalyzer/pipeline/registry.py` via `ScannerRegistry`. The CLI registers scanners at startup in `src/alpacalyzer/cli.py`.
 
 ## 4. Add env vars
 
@@ -62,9 +76,12 @@ uv run pytest tests/test_<scanner>_scanner.py -v
 
 # Reference files
 
-| Purpose              | File                                         |
-| -------------------- | -------------------------------------------- |
-| Reference scanner    | `src/alpacalyzer/scanners/reddit_scanner.py` |
-| Web scraping example | `src/alpacalyzer/scanners/finviz_scanner.py` |
-| Adapters             | `src/alpacalyzer/scanners/adapters.py`       |
-| Pipeline integration | `src/alpacalyzer/pipeline/`                  |
+| Purpose              | File                                           |
+| -------------------- | ---------------------------------------------- |
+| Scanner protocol     | `src/alpacalyzer/pipeline/scanner_protocol.py` |
+| Reference scanner    | `src/alpacalyzer/scanners/reddit_scanner.py`   |
+| Web scraping example | `src/alpacalyzer/scanners/finviz_scanner.py`   |
+| Pipeline adapters    | `src/alpacalyzer/pipeline/scanner_adapters.py` |
+| Scanner adapters     | `src/alpacalyzer/scanners/adapters.py`         |
+| Scanner registry     | `src/alpacalyzer/pipeline/registry.py`         |
+| CLI registration     | `src/alpacalyzer/cli.py`                       |

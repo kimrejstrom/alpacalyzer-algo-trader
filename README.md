@@ -21,9 +21,9 @@ An AI-powered algorithmic trading platform that combines technical analysis, soc
 
 Alpacalyzer is an algorithmic, AI-powered hedge fund suite with analytic and trading capabilities. It combines multiple data sources to identify trading opportunities:
 
-- **Technical Analysis**: Evaluates price patterns, momentum indicators (RSI, MACD), and chart formations via TA-Lib
+- **Technical Analysis**: Evaluates price patterns, momentum indicators (RSI, MACD), and chart formations via pandas-ta
 - **Social Media Insights**: Analyzes Reddit (r/wallstreetbets, r/stocks), Stocktwits, and Finviz for trending stocks
-- **AI Decision Engine**: Uses a LangGraph-based "Hedge Fund Agent" framework with GPT-4 for final trading decisions
+- **AI Decision Engine**: Uses a LangGraph-based "Hedge Fund Agent" framework with tiered LLM models (Llama, Claude) via OpenRouter for final trading decisions
 
 The system executes trades automatically with predefined risk management parameters through bracket orders.
 
@@ -34,7 +34,7 @@ The system executes trades automatically with predefined risk management paramet
 - **Multi-source Market Scanning**: Combines technical, social media, and fundamental analysis
 - **Hedge Fund Agent Framework**: LangGraph workflow with specialized AI agents (value investors, quants, sentiment analysts)
 - **Automated Trading**: Executes trades with configurable strategies via Alpaca API
-- **Technical Analysis**: TA-Lib powered indicators (RSI, MACD, Bollinger Bands, moving averages)
+- **Technical Analysis**: pandas-ta powered indicators (RSI, MACD, Bollinger Bands, moving averages)
 - **Position Management**: Monitors open positions with stop loss/take profit rules
 - **Bracket Orders**: Uses Alpaca's bracket orders for trade management with predefined exits
 
@@ -86,8 +86,9 @@ flowchart TB
   value --> rm
 
   rm --> pm
-  pm --> engine
+  pm --> ts[Trading Strategist]
 
+  ts --> engine
   strategy --> engine
   engine --> orders
   orders -->|Bracket Orders| alpaca[Alpaca API]
@@ -95,21 +96,23 @@ flowchart TB
 
 ### Key Components
 
-| Component     | Tech      | Location                                   | Description                  |
-| ------------- | --------- | ------------------------------------------ | ---------------------------- |
-| CLI Entry     | argparse  | `src/alpacalyzer/cli.py`                   | Command-line interface       |
-| Orchestrator  | Python    | `src/alpacalyzer/orchestrator.py`          | Pipeline coordination        |
-| Hedge Fund    | LangGraph | `src/alpacalyzer/hedge_fund.py`            | Agent workflow DAG           |
-| Agents        | LangGraph | `src/alpacalyzer/agents/`                  | AI decision agents           |
-| Strategies    | Protocol  | `src/alpacalyzer/strategies/`              | Pluggable trading strategies |
-| Execution     | Python    | `src/alpacalyzer/execution/`               | Trade execution engine       |
-| Pipeline      | Python    | `src/alpacalyzer/pipeline/`                | Scanner aggregation          |
-| Events        | Pydantic  | `src/alpacalyzer/events/`                  | Structured event logging     |
-| Scanners      | Python    | `src/alpacalyzer/scanners/`                | Multi-source scanning        |
-| Tech Analysis | TA-Lib    | `src/alpacalyzer/analysis/`                | Technical indicators         |
-| Alpaca Client | alpaca-py | `src/alpacalyzer/trading/alpaca_client.py` | Broker API                   |
-| Data Models   | Pydantic  | `src/alpacalyzer/data/models.py`           | Type-safe models             |
-| GPT           | OpenAI    | `src/alpacalyzer/gpt/call_gpt.py`          | LLM integration              |
+| Component     | Tech      | Location                          | Description                  |
+| ------------- | --------- | --------------------------------- | ---------------------------- |
+| CLI Entry     | argparse  | `src/alpacalyzer/cli.py`          | Command-line interface       |
+| Orchestrator  | Python    | `src/alpacalyzer/orchestrator.py` | Pipeline coordination        |
+| Hedge Fund    | LangGraph | `src/alpacalyzer/hedge_fund.py`   | Agent workflow DAG           |
+| Agents        | LangGraph | `src/alpacalyzer/agents/`         | AI decision agents           |
+| Strategies    | Protocol  | `src/alpacalyzer/strategies/`     | Pluggable trading strategies |
+| Execution     | Python    | `src/alpacalyzer/execution/`      | Trade execution engine       |
+| Pipeline      | Python    | `src/alpacalyzer/pipeline/`       | Scanner aggregation          |
+| Events        | Pydantic  | `src/alpacalyzer/events/`         | Structured event logging     |
+| Scanners      | Python    | `src/alpacalyzer/scanners/`       | Multi-source scanning        |
+| Tech Analysis | pandas-ta | `src/alpacalyzer/analysis/`       | Technical indicators         |
+| LLM           | OpenAI    | `src/alpacalyzer/llm/`            | LLM abstraction layer        |
+| Trading       | alpaca-py | `src/alpacalyzer/trading/`        | Broker API & decision agents |
+| Data Models   | Pydantic  | `src/alpacalyzer/data/models.py`  | Type-safe models             |
+| Backtesting   | Python    | `src/alpacalyzer/backtesting/`    | Strategy backtester          |
+| Sync          | Python    | `src/alpacalyzer/sync/`           | Journal sync client          |
 
 ### Available Strategies
 
@@ -127,7 +130,6 @@ flowchart TB
 
 - **Python** >=3.13.0 <3.14.0
 - **uv** >=0.5.7 ([installation](https://docs.astral.sh/uv/getting-started/installation/))
-- **TA-Lib** system library (see below)
 
 ### Installation
 
@@ -136,24 +138,14 @@ flowchart TB
 git clone https://github.com/kimrejstrom/alpacalyzer-algo-trader.git
 cd alpacalyzer-algo-trader
 
-# 2. Install TA-Lib system library
-# macOS
-brew install ta-lib
-
-# Linux (Ubuntu/Debian)
-wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz
-tar -xzf ta-lib-0.6.4-src.tar.gz
-cd ta-lib-0.6.4 && ./configure && make && sudo make install
-cd ..
-
-# 3. Install Python dependencies
+# 2. Install Python dependencies
 uv sync
 
-# 4. Setup environment
+# 3. Setup environment
 cp .env.example .env
 # Edit .env with your API keys (see below)
 
-# 5. Enable pre-commit hooks
+# 4. Enable pre-commit hooks
 pre-commit install
 ```
 
@@ -166,8 +158,14 @@ Create a `.env` file (see `.env.example`):
 ALPACA_API_KEY=your_key_here
 ALPACA_SECRET_KEY=your_secret_here
 
-# OpenAI API (for GPT-4 agents)
-OPENAI_API_KEY=your_key_here
+# LLM API (OpenRouter recommended, any OpenAI-compatible provider works)
+LLM_API_KEY=your_key_here
+
+# Optional: Override LLM base URL (defaults to OpenRouter)
+# LLM_BASE_URL=https://openrouter.ai/api/v1
+
+# Optional: Legacy OpenAI fallback
+# OPENAI_API_KEY=your_key_here
 
 # Optional
 LOG_LEVEL=INFO
@@ -203,15 +201,6 @@ Override defaults via environment variables:
 LLM_MODEL_FAST=meta-llama/llama-3.2-3b-instruct
 LLM_MODEL_STANDARD=anthropic/claude-3.5-sonnet
 LLM_MODEL_DEEP=anthropic/claude-3.5-sonnet
-```
-
-### Rollback to OpenAI
-
-To use the legacy OpenAI implementation:
-
-```
-USE_NEW_LLM=false
-OPENAI_API_KEY=your_openai_key
 ```
 
 ---
@@ -360,7 +349,7 @@ uv run pytest tests/test_technical_analysis.py -v
 ## Documentation
 
 - [AGENTS.md](AGENTS.md) - AI agent development guidelines
-- [migration_roadmap.md](migration_roadmap.md) - Architecture refactoring roadmap (Phase 6 in progress)
+- [docs/architecture/overview.md](docs/architecture/overview.md) - Architecture reference
 - [docs/](docs/index.md) - In-depth technical documentation
 
 ### Migration Status
@@ -372,7 +361,7 @@ The codebase has completed a strategic migration from a monolithic `Trader` clas
 | Phase 1-5 | ✅ Complete | Strategy abstraction, execution engine, events, pipeline, backtesting |
 | Phase 6   | ✅ Complete | Clean break - removed `trader.py`, full `ExecutionEngine` integration |
 
-See [migration_roadmap.md](migration_roadmap.md) for details and completed [issues #60-#66](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues).
+See [migration_roadmap.md](migration_roadmap.md) for historical details and completed [issues #60-#66](https://github.com/kimrejstrom/alpacalyzer-algo-trader/issues).
 
 ---
 

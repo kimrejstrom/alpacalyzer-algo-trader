@@ -143,10 +143,11 @@ def main():  # pragma: no cover
         if direct_tickers:
             opportunities = orchestrator.scan()
             if opportunities:
-                orchestrator.analyze(opportunities)
+                strategies = orchestrator.analyze(opportunities)
+                orchestrator.execute(strategies)
         else:
-            safe_execute(lambda: orchestrator.analyze(orchestrator.scan()))
-            schedule.every(15).minutes.do(lambda: safe_execute(lambda: orchestrator.analyze(orchestrator.scan())))
+            safe_execute(orchestrator.run_cycle)
+            schedule.every(15).minutes.do(lambda: safe_execute(orchestrator.run_cycle))
 
         if not args.analyze:
             safe_execute(orchestrator.execute_cycles)

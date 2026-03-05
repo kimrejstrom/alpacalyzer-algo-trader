@@ -7,7 +7,7 @@ description: "Use this skill ONLY when adding a new technical indicator (e.g., B
 
 - Indicators go in `src/alpacalyzer/analysis/technical_analysis.py` (methods on `TechnicalAnalyzer`)
 - Tests go in `tests/test_technical_analysis.py`
-- Uses TA-Lib where available, pandas/numpy for custom calculations
+- Uses pandas-ta library for indicators, pandas/numpy for custom calculations
 
 # Steps
 
@@ -17,14 +17,15 @@ Read `src/alpacalyzer/analysis/technical_analysis.py` — all indicators are met
 
 Also read `tests/test_technical_analysis.py` for the test pattern.
 
-## 2. Check TA-Lib availability
+## 2. Check pandas-ta availability
 
 ```python
-import talib
-print(dir(talib))  # See available functions
+import pandas_ta as ta
+print(ta.version)
+# See available indicators: https://github.com/twopirllc/pandas-ta#indicators
 ```
 
-Use TA-Lib if the indicator exists there. Otherwise implement with pandas/numpy.
+Use pandas-ta if the indicator exists there. Otherwise implement with pandas/numpy.
 
 ## 3. Add indicator method
 
