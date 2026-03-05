@@ -1,0 +1,28 @@
+# Shared agent harness configuration
+# Read by: check-completion.sh, grind-loop.ts, opencode-grind-loop.sh
+#
+# Keep this flat and simple — shell scripts parse it with grep/awk.
+
+grind_loop:
+  max_iterations: 5
+  # Stall timeout: agent alive but no progress (e.g., stuck LLM call)
+  stall_timeout_seconds: 300
+  # Idle timeout: agent stopped working but didn't finish
+  idle_timeout_seconds: 120
+  # Session log for post-hoc observability
+  session_log: .agents/session-log.jsonl
+  # Max session log lines before truncation
+  session_log_max_lines: 200
+
+scratchpad:
+  path: .agents/scratchpad.md
+
+orchestrator:
+  max_parallel: 3
+  poll_interval_seconds: 60
+  stall_detection_multiplier: 2
+  log: .agents/orchestrator-log.jsonl
+  auto_merge_method: squash
+  default_agent_tool: opencode
+  default_label: orchestrator-ready
+  kill_grace_seconds: 5

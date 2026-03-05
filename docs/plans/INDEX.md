@@ -5,6 +5,8 @@
 | Plan                                                                              | Issues                   | Status                                |
 | --------------------------------------------------------------------------------- | ------------------------ | ------------------------------------- |
 | [LLM Migration & Trading Improvements](llm-migration-and-trading-improvements.md) | #106–#136 (4 iterations) | Iter 1–2 Complete, Iter 3 In Progress |
+| [Grind Loop Hardening](plan-grind-loop-hardening.md)                              | TBD                      | Complete                              |
+| [Parallel Issue Orchestrator](plan-parallel-orchestrator.md)                      | TBD                      | Complete                              |
 
 ## Completed
 

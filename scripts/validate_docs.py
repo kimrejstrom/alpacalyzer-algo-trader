@@ -43,7 +43,10 @@ PATH_PATTERNS = [
 # Paths to ignore (known external or generated)
 IGNORE_PATTERNS = {
     "migration_roadmap.md",  # May not exist yet
+    "../../migration_roadmap.md",  # May not exist yet (relative from docs/architecture/)
     "SUPERPOWERS_INTEGRATION.md",  # May not exist yet
+    ".agents/session-log.jsonl",  # Runtime-created by check-completion.sh (gitignored)
+    ".agents/orchestrator-log.jsonl",  # Runtime-created by orchestrate.sh (gitignored)
 }
 
 

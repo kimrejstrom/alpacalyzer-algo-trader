@@ -48,3 +48,7 @@ wtr 66  # removes the worktree for issue 66
 - Don't let one agent see the other's work — that defeats the purpose
 - For truly hard problems, try 3 worktrees: Claude Code, OpenCode, and a manual approach
 - Document which approach won and why in the issue comments — this builds institutional knowledge
+
+## Automated Batch Execution
+
+For running multiple _different_ issues in parallel (not the same issue), see the [Parallel Issue Orchestrator](tdd-flow.md#parallel-issue-orchestrator) in the TDD workflow docs. The orchestrator handles dependency ordering, worktree lifecycle, and auto-merge for batch issue execution.

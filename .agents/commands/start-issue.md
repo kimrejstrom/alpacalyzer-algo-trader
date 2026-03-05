@@ -19,6 +19,17 @@ Start work on a GitHub issue.
 
 ## Steps
 
+### 0. Preflight Check
+
+Run issue-preflight.sh to validate the issue is ready:
+
+```bash
+bash scripts/issue-preflight.sh <issue_number>
+```
+
+If it exits non-zero, report the block reason from the JSON output and stop.
+Do NOT proceed with any further steps if preflight fails.
+
 ### 1. Get Repo Info
 
 ```bash

@@ -21,6 +21,16 @@
 - [Common Mistakes](dev/common-mistakes.md) - Recurring agent errors and fixes
 - [Parallel Exploration](dev/parallel-exploration.md) - Running multiple agents on the same problem
 
+## Orchestrator
+
+- [Parallel Issue Orchestrator](dev/tdd-flow.md#parallel-issue-orchestrator) - Batch issue execution with dependency resolution
+- `scripts/orchestrate.sh` - Main orchestrator script (discovery → waves → dispatch → monitor → merge)
+- `scripts/issue-preflight.sh` - Single-issue validation and Agent Metadata parsing
+- `scripts/wti.sh` - Portable worktree issue start (extracted from zshrc)
+- `scripts/wtr.sh` - Portable worktree issue remove (extracted from zshrc)
+- `.github/ISSUE_TEMPLATE/feature-task.md` - Issue template with Agent Metadata table
+- `.agents/orchestrator-log.jsonl` - Orchestrator event log (gitignored)
+
 ## Plans
 
 - [Plans Index](plans/INDEX.md) - Active, completed, and backlog plans
@@ -32,10 +42,14 @@
 - `scripts/lint_architecture.py` - Architecture boundary linter (import rules, stop_loss enforcement)
 - `scripts/validate_docs.py` - Doc cross-reference validation
 - `scripts/audit_principles.py` - Golden principles audit (raw HTTP, typed events, boundary validation)
-- `.agents/hooks/check-completion.sh` - Grind loop completion checker (shared by Claude + OpenCode)
+- `.agents/config.yaml` - Shared grind loop config (max iterations, stall/idle timeouts)
+- `.agents/hooks/check-completion.sh` - Grind loop completion checker with structured JSON output, idle/stuck detection, session logging
 - `.agents/hooks/check-plan-exists.sh` - Plan-first workflow enforcement (Claude PreToolUse hook)
-- `.opencode/plugins/grind-loop.ts` - OpenCode grind loop plugin (session.idle → re-prompt)
+- `.agents/hooks/opencode-grind-loop.sh` - Bash grind loop wrapper with stall timeout (headless/CI)
+- `.opencode/plugins/grind-loop.ts` - OpenCode grind loop plugin (session.idle → re-prompt, stall timer)
 - `.opencode/plugins/plan-first.ts` - OpenCode plan-first plugin (tool.execute.before → block writes)
+- `.agents/scratchpad.md` - Structured agent state tracking (STATUS, CURRENT_FOCUS, COMPLETED items)
+- `.agents/session-log.jsonl` - Per-iteration session log for post-hoc observability (gitignored)
 
 ## Skills
 

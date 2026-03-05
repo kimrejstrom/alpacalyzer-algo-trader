@@ -133,7 +133,7 @@ def test_grind_loop_plugin_calls_check_completion():
 def test_grind_loop_plugin_has_iteration_cap():
     """Test that the plugin caps iterations to prevent infinite loops."""
     content = GRIND_LOOP_PLUGIN_PATH.read_text()
-    assert "MAX_ITERATIONS" in content
+    assert "maxIterations" in content
 
 
 def test_grind_loop_plugin_re_prompts():

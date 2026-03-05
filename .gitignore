@@ -289,6 +289,9 @@ pyrightconfig.json
 *_PLAN*.md
 CODE_REVIEW_*.md
 test-output.txt
+.agents/session-log.jsonl
+.agents/orchestrator-log.jsonl
+.agents/orchestrator.lock
 
 # But track steering documents
 !AGENTS.md
