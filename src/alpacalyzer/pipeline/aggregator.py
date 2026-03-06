@@ -94,6 +94,10 @@ class OpportunityAggregator:
             if not result.success:
                 continue
 
+            if result.cached:
+                logger.debug(f"skipping cached scan result | source={result.source} tickers={result.symbols()}")
+                continue
+
             for ticker in result.tickers:
                 self._update_opportunity(ticker, result.source)
 

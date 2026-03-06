@@ -446,3 +446,54 @@ class TestOpportunityAggregator:
 
         assert aggregator._last_aggregation is not None
         assert isinstance(aggregator._last_aggregation, datetime)
+
+    def test_aggregate_skips_cached_results(self, aggregator):
+        """Test that cached scan results are not re-processed into opportunities."""
+        fresh_result = ScanResult(
+            source="social",
+            tickers=[
+                TopTicker(ticker="MSFT", signal="bullish", confidence=0.9, reasoning="Fresh data"),
+            ],
+            duration_seconds=0.5,
+            cached=False,
+        )
+        cached_result = ScanResult(
+            source="reddit",
+            tickers=[
+                TopTicker(ticker="AAPL", signal="bullish", confidence=0.8, reasoning="Stale data"),
+            ],
+            duration_seconds=0.0,
+            cached=True,
+        )
+
+        aggregator.aggregate([fresh_result, cached_result])
+
+        assert "MSFT" in aggregator._opportunities
+        assert "AAPL" not in aggregator._opportunities
+
+    def test_aggregate_processes_fresh_results_only(self, aggregator):
+        """Test that only non-cached results contribute to opportunity scoring."""
+        # First aggregation: fresh reddit result
+        fresh = ScanResult(
+            source="reddit",
+            tickers=[
+                TopTicker(ticker="AAPL", signal="bullish", confidence=0.8, reasoning="Fresh"),
+            ],
+            duration_seconds=1.0,
+            cached=False,
+        )
+        aggregator.aggregate([fresh])
+        assert "AAPL" in aggregator._opportunities
+        original_mentions = aggregator._opportunities["AAPL"].mentions
+
+        # Second aggregation: same data but cached — should not double-count
+        cached = ScanResult(
+            source="reddit",
+            tickers=[
+                TopTicker(ticker="AAPL", signal="bullish", confidence=0.8, reasoning="Fresh", mentions=5),
+            ],
+            duration_seconds=0.0,
+            cached=True,
+        )
+        aggregator.aggregate([cached])
+        assert aggregator._opportunities["AAPL"].mentions == original_mentions

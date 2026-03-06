@@ -44,6 +44,14 @@ class TestScanResult:
         result = ScanResult(source="test", tickers=[])
         assert result.duration_seconds == 0.0
 
+    def test_cached_default_false(self):
+        result = ScanResult(source="test", tickers=[])
+        assert result.cached is False
+
+    def test_cached_can_be_set(self):
+        result = ScanResult(source="test", tickers=[], cached=True)
+        assert result.cached is True
+
 
 class TestScannerProtocol:
     def test_protocol_is_runtime_checkable(self):
@@ -149,6 +157,19 @@ class TestScannerCaching:
 
         assert scanner.scan_count == 1
         assert result1 is result2
+
+    def test_cached_flag_set_on_cache_hit(self):
+        scanner = CachingScanner(cache_ttl_seconds=3600)
+        result1 = scanner.scan()
+        assert result1.cached is False
+
+        result2 = scanner.scan()
+        assert result2.cached is True
+
+    def test_cached_flag_false_on_fresh_scan(self):
+        scanner = CachingScanner(cache_ttl_seconds=0)
+        result = scanner.scan()
+        assert result.cached is False
 
     def test_no_cache_when_ttl_is_zero(self):
         scanner = CachingScanner(cache_ttl_seconds=0)

@@ -18,6 +18,7 @@ class ScanResult:
     scanned_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     duration_seconds: float = 0.0
     error: str | None = None
+    cached: bool = False
 
     @property
     def success(self) -> bool:
@@ -87,7 +88,9 @@ class BaseScanner(ABC):
             age = (datetime.now(UTC) - self._last_scan.scanned_at).total_seconds()
             if age < self._cache_ttl_seconds:
                 remaining = self._cache_ttl_seconds - age
+                remaining = self._cache_ttl_seconds - age
                 logger.debug(f"returning cached result | scanner={self.name} age={age:.0f}s ttl_remaining={remaining:.0f}s")
+                self._last_scan.cached = True
                 return self._last_scan
 
         start_time = datetime.now(UTC)
