@@ -107,36 +107,28 @@ git branch --show-current
 
 ## 🔄 Development Flow
 
-**Plan First**: Before writing ANY code, create `docs/plans/_PLAN_issue-{NUMBER}.md` using the template at `docs/templates/plan-template.md`. The PreToolUse hook enforces this — code writes are blocked until a plan exists.
+Use the slash commands to drive the workflow:
 
-See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for:
+- `/start-issue <number>` — Preflight, fetch issue, create branch, create plan, scaffold tests, verify tests run, trigger code review. This is the standard entry point for all new work.
+- `/create-pr` — Run tests + lint + typecheck, commit, push, create PR, trigger code review, report completion.
+- `/fix-issue <number>` — Fetch issue, analyze, find relevant code, create branch, write test first, implement fix, create PR.
 
-- Starting work on an issue
-- TDD workflow
-- Completing a feature
-- Closing a pull request
+**Plan First**: The PreToolUse hook enforces this — code writes are blocked until a plan file exists in `docs/plans/`. The `/start-issue` command creates the plan file as part of its flow.
+
+See [docs/dev/tdd-flow.md](docs/dev/tdd-flow.md) for the TDD workflow details and grind loop configuration.
 
 ## ✅ Code Review Flow
 
 **When your implementation is done (tests pass, lint clean, typecheck clean) — YOU ARE NOT DONE YET.**
 
-1. **Trigger code review** on local changes using the code-reviewer subagent:
+The `/start-issue` and `/create-pr` commands trigger code review automatically. If working manually:
 
-   ```
-   @code-reviewer Review local changes for issue #167
-   OWNER: kimrejstrom
-   REPO: alpacalyzer-algo-trader
-   ISSUE_NUMBER: 167
-   FEATURE_DESCRIPTION: JournalSyncClient HTTP client
-   ```
-
+1. **Trigger code review** using the code-reviewer subagent
 2. **Fix any Critical/High issues** the reviewer identifies
-
 3. **Repeat** until reviewer says "Ready to merge"
+4. **Only then create PR** — run `/create-pr`
 
-4. **Only then create PR** — push branch and create PR
-
-> **Critical**: Step 1 is mandatory. Do not skip code review and do not create PR before the reviewer approves.
+> **Critical**: Code review is mandatory. Do not skip it and do not create a PR before the reviewer approves.
 
 ## Testing
 
@@ -185,7 +177,7 @@ You are working in a **git worktree** - an isolated workspace. See [docs/dev/tdd
 
 ## GitHub Operations
 
-See [docs/dev/github-operations.md](docs/dev/github-operations.md) for GitHub MCP tools reference.
+See [docs/dev/github-operations.md](docs/dev/github-operations.md) for `gh` CLI reference.
 
 ---
 

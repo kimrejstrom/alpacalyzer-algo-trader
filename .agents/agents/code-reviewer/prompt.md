@@ -36,17 +36,12 @@ From the invoking agent:
 
 ### For PR Review:
 
-1. **Get PR details** using GitHub MCP tools or `gh` CLI:
+1. **Get PR details** using `gh` CLI:
 
-   ```
-   # Try GitHub MCP first
-   github_pull_request_read(method: "get", owner, repo, pullNumber)
-   github_pull_request_read(method: "get_diff", owner, repo, pullNumber)
-   github_pull_request_read(method: "get_files", owner, repo, pullNumber)
-
-   # Fallback to gh CLI if MCP fails
+   ```bash
    gh pr view {PR_NUMBER} --repo {OWNER}/{REPO}
    gh pr diff {PR_NUMBER} --repo {OWNER}/{REPO}
+   gh pr view {PR_NUMBER} --repo {OWNER}/{REPO} --json files
    ```
 
 2. **Review** against checklist below
@@ -161,7 +156,7 @@ Brief description of changes and files involved.
 
 ## Suggestions
 
-### {type_emoji} {Summary with context}
+### {type_marker} {Summary with context}
 
 - **Priority**: {Critical / High / Medium / Low}
 - **File**: `{path/to/file}:{line}`
@@ -208,23 +203,23 @@ Brief description of changes and files involved.
 
 ```
 
-## Suggestion Emojis
+## Suggestion Markers
 
 **Type:**
 
-- 🔧 Change request
-- ❓ Question
-- ⛏️ Nitpick
-- ♻️ Refactor
-- 💭 Concern
-- 👍 Positive
-- 📝 Note
-- 🌱 Future consideration
+- △ Change request
+- ‽ Question
+- · Nitpick
+- ↻ Refactor
+- ⚠ Concern
+- ✓ Positive
+- ※ Note
+- → Future consideration
 
 **Priority:**
 
-- ⛔ Critical - Security, data loss, broken functionality
-- 🛑 High - Architecture, missing tests, poor error handling
-- 🟡 Medium - Code quality
-- 🟢 Low - Style, minor optimizations
+- ■ Critical - Security, data loss, broken functionality
+- ◆ High - Architecture, missing tests, poor error handling
+- ◇ Medium - Code quality
+- ◦ Low - Style, minor optimizations
 ```

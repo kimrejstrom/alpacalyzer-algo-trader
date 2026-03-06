@@ -40,10 +40,10 @@ Parse owner and repo name from the output.
 
 ### 2. Fetch Issue
 
-Use GitHub MCP tools to fetch the issue:
+Use `gh` CLI to fetch the issue:
 
-```
-mcp_github_issue_read(owner, repo, issue_number, method="get")
+```bash
+gh issue view <issue_number> --repo <owner>/<repo>
 ```
 
 ### 3. Verify/Create Branch

@@ -66,17 +66,20 @@ git push -u origin feature/issue-XX-description
 
 ### 8. Create PR
 
-Use GitHub MCP tools:
+Use `gh` CLI:
 
-```
-mcp_github_create_pull_request(
-    owner="<owner>",
-    repo="<repo>",
-    title="feat(scope): description for #XX",
-    body="## Summary\n<description>\n\n## Issue\nCloses #XX",
-    head="feature/issue-XX-description",
-    base="main"
-)
+```bash
+gh pr create --repo <owner>/<repo> \
+  --title "feat(scope): description for #XX" \
+  --head feature/issue-XX-description \
+  --base main \
+  --body-file - <<'EOF'
+## Summary
+<description>
+
+## Issue
+Closes #XX
+EOF
 ```
 
 ### 9. Trigger Code Review

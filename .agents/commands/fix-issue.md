@@ -29,10 +29,10 @@ Parse owner and repo name.
 
 ### 2. Fetch Issue
 
-Use GitHub MCP tools to fetch the issue:
+Use `gh` CLI to fetch the issue:
 
-```
-mcp_github_issue_read(owner, repo, issue_number, method="get")
+```bash
+gh issue view <issue_number> --repo <owner>/<repo>
 ```
 
 ### 3. Analyze Issue
@@ -110,15 +110,18 @@ git commit -m "fix(scope): description for #XX"
 git push -u origin fix/issue-XX-description
 ```
 
-```
-mcp_github_create_pull_request(
-    owner="<owner>",
-    repo="<repo>",
-    title="fix(scope): description for #XX",
-    body="## Summary\n<description>\n\n## Issue\nFixes #XX",
-    head="fix/issue-XX-description",
-    base="main"
-)
+```bash
+gh pr create --repo <owner>/<repo> \
+  --title "fix(scope): description for #XX" \
+  --head fix/issue-XX-description \
+  --base main \
+  --body-file - <<'EOF'
+## Summary
+<description>
+
+## Issue
+Fixes #XX
+EOF
 ```
 
 ### 13. Trigger Code Review

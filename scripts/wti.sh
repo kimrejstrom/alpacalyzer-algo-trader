@@ -87,7 +87,7 @@ fi
 
 # --- Launch agent ---
 
-PROMPT="read AGENTS.md and start work on issue ${ISSUE_NUM}. Make sure to use skills from SKILL.md when appropriate."
+PROMPT="Run /start-issue ${ISSUE_NUM}"
 
 echo "Worktree: $WT_PATH" >&2
 echo "Agent: $ACTION" >&2

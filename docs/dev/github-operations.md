@@ -1,6 +1,6 @@
 # GitHub Operations
 
-Use GitHub MCP tools instead of `gh` CLI for all GitHub operations.
+Use `gh` CLI for all GitHub operations. For long body text, use `--body-file -` to pipe via stdin (avoids ARG_MAX issues with custom shell prompts like Starship).
 
 ## Getting Repo Info
 
@@ -17,87 +17,104 @@ git remote get-url origin
 
 ### Read Issue
 
+```bash
+gh issue view <issue_number> --repo <owner>/<repo>
 ```
-mcp_github_issue_read(owner, repo, issue_number, method="get")
-```
-
-Parameters:
-
-- `owner`: Repository owner (from git remote)
-- `repo`: Repository name (from git remote)
-- `issue_number`: Issue number
-- `method`: "get"
 
 ### Create Issue
 
-```
-mcp_github_issue_write(method="create", owner, repo, title, body)
+```bash
+gh issue create --repo <owner>/<repo> --title "title" --body-file - <<'EOF'
+Issue body here (supports markdown)
+EOF
 ```
 
-### Update Issue
+### Close Issue
 
-```
-mcp_github_issue_write(method="update", owner, repo, issue_number, state="closed")
+```bash
+gh issue close <issue_number> --repo <owner>/<repo>
 ```
 
 ## Pull Requests
 
 ### Create PR
 
-```
-mcp_github_create_pull_request(owner, repo, title, body, head, base)
+```bash
+gh pr create --repo <owner>/<repo> \
+  --title "feat(scope): description for #XX" \
+  --head feature/issue-XX-description \
+  --base main \
+  --body-file - <<'EOF'
+## Summary
+<description>
+
+## Issue
+Closes #XX
+EOF
 ```
 
 ### Update PR
 
-```
-mcp_github_update_pull_request(owner, repo, pullNumber, ...)
+```bash
+gh pr edit <pr_number> --repo <owner>/<repo> --title "new title" --body-file - <<'EOF'
+Updated body
+EOF
 ```
 
 ### Merge PR
 
+```bash
+gh pr merge <pr_number> --repo <owner>/<repo> --squash
 ```
-mcp_github_merge_pull_request(owner, repo, pullNumber, merge_method="squash")
+
+### View PR
+
+```bash
+gh pr view <pr_number> --repo <owner>/<repo>
+gh pr diff <pr_number> --repo <owner>/<repo>
+gh pr view <pr_number> --repo <owner>/<repo> --json files
 ```
 
 ## Branch Management
 
 ### Create Branch
 
-```
-mcp_github_create_branch(branch, owner, repo, from_branch)
+```bash
+git checkout -b <branch_name>
+# or from a specific base
+git checkout -b <branch_name> <from_branch>
 ```
 
 ## Repository Operations
 
 ### Fork Repository
 
-```
-mcp_github_fork_repository(owner, repo)
+```bash
+gh repo fork <owner>/<repo>
 ```
 
 ### Get Latest Release
 
-```
-mcp_github_get_latest_release(owner, repo)
+```bash
+gh release view --repo <owner>/<repo>
 ```
 
 ## Search
 
 ### Search Issues
 
-```
-mcp_github_search_issues(query, owner, repo)
+```bash
+gh issue list --repo <owner>/<repo> --search "query"
 ```
 
 ### Search PRs
 
-```
-mcp_github_search_pull_requests(query, owner, repo)
+```bash
+gh pr list --repo <owner>/<repo> --search "query"
 ```
 
 ### Search Code
 
-```
-mcp_github_search_code(query)
+```bash
+gh search code "query" --repo <owner>/<repo>
 ```

@@ -16,7 +16,7 @@
 - [Commit Conventions](dev/commit-conventions.md) - Commit format, branch naming
 - [Debugging](dev/debugging.md) - Debugging procedures
 - [Debugging Guide](dev/debugging-guide.md) - Hypothesis-driven debugging for complex bugs
-- [GitHub Operations](dev/github-operations.md) - GitHub MCP tools usage
+- [GitHub Operations](dev/github-operations.md) - `gh` CLI usage
 - [Testing](dev/testing.md) - Test structure and patterns
 - [Common Mistakes](dev/common-mistakes.md) - Recurring agent errors and fixes
 - [Parallel Exploration](dev/parallel-exploration.md) - Running multiple agents on the same problem

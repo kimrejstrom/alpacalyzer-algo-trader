@@ -322,7 +322,7 @@ launch_agent() {
     fi
     WT_PATHS[$issue_num]="$wt_path"
 
-    local prompt="read AGENTS.md and start work on issue ${issue_num}. Make sure to use skills from SKILL.md when appropriate."
+    local prompt="Run /start-issue ${issue_num}"
 
     if [ "$DRY_RUN" = true ]; then
         echo "  [dry-run] Would launch $tool in $wt_path for issue #$issue_num" >&2

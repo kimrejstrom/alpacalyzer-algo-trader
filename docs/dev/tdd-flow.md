@@ -19,44 +19,14 @@ uv run pytest tests/test_momentum_strategy.py -v
 git add tests/test_momentum_strategy.py src/alpacalyzer/strategies/momentum.py
 git commit -m "feat(strategies): implement momentum strategy for #XX"
 
-# 6. Create PR using GitHub MCP tools
+# 6. Create PR using gh CLI
 ```
 
 ## Completing a Feature
 
-1. **Ensure all tests pass**
+Run `/create-pr` — it handles tests, lint, typecheck, commit, push, PR creation, and code review trigger in one shot.
 
-   ```bash
-   uv run pytest tests
-   ```
-
-2. **Run linting and type checking**
-
-   ```bash
-   uv run ruff check .
-   uv run ruff format .
-   uv run ty check src
-   ```
-
-3. **Push changes and create PR** using GitHub MCP tools
-
-4. **Run automated code review** (MANDATORY):
-
-   ```
-   @code-reviewer Please review:
-   - ISSUE_NUMBER: <issue_number>
-   - PR_NUMBER: <pr_number>
-   - OWNER: <repo_owner>
-   - REPO: <repo_name>
-   - FEATURE_DESCRIPTION: <brief description>
-   ```
-
-5. **Address any Critical/High issues** found in `CODE_REVIEW_<ISSUE>.md`
-
-6. **Reply with completion message**:
-   ```
-   Feature #XX ready for review. PR url: {PR_URL}, also see _PLAN_issue-XX.md for details
-   ```
+See [`.agents/commands/create-pr.md`](../../.agents/commands/create-pr.md) for the full step-by-step breakdown.
 
 ## Grind Loop (Iterate-Until-Done)
 
@@ -213,7 +183,7 @@ See [plan-parallel-orchestrator.md](../plans/plan-parallel-orchestrator.md) for 
 When the feature is approved and ready to merge:
 
 1. **Review docs impact**: Update README.md or AGENTS.md if the change affects setup or architecture
-2. **Merge PR**: Use GitHub MCP tools to squash merge (auto-closes linked issue)
+2. **Merge PR**: Use `gh pr merge <pr_number> --repo <owner>/<repo> --squash` (auto-closes linked issue)
 3. **Highlight future work**: Call out any follow-ups or ideas discovered during implementation, ask user whether each should be tracked as a new GitHub issue
 4. **Notify user**: Tell the user the PR is merged and they can remove the worktree:
    ```
