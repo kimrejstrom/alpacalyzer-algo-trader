@@ -21,6 +21,16 @@ Read `src/alpacalyzer/data/models.py` for the established patterns. Also check `
 
 Key patterns: Pydantic v2 syntax (`model_dump()`, `ConfigDict`, `field_validator` with `@classmethod`), `Field()` with descriptions for GPT guidance, validators for business logic.
 
+### LLM output resilience
+
+Models that receive LLM output need extra hardening because LLMs frequently return wrong types, missing fields, or invented enum values. Patterns used in `TradingStrategy`:
+
+- **Defaults for commonly-omitted fields**: `quantity: int = 0`, `entry_point: float = 0.0`, `strategy_notes: str = ""`
+- **Type coercion validators**: `field_validator("risk_reward_ratio", mode="before")` parses `"1:1.47"` → `1.47`
+- **Flexible input types**: `entry_criteria: list[EntryCriteria | str]` accepts both structured dicts and plain strings
+- **Enum normalization**: `EntryCriteria.entry_type` validator maps near-miss values like `"price_above_ma50"` → `"above_ma50"`
+- **Default collections**: `entry_criteria: list[...] = Field(default_factory=list)` instead of required list
+
 ## 2. Create model
 
 Follow these conventions:

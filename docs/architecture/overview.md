@@ -21,24 +21,24 @@
 
 ## Tech Stack
 
-| Layer              | Technology            | Purpose                                      |
-| ------------------ | --------------------- | -------------------------------------------- |
-| Language           | Python 3.13+          | Core runtime                                 |
-| Package Manager    | uv                    | Dependency management                        |
-| Build System       | Hatchling             | PEP 517 build backend                        |
-| Brokerage          | alpaca-py             | Trading API client                           |
-| LLM Framework      | LangGraph + LangChain | Agent DAG orchestration                      |
-| LLM Client         | OpenAI SDK            | Chat completions (OpenRouter-compatible)     |
-| Data Models        | Pydantic v2           | Validation, serialization, structured output |
-| Data Analysis      | pandas + numpy        | Time series, numerical computation           |
-| Technical Analysis | pandas-ta             | Indicators (RSI, MACD, Bollinger, etc.)      |
-| Market Data        | yfinance              | OHLCV, fundamentals                          |
-| Screener           | finviz (fork)         | Stock screening                              |
-| Scheduling         | schedule              | Periodic task execution                      |
-| Streaming          | websockets            | Alpaca trade update streaming                |
-| Linting            | ruff                  | Linting + formatting                         |
-| Type Checking      | ty                    | Static type analysis                         |
-| Testing            | pytest                | Test framework                               |
+| Layer              | Technology              | Purpose                                                                |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------- |
+| Language           | Python 3.13+            | Core runtime                                                           |
+| Package Manager    | uv                      | Dependency management                                                  |
+| Build System       | Hatchling               | PEP 517 build backend                                                  |
+| Brokerage          | alpaca-py               | Trading API client                                                     |
+| LLM Framework      | LangGraph + LangChain   | Agent DAG orchestration                                                |
+| LLM Client         | OpenAI SDK + instructor | Chat completions (OpenRouter-compatible), structured output with retry |
+| Data Models        | Pydantic v2             | Validation, serialization, LLM output hardening                        |
+| Data Analysis      | pandas + numpy          | Time series, numerical computation                                     |
+| Technical Analysis | pandas-ta               | Indicators (RSI, MACD, Bollinger, etc.)                                |
+| Market Data        | yfinance                | OHLCV, fundamentals                                                    |
+| Screener           | finviz (fork)           | Stock screening                                                        |
+| Scheduling         | schedule                | Periodic task execution                                                |
+| Streaming          | websockets              | Alpaca trade update streaming                                          |
+| Linting            | ruff                    | Linting + formatting                                                   |
+| Type Checking      | ty                      | Static type analysis                                                   |
+| Testing            | pytest                  | Test framework                                                         |
 
 Full dependency list: [`pyproject.toml`](../../pyproject.toml)
 
@@ -139,7 +139,7 @@ src/alpacalyzer/
 ├── events/                # Structured event system (emit + handlers)
 ├── execution/             # ExecutionEngine, SignalQueue, PositionTracker, OrderManager
 ├── graph/                 # LangGraph AgentState definition
-├── llm/                   # LLMClient abstraction (tiered models)
+├── llm/                   # LLMClient abstraction (tiered models, instructor-based structured output)
 ├── pipeline/              # ScannerRegistry, OpportunityAggregator, Scanner protocol
 ├── prompts/               # Agent prompt templates (Markdown)
 ├── scanners/              # Reddit, Social, Finviz, Stocktwits scanners
@@ -262,13 +262,15 @@ Protocol-based pluggable system. Three implementations: MomentumStrategy (agent-
 
 ### LLM Integration
 
-OpenAI-compatible abstraction via `LLMClient` with three model tiers: FAST (Llama 3.2 3B), STANDARD (Claude 3.5 Sonnet), DEEP (Claude 3.5 Sonnet). All configurable via env vars. Structured output uses Pydantic models with response healing. Every call emits an `LLMCallEvent`.
+OpenAI-compatible abstraction via `LLMClient` with three model tiers: FAST (Llama 3.2 3B), STANDARD (Claude 3.5 Sonnet), DEEP (Claude 3.5 Sonnet). All configurable via env vars. Structured output uses the [`instructor`](https://python.useinstructor.com/) library (`Mode.JSON`) for automatic retry-with-validation-feedback — when the LLM returns invalid JSON, `instructor` feeds the Pydantic validation errors back to the LLM and retries (up to `MAX_RETRIES=2`). A manual fallback (`json_object` mode + coercion helpers) catches anything instructor can't fix. Every call emits an `LLMCallEvent`.
 
 → [`src/alpacalyzer/llm/`](../../src/alpacalyzer/llm/) — client in `client.py`, tiers in `config.py`, structured output in `structured.py`
 
 ### Data Models
 
-Core Pydantic v2 models: `TopTicker` (scanner output), `TradingStrategy` (agent output with entry/stop/target/quantity), `PortfolioDecision` (portfolio manager output), `FinancialMetrics` (30+ fundamental fields), `EntryDecision`/`ExitDecision` (strategy outputs).
+Core Pydantic v2 models: `TopTicker` (scanner output), `TradingStrategy` (agent output with entry/stop/target), `PortfolioDecision` (portfolio manager output), `FinancialMetrics` (30+ fundamental fields), `EntryDecision`/`ExitDecision` (strategy outputs).
+
+Models that receive LLM output are hardened for common mistakes: `TradingStrategy` has defaults for frequently-omitted fields (`quantity`, `entry_point`, `strategy_notes`), a `field_validator` that coerces `risk_reward_ratio` from `"1:1.47"` → `1.47`, and `entry_criteria` accepts both `list[EntryCriteria]` and plain strings. The `EntryCriteria.entry_type` validator normalizes near-miss enum values (e.g. `"price_above_ma50"` → `"above_ma50"`).
 
 → [`src/alpacalyzer/data/models.py`](../../src/alpacalyzer/data/models.py), [`src/alpacalyzer/strategies/base.py`](../../src/alpacalyzer/strategies/base.py) (decision types)
 

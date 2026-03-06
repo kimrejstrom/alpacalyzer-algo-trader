@@ -10,118 +10,127 @@ class SampleSchema(BaseModel):
 
 
 class TestCompleteStructured:
-    def test_strict_json_schema_mode(self):
+    """Tests for the instructor-based complete_structured function."""
+
+    def test_valid_response_parses_successfully(self):
+        """Valid JSON response is parsed into the response model."""
+        from alpacalyzer.llm.structured import complete_structured
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = '{"name": "test", "value": 42}'
         mock_client.chat.completions.create.return_value = mock_response
 
-        from alpacalyzer.llm.structured import complete_structured
-
         result, response = complete_structured(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
             "test-model",
-            use_response_healing=False,
         )
 
         assert result.name == "test"
         assert result.value == 42
-        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert call_kwargs["response_format"]["type"] == "json_schema"
-        assert call_kwargs["response_format"]["json_schema"]["strict"] is True
 
-    def test_response_healing_fallback(self):
+    def test_instructor_retry_on_validation_error(self):
+        """When instructor path succeeds with retry, returns valid model."""
+        from alpacalyzer.llm.structured import complete_structured
+
+        mock_client = MagicMock()
+        mock_instructor_client = MagicMock()
+
+        expected = SampleSchema(name="retry_ok", value=200)
+        mock_raw = MagicMock()
+        mock_instructor_client.chat.completions.create_with_completion.return_value = (expected, mock_raw)
+
+        with patch("alpacalyzer.llm.structured.instructor") as mock_instructor:
+            mock_instructor.from_openai.return_value = mock_instructor_client
+            mock_instructor.Mode.JSON = "json"
+
+            result, response = complete_structured(
+                mock_client,
+                [{"role": "user", "content": "test"}],
+                SampleSchema,
+                "test-model",
+            )
+
+        assert result.name == "retry_ok"
+        assert result.value == 200
+        mock_instructor.from_openai.assert_called_once_with(mock_client, mode="json")
+
+    def test_instructor_passes_max_retries(self):
+        """Instructor is called with max_retries for automatic retry-with-feedback."""
+        from alpacalyzer.llm.structured import MAX_RETRIES, complete_structured
+
+        mock_client = MagicMock()
+        mock_instructor_client = MagicMock()
+
+        expected = SampleSchema(name="test", value=42)
+        mock_instructor_client.chat.completions.create_with_completion.return_value = (expected, MagicMock())
+
+        with patch("alpacalyzer.llm.structured.instructor") as mock_instructor:
+            mock_instructor.from_openai.return_value = mock_instructor_client
+            mock_instructor.Mode.JSON = "json"
+
+            complete_structured(
+                mock_client,
+                [{"role": "user", "content": "test"}],
+                SampleSchema,
+                "test-model",
+            )
+
+        call_kwargs = mock_instructor_client.chat.completions.create_with_completion.call_args.kwargs
+        assert call_kwargs["max_retries"] == MAX_RETRIES
+
+    def test_fallback_on_instructor_failure(self):
+        """When instructor exhausts retries, falls back to manual JSON parse."""
+        from alpacalyzer.llm.structured import complete_structured
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = '{"name": "fallback", "value": 100}'
+        mock_response.choices[0].message.content = '{"name": "fallback_ok", "value": 999}'
         mock_client.chat.completions.create.return_value = mock_response
 
-        from alpacalyzer.llm.structured import complete_structured
+        mock_instructor_client = MagicMock()
+        mock_instructor_client.chat.completions.create_with_completion.side_effect = Exception("retries exhausted")
 
-        result, response = complete_structured(
+        with patch("alpacalyzer.llm.structured.instructor") as mock_instructor:
+            mock_instructor.from_openai.return_value = mock_instructor_client
+            mock_instructor.Mode.JSON = "json"
+
+            result, response = complete_structured(
+                mock_client,
+                [{"role": "user", "content": "test"}],
+                SampleSchema,
+                "test-model",
+            )
+
+        assert result.name == "fallback_ok"
+        assert result.value == 999
+
+    def test_fallback_includes_schema_in_system_message(self):
+        """Manual fallback injects schema instruction as system message."""
+        from alpacalyzer.llm.structured import _fallback_manual_parse
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '{"name": "schema_test", "value": 500}'
+        mock_client.chat.completions.create.return_value = mock_response
+
+        _fallback_manual_parse(
             mock_client,
             [{"role": "user", "content": "test"}],
             SampleSchema,
             "test-model",
-            use_response_healing=True,
         )
 
-        assert result.name == "fallback"
-        assert result.value == 100
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert call_kwargs["extra_body"] == {"plugins": [{"id": "response-healing"}]}
-
-    def test_json_mode_fallback_on_invalid_first_response(self):
-        mock_client = MagicMock()
-        call_count = 0
-
-        def side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            if call_count == 1:
-                mock_response.choices[0].message.content = '{"wrong": "field"}'
-            else:
-                mock_response.choices[0].message.content = '{"name": "json_mode", "value": 200}'
-            return mock_response
-
-        mock_client.chat.completions.create.side_effect = side_effect
-
-        from alpacalyzer.llm.structured import complete_structured
-
-        result, response = complete_structured(
-            mock_client,
-            [{"role": "user", "content": "test"}],
-            SampleSchema,
-            "test-model",
-            use_response_healing=False,
-        )
-
-        assert result.name == "json_mode"
-        assert result.value == 200
-        assert mock_client.chat.completions.create.call_count == 2
-        second_call_kwargs = mock_client.chat.completions.create.call_args_list[1].kwargs
-        assert second_call_kwargs["response_format"]["type"] == "json_object"
-
-    def test_schema_instruction_in_fallback(self):
-        mock_client = MagicMock()
-        call_count = 0
-
-        def side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            if call_count == 1:
-                mock_response.choices[0].message.content = '{"wrong": "field"}'
-            else:
-                mock_response.choices[0].message.content = '{"name": "schema_test", "value": 500}'
-            return mock_response
-
-        mock_client.chat.completions.create.side_effect = side_effect
-
-        from alpacalyzer.llm.structured import complete_structured
-
-        complete_structured(
-            mock_client,
-            [{"role": "user", "content": "test"}],
-            SampleSchema,
-            "test-model",
-            use_response_healing=False,
-        )
-
-        assert mock_client.chat.completions.create.call_count == 2
-        second_call_kwargs = mock_client.chat.completions.create.call_args_list[1].kwargs
-        messages = second_call_kwargs["messages"]
-        assert len(messages) == 2
+        messages = call_kwargs["messages"]
         assert messages[0]["role"] == "system"
         assert "json" in messages[0]["content"].lower()
-        assert messages[1]["role"] == "user"
+        assert call_kwargs["response_format"]["type"] == "json_object"
 
 
 class DecisionItem(BaseModel):
@@ -142,8 +151,6 @@ class TestCoerceDictLists:
 
         raw = '{"decisions": {"NVDA": {"action": "hold", "quantity": 0, "reasoning": "test"}, "AAPL": {"action": "buy", "quantity": 10, "reasoning": "test2"}}}'
         result = _coerce_dict_lists(raw)
-        import json
-
         parsed = json.loads(result)
         assert isinstance(parsed["decisions"], list)
         assert len(parsed["decisions"]) == 2
@@ -385,7 +392,6 @@ class TestCompleteStructuredWithCodeFences:
             [{"role": "user", "content": "test"}],
             SampleSchema,
             "test-model",
-            use_response_healing=False,
         )
 
         assert result.name == "fenced"
@@ -418,3 +424,144 @@ class TestEntryCriteriaNormalization:
 
         ec = EntryCriteria(entry_type="price_below_ma20", value=50.0)
         assert ec.entry_type == "below_ma20"
+
+
+class TestTradingStrategyHardening:
+    """Tests for TradingStrategy model resilience to common LLM output mistakes."""
+
+    def test_risk_reward_ratio_colon_format(self):
+        """LLM returns risk_reward_ratio as '1:1.47' instead of float."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio="1:1.47",  # type: ignore[arg-type]
+        )
+        assert ts.risk_reward_ratio == 1.47
+
+    def test_risk_reward_ratio_plain_float(self):
+        """Normal float still works."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio=2.5,
+        )
+        assert ts.risk_reward_ratio == 2.5
+
+    def test_risk_reward_ratio_string_float(self):
+        """LLM returns risk_reward_ratio as string '2.5'."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio="2.5",  # type: ignore[arg-type]
+        )
+        assert ts.risk_reward_ratio == 2.5
+
+    def test_missing_optional_fields_use_defaults(self):
+        """LLM omits quantity, entry_point, strategy_notes — defaults used."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio=1.5,
+        )
+        assert ts.quantity == 0
+        assert ts.entry_point == 0.0
+        assert ts.strategy_notes == ""
+
+    def test_entry_criteria_string_coerced_to_list(self):
+        """LLM returns entry_criteria as a plain string instead of list."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio=1.5,
+            entry_criteria="Price closes above $101 with volume > 1.5x average",
+        )
+        assert isinstance(ts.entry_criteria, list)
+        assert len(ts.entry_criteria) == 1
+
+    def test_entry_criteria_list_of_strings(self):
+        """LLM returns entry_criteria as list of plain strings."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio=1.5,
+            entry_criteria=["Price above $101", "RSI > 50"],
+        )
+        assert isinstance(ts.entry_criteria, list)
+        assert len(ts.entry_criteria) == 2
+
+    def test_entry_criteria_dict_list_still_works(self):
+        """Original EntryCriteria dict format still works."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio=1.5,
+            entry_criteria=[{"entry_type": "above_ma50", "value": 101.0}],
+        )
+        assert isinstance(ts.entry_criteria, list)
+        assert len(ts.entry_criteria) == 1
+
+    def test_entry_criteria_defaults_to_empty(self):
+        """entry_criteria defaults to empty list when omitted."""
+        from alpacalyzer.data.models import TradingStrategy
+
+        ts = TradingStrategy(
+            ticker="AKAM",
+            trade_type="long",
+            stop_loss=95.0,
+            target_price=110.0,
+            risk_reward_ratio=1.5,
+        )
+        assert ts.entry_criteria == []
+
+    def test_full_llm_response_json_parses(self):
+        """Simulate the exact failing LLM response from production."""
+        from alpacalyzer.data.models import TradingStrategyResponse
+
+        raw = json.dumps(
+            {
+                "strategies": [
+                    {
+                        "ticker": "AKAM",
+                        "trade_type": "long",
+                        "stop_loss": 95.0,
+                        "target_price": 110.0,
+                        "risk_reward_ratio": "1:1.47",
+                        "entry_criteria": "Price closes above $101.50 with volume exceeding 1.5M (1.5x average volume)",
+                    }
+                ]
+            }
+        )
+        result = TradingStrategyResponse.model_validate_json(raw)
+        assert len(result.strategies) == 1
+        assert result.strategies[0].risk_reward_ratio == 1.47
+        assert result.strategies[0].quantity == 0
+        assert result.strategies[0].entry_point == 0.0
+        assert result.strategies[0].strategy_notes == ""

@@ -142,6 +142,10 @@ class ExecutionEngine:
         self._cache_ttl = self.config.signal_cache_ttl
         self._ta = TechnicalAnalyzer()
 
+        # Per-cycle counters (reset at start of each cycle)
+        self._cycle_entries_triggered = 0
+        self._cycle_exits_triggered = 0
+
         self.load_state(reset=reset_state)
 
     def _get_cached_signal(self, ticker: str) -> TradingSignals | None:
@@ -192,9 +196,15 @@ class ExecutionEngine:
             return
 
         self._clear_expired_cache()
+        self._cycle_entries_triggered = 0
+        self._cycle_exits_triggered = 0
 
-        # 1. Sync positions
+        # 1. Sync positions — snapshot before/after to detect bracket-filled exits
+        positions_before_sync = self.positions.count()
         self.positions.sync_from_broker()
+        positions_after_sync = self.positions.count()
+        bracket_exits = max(0, positions_before_sync - positions_after_sync)
+        self._cycle_exits_triggered += bracket_exits
 
         # 2. Process exits FIRST (protect capital)
         for position in self.positions.get_all():
@@ -345,6 +355,7 @@ class ExecutionEngine:
             )
             self.positions.remove_position(position.ticker)
             self.cooldowns.add_cooldown(position.ticker, decision.reason, "execution_engine")
+            self._cycle_exits_triggered += 1
 
     def _execute_entry(self, signal: PendingSignal, decision: EntryDecision) -> None:
         """Execute entry order for a signal."""
@@ -374,6 +385,7 @@ class ExecutionEngine:
 
         self.orders.submit_bracket_order(params)
         self.cooldowns.add_cooldown(signal.ticker, "entry_filled", "execution_engine")
+        self._cycle_entries_triggered += 1
 
     def _build_market_context(self) -> MarketContext:
         """Build market and account context."""
@@ -399,7 +411,14 @@ class ExecutionEngine:
     def _run_analyze_cycle(self) -> None:
         """Run cycle in analyze mode (no order submission)."""
         self._clear_expired_cache()
+        self._cycle_entries_triggered = 0
+        self._cycle_exits_triggered = 0
+
+        positions_before_sync = self.positions.count()
         self.positions.sync_from_broker()
+        positions_after_sync = self.positions.count()
+        bracket_exits = max(0, positions_before_sync - positions_after_sync)
+        self._cycle_exits_triggered += bracket_exits
 
         for position in self.positions.get_all():
             self._process_exit(position)
@@ -425,9 +444,9 @@ class ExecutionEngine:
     def _emit_cycle_complete(self) -> None:
         """Emit cycle complete event."""
         entries_evaluated = len(self.signal_queue)
-        entries_triggered = sum(1 for pos in self.positions.get_all())
+        entries_triggered = self._cycle_entries_triggered
         exits_evaluated = len(self.positions.get_all())
-        exits_triggered = exits_evaluated
+        exits_triggered = self._cycle_exits_triggered
         signals_pending = self.signal_queue.size()
         positions_open = self.positions.count()
 

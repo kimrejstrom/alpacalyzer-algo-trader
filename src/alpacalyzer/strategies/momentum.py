@@ -128,8 +128,8 @@ class MomentumStrategy(BaseStrategy):
         daily_data = signal["raw_data_daily"]
         intraday_data = signal["raw_data_intraday"]
 
-        daily_3candle = cast(pd.Series, daily_data.iloc[-3:].mean())
-        intraday_3candle = cast(pd.Series, intraday_data.iloc[-3:].mean())
+        daily_3candle = cast(pd.Series, daily_data.iloc[-3:].select_dtypes(include="number").mean())
+        intraday_3candle = cast(pd.Series, intraday_data.iloc[-3:].select_dtypes(include="number").mean())
 
         price = signal["price"]
         rsi = daily_3candle["RSI"]

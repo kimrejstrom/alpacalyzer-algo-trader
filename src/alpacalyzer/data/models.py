@@ -240,14 +240,35 @@ class EntryCriteria(BaseModel):
 # Pydantic model for trading strategy
 class TradingStrategy(BaseModel):
     ticker: str
-    quantity: int
-    entry_point: float
+    quantity: int = 0
+    entry_point: float = 0.0
     stop_loss: float
     target_price: float
     risk_reward_ratio: float
-    strategy_notes: str
+    strategy_notes: str = ""
     trade_type: str  # "long" or "short"
-    entry_criteria: list[EntryCriteria]
+    entry_criteria: list[EntryCriteria | str] = Field(default_factory=list)
+
+    @field_validator("risk_reward_ratio", mode="before")
+    @classmethod
+    def parse_risk_reward_ratio(cls, v: Any) -> Any:
+        """Coerce '1:1.47' → 1.47, '1:3' → 3.0."""
+        if isinstance(v, str) and ":" in v:
+            parts = v.split(":")
+            if len(parts) == 2:
+                try:
+                    return float(parts[1]) / float(parts[0])
+                except (ValueError, ZeroDivisionError):
+                    pass
+        return v
+
+    @field_validator("entry_criteria", mode="before")
+    @classmethod
+    def coerce_entry_criteria(cls, v: Any) -> Any:
+        """Accept a plain string and wrap it in a list."""
+        if isinstance(v, str):
+            return [v]
+        return v
 
 
 class TradingStrategyResponse(BaseModel):

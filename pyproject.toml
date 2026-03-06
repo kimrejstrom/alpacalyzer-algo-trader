@@ -12,6 +12,7 @@ dependencies = [
     "alpaca-py>=0.38.0",
     "colorama>=0.4.6",
     "finviz",
+    "instructor>=1.7.0",
     "langchain-core>=0.3.45",
     "langgraph>=0.3.11",
     "numpy>=2.2.3",

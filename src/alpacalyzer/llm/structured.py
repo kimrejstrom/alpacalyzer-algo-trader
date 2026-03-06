@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import TypeVar
 
+import instructor
 from pydantic import BaseModel, ValidationError
 
 from alpacalyzer.utils.logger import get_logger
@@ -10,6 +11,9 @@ from alpacalyzer.utils.logger import get_logger
 T = TypeVar("T", bound=BaseModel)
 
 logger = get_logger(__name__)
+
+# Default retry count — instructor feeds validation errors back to the LLM
+MAX_RETRIES = 2
 
 
 def complete_structured[T: BaseModel](
@@ -20,47 +24,37 @@ def complete_structured[T: BaseModel](
     use_response_healing: bool = True,
 ) -> tuple[T, object]:
     """
-    Complete a structured LLM call.
+    Complete a structured LLM call using instructor for retry-with-feedback.
 
     Returns:
         Tuple of (parsed_result, raw_response).
     """
-    schema = response_model.model_json_schema()
+    # Wrap the raw OpenAI client with instructor in JSON mode
+    # (most compatible with OpenRouter — doesn't require tool-calling support)
+    instructor_client = instructor.from_openai(client, mode=instructor.Mode.JSON)
 
     try:
-        extra_body: dict = {}
-        if use_response_healing:
-            extra_body["plugins"] = [{"id": "response-healing"}]
-
-        response = client.chat.completions.create(
+        result, raw_response = instructor_client.chat.completions.create_with_completion(
             model=model,
             messages=messages,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_model.__name__,
-                    "strict": True,
-                    "schema": schema,
-                },
-            },
-            extra_body=extra_body if extra_body else None,
+            response_model=response_model,
+            max_retries=MAX_RETRIES,
         )
-        content = response.choices[0].message.content
-        content = _strip_code_fences(content)
-        content = _coerce_dict_lists(content, response_model)
-        return response_model.model_validate_json(content), response
-    except (ValidationError, json.JSONDecodeError) as e:
-        logger.debug(f"Strict JSON schema failed for {response_model.__name__}: {e}")
-        return _fallback_json_mode(client, messages, response_model, model, schema)
+        return result, raw_response
+    except (ValidationError, Exception) as e:
+        # If instructor exhausts retries, fall back to manual JSON mode parse
+        logger.warning(f"instructor retries exhausted for {response_model.__name__}: {e}")
+        return _fallback_manual_parse(client, messages, response_model, model)
 
 
-def _fallback_json_mode[T: BaseModel](
+def _fallback_manual_parse[T: BaseModel](
     client,
     messages: list[dict],
     response_model: type[T],
     model: str,
-    schema: dict,
 ) -> tuple[T, object]:
+    """Last-resort fallback: raw JSON mode + coercion helpers."""
+    schema = response_model.model_json_schema()
     schema_instruction = f"Respond with valid JSON matching this schema:\n```json\n{json.dumps(schema, indent=2)}\n```"
 
     augmented_messages = [
@@ -107,18 +101,14 @@ def _coerce_dict_lists(content: str, response_model: type | None = None) -> str:
     # Case 2: missing wrapper key — LLM returned a flat object or bare list
     if response_model is not None and isinstance(data, dict) and hasattr(response_model, "model_fields"):
         model_fields: dict = response_model.model_fields  # type: ignore[union-attr]
-        # Find the single list field on the response model (e.g. "strategies", "decisions")
         list_fields = [name for name, field_info in model_fields.items() if hasattr(field_info.annotation, "__origin__") and field_info.annotation.__origin__ is list]
         if len(list_fields) == 1:
             wrapper_key = list_fields[0]
             if wrapper_key not in data:
-                # LLM returned the inner object directly — wrap it
                 data = {wrapper_key: [data]}
                 changed = True
 
-    # Case 3: list items missing "ticker" — drop invalid items rather than
-    # letting Pydantic reject the entire response.
-    # Only apply to fields whose list item type actually has a "ticker" field.
+    # Case 3: list items missing "ticker" — drop invalid items
     if isinstance(data, dict):
         ticker_list_fields: set[str] = set()
         if response_model is not None and hasattr(response_model, "model_fields"):
@@ -143,14 +133,7 @@ def _coerce_dict_lists(content: str, response_model: type | None = None) -> str:
 
 
 def _strip_code_fences(content: str) -> str:
-    """
-    Strip markdown code fences and extract JSON from mixed text/JSON responses.
-
-    Handles three LLM output patterns:
-    1. ```json\n{...}\n``` — markdown code fences
-    2. "Some reasoning text... {json}" — prose preamble before JSON
-    3. Clean JSON — returned as-is
-    """
+    """Strip markdown code fences and extract JSON from mixed text/JSON responses."""
     stripped = content.strip()
 
     # Pattern 1: markdown code fences
@@ -163,14 +146,11 @@ def _strip_code_fences(content: str) -> str:
             stripped = stripped.rstrip()[:-3].rstrip()
         return stripped
 
-    # Pattern 2: prose preamble before JSON — find the first { or [
-    # that starts a valid JSON structure
+    # Pattern 2: prose preamble before JSON
     if stripped and stripped[0] not in ("{", "["):
-        # Try to find JSON object
         brace_idx = stripped.find("{")
         bracket_idx = stripped.find("[")
 
-        # Pick the earliest valid JSON start
         candidates = []
         if brace_idx != -1:
             candidates.append(brace_idx)
@@ -180,7 +160,6 @@ def _strip_code_fences(content: str) -> str:
         if candidates:
             start = min(candidates)
             candidate = stripped[start:]
-            # Verify it's actually valid JSON before returning
             try:
                 json.loads(candidate)
                 return candidate
