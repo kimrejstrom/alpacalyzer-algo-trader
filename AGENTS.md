@@ -109,6 +109,7 @@ git branch --show-current
 
 Use the slash commands to drive the workflow:
 
+- `/plan-feature <description>` — Decompose a feature into agent-sized GitHub issues with dependency ordering. Human-in-the-loop approval before issue creation.
 - `/start-issue <number>` — Preflight, fetch issue, create branch, create plan, scaffold tests, verify tests run, trigger code review. This is the standard entry point for all new work.
 - `/create-pr` — Run tests + lint + typecheck, commit, push, create PR, trigger code review, report completion.
 - `/fix-issue <number>` — Fetch issue, analyze, find relevant code, create branch, write test first, implement fix, create PR.
@@ -151,6 +152,7 @@ See [docs/dev/commit-conventions.md](docs/dev/commit-conventions.md) for full co
 
 | Task                    | Skill File                                    |
 | ----------------------- | --------------------------------------------- |
+| Decompose feature       | `.agents/skills/issue-decomposition/SKILL.md` |
 | Create hedge fund agent | `.agents/skills/new-agent/SKILL.md`           |
 | Create data scanner     | `.agents/skills/new-scanner/SKILL.md`         |
 | Create trading strategy | `.agents/skills/new-strategy/SKILL.md`        |

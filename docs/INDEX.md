@@ -36,6 +36,13 @@
 - [Plans Index](plans/INDEX.md) - Active, completed, and backlog plans
 - [Plan Template](templates/plan-template.md) - Template for new issue plans
 
+## Commands
+
+- `/plan-feature <description>` — Decompose a feature into agent-sized issues with dependency ordering ([source](../.agents/commands/plan-feature.md))
+- `/start-issue <number>` — Start work on a GitHub issue ([source](../.agents/commands/start-issue.md))
+- `/create-pr` — Create a pull request after completing work ([source](../.agents/commands/create-pr.md))
+- `/fix-issue <number>` — Quick-fix an issue with TDD ([source](../.agents/commands/fix-issue.md))
+
 ## Enforcement & Automation
 
 - [Golden Principles](principles.md) - Code invariants that must be upheld
@@ -57,6 +64,7 @@ See `.agents/skills/` for specialized skills:
 
 | Task                        | Skill File                     |
 | --------------------------- | ------------------------------ |
+| Decompose feature           | `issue-decomposition/SKILL.md` |
 | Create new hedge fund agent | `new-agent/SKILL.md`           |
 | Create new data scanner     | `new-scanner/SKILL.md`         |
 | Create trading strategy     | `new-strategy/SKILL.md`        |
