@@ -35,9 +35,7 @@ def test_sentiment_agent_success(mock_calculate_sentiment_signals, mock_yfinance
     ]
 
     # Mock calculate_sentiment_signals with proper Pydantic model objects
-    mock_calculate_sentiment_signals.return_value = SentimentAnalysisResponse(
-        sentiment_analysis=[SentimentAnalysis(sentiment="Bullish", score=0.8, highlights=["Positive highlight"], rationale="This is bullish")]
-    )
+    mock_calculate_sentiment_signals.return_value = SentimentAnalysisResponse(sentiment_analysis=[SentimentAnalysis(sentiment="Bullish")])
 
     result = sentiment_agent(mock_state)
 
@@ -75,9 +73,6 @@ def test_calculate_sentiment_signals(mock_get_llm_client):
         sentiment_analysis=[
             SentimentAnalysis(
                 sentiment="Bullish",
-                score=0.7,
-                highlights=["Positive news", "Good outlook"],
-                rationale="Company shows strong growth potential",
             )
         ]
     )

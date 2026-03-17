@@ -197,7 +197,7 @@ class EntryType(Enum):
 
 class EntryCriteria(BaseModel):
     entry_type: EntryType
-    value: float
+    value: float | None = None
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -277,9 +277,6 @@ class TradingStrategyResponse(BaseModel):
 
 class SentimentAnalysis(BaseModel):
     sentiment: Literal["Bullish", "Bearish", "Neutral"]
-    score: float
-    highlights: list[str]
-    rationale: str
 
 
 class SentimentAnalysisResponse(BaseModel):

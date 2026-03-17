@@ -8,27 +8,20 @@ Respond ONLY with valid JSON. No other text.
 {
   "sentiment_analysis": [
     {
-      "sentiment": "Bullish|Bearish|Neutral",
-      "score": -1.0 to 1.0,
-      "highlights": ["key phrase 1", "key phrase 2"],
-      "rationale": "1-2 sentence summary"
+      "sentiment": "Bullish|Bearish|Neutral"
     }
   ]
 }
 ```
 
-## SCORING
-
-- +1.0 = extremely bullish
-- 0.0 = neutral
-- -1.0 = extremely bearish
+Return one object per news item, in the same order as the input.
 
 ## RULES
 
 - Forward-looking words ("expects", "will", "forecast") indicate direction
 - "undervalued", "record highs" = bullish
 - "overheated", "correction", "plunges" = bearish
-- Pure factual news = Neutral (score 0.0)
+- Pure factual news = Neutral
 - Equal positives/negatives = Neutral
 
 ## EXAMPLE
@@ -41,14 +34,7 @@ Output:
 {
   "sentiment_analysis": [
     {
-      "sentiment": "Bullish",
-      "score": 0.8,
-      "highlights": [
-        "record earnings",
-        "beats expectations",
-        "growth will accelerate"
-      ],
-      "rationale": "Positive earnings beat and future growth outlook indicate bullish sentiment."
+      "sentiment": "Bullish"
     }
   ]
 }
