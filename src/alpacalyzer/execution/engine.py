@@ -200,11 +200,7 @@ class ExecutionEngine:
         self._cycle_exits_triggered = 0
 
         # 1. Sync positions — snapshot before/after to detect bracket-filled exits
-        positions_before_sync = self.positions.count()
-        self.positions.sync_from_broker()
-        positions_after_sync = self.positions.count()
-        bracket_exits = max(0, positions_before_sync - positions_after_sync)
-        self._cycle_exits_triggered += bracket_exits
+        self._sync_and_emit_bracket_exits()
 
         # 2. Process exits FIRST (protect capital)
         for position in self.positions.get_all():
@@ -279,6 +275,45 @@ class ExecutionEngine:
 
         if decision.should_exit:
             self._execute_exit(position, decision)
+
+    def _sync_and_emit_bracket_exits(self) -> None:
+        """
+        Sync positions from broker and emit events for bracket-filled exits.
+
+        When bracket orders fill broker-side (stop loss or take profit),
+        positions disappear. This method detects those exits and emits
+        ExitTriggeredEvent with full trade details so they appear in logs.
+        """
+        # Snapshot positions before sync
+        positions_before = {p.ticker: p for p in self.positions.get_all()}
+
+        self.positions.sync_from_broker()
+
+        # Detect which positions disappeared (bracket filled)
+        positions_after = {p.ticker for p in self.positions.get_all()}
+        closed_tickers = set(positions_before.keys()) - positions_after
+
+        for ticker in closed_tickers:
+            pos = positions_before[ticker]
+            emit_event(
+                ExitTriggeredEvent(
+                    timestamp=datetime.now(UTC),
+                    ticker=pos.ticker,
+                    strategy=pos.strategy_name,
+                    side=pos.side,
+                    quantity=pos.quantity,
+                    entry_price=pos.avg_entry_price,
+                    exit_price=pos.current_price,
+                    pnl=pos.unrealized_pnl,
+                    pnl_pct=pos.unrealized_pnl_pct,
+                    hold_duration_hours=0.0,
+                    reason="bracket_fill",
+                    urgency="normal",
+                    exit_mechanism="bracket_fill",
+                )
+            )
+
+        self._cycle_exits_triggered += len(closed_tickers)
 
     def _process_entry(self, signal: PendingSignal, context: MarketContext) -> None:
         """Evaluate and execute entry for a signal."""
@@ -414,11 +449,7 @@ class ExecutionEngine:
         self._cycle_entries_triggered = 0
         self._cycle_exits_triggered = 0
 
-        positions_before_sync = self.positions.count()
-        self.positions.sync_from_broker()
-        positions_after_sync = self.positions.count()
-        bracket_exits = max(0, positions_before_sync - positions_after_sync)
-        self._cycle_exits_triggered += bracket_exits
+        self._sync_and_emit_bracket_exits()
 
         for position in self.positions.get_all():
             self._process_exit(position)
