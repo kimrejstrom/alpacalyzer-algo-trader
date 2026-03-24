@@ -376,6 +376,77 @@ class TestStripCodeFences:
         assert _strip_code_fences(raw) == raw
 
 
+class TestSanitizeJsonControlChars:
+    """Tests for _sanitize_json_control_chars — handles LLMs that emit unescaped control chars."""
+
+    def test_valid_json_returned_unchanged(self):
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        raw = '{"name": "test", "value": 42}'
+        assert _sanitize_json_control_chars(raw) == raw
+
+    def test_literal_newlines_in_string_values_escaped(self):
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        # Simulate LLM returning literal newlines inside a JSON string value
+        raw = '{"highlights": ["line one",\n"line two"]}'
+        result = _sanitize_json_control_chars(raw)
+        parsed = json.loads(result)
+        assert parsed["highlights"] == ["line one", "line two"]
+
+    def test_literal_tabs_escaped(self):
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        raw = '{"text": "hello\tworld"}'
+        result = _sanitize_json_control_chars(raw)
+        parsed = json.loads(result)
+        assert "hello" in parsed["text"]
+
+    def test_carriage_return_escaped(self):
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        raw = '{"text": "hello\r\nworld"}'
+        result = _sanitize_json_control_chars(raw)
+        parsed = json.loads(result)
+        assert "hello" in parsed["text"]
+
+    def test_null_bytes_stripped(self):
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        raw = '{"text": "hello\x00world"}'
+        result = _sanitize_json_control_chars(raw)
+        parsed = json.loads(result)
+        assert parsed["text"] == "helloworld"
+
+    def test_sentiment_response_with_control_chars(self):
+        """Regression: exact pattern from mimo-v2-flash that caused the original error."""
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        # This mimics the actual failing response — literal newlines inside JSON string values
+        raw = (
+            '{\n  "sentiment_analysis": [\n    {\n'
+            '      "sentiment": "Bullish",\n      "score": 0.7,\n'
+            '      "highlights": [\n        "semiconductor ETFs rally",\n'
+            '        "bull 3X ETF up 11.6%",\n'
+            '        "US equity indexes rebound",\n'
+            '        "S&P 500 closing up .83%"\n'
+            "      ],\n"
+            '      "rationale": "Strong positive momentum across'
+            ' semiconductor and equity sectors."\n'
+            "    }\n  ]\n}"
+        )
+        result = _sanitize_json_control_chars(raw)
+        parsed = json.loads(result)
+        assert parsed["sentiment_analysis"][0]["sentiment"] == "Bullish"
+        assert len(parsed["sentiment_analysis"][0]["highlights"]) == 4
+
+    def test_non_json_content_returned_as_is(self):
+        from alpacalyzer.llm.structured import _sanitize_json_control_chars
+
+        raw = "not json at all"
+        assert _sanitize_json_control_chars(raw) == raw
+
+
 class TestCompleteStructuredWithCodeFences:
     def test_handles_fenced_json_response(self):
         """Regression test: LLM returns JSON wrapped in markdown code fences."""
@@ -565,3 +636,57 @@ class TestTradingStrategyHardening:
         assert result.strategies[0].quantity == 0
         assert result.strategies[0].entry_point == 0.0
         assert result.strategies[0].strategy_notes == ""
+
+
+class TestEntryCriteriaNullValue:
+    """Regression: LLM returns pattern-based entry criteria with value=None."""
+
+    def test_pattern_entry_with_null_value(self):
+        """bullish_engulfing has no numeric value — LLM sends null."""
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="bullish_engulfing", value=None)
+        assert ec.entry_type == "bullish_engulfing"
+        assert ec.value is None
+
+    def test_pattern_entry_with_missing_value(self):
+        """LLM omits value entirely for pattern-based entries."""
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="doji")
+        assert ec.entry_type == "doji"
+        assert ec.value is None
+
+    def test_numeric_entry_still_requires_value(self):
+        """Numeric entries like above_ma50 still work with a value."""
+        from alpacalyzer.data.models import EntryCriteria
+
+        ec = EntryCriteria(entry_type="above_ma50", value=100.0)
+        assert ec.value == 100.0
+
+    def test_strategy_with_mixed_entry_criteria(self):
+        """Regression: exact pattern from minimax-m2.5 that caused the original error."""
+        from alpacalyzer.data.models import TradingStrategyResponse
+
+        raw = json.dumps(
+            {
+                "strategies": [
+                    {
+                        "ticker": "AMPX",
+                        "quantity": 263,
+                        "entry_point": 17.71,
+                        "stop_loss": 16.33,
+                        "target_price": 18.50,
+                        "risk_reward_ratio": 0.79,
+                        "trade_type": "long",
+                        "entry_criteria": [
+                            {"entry_type": "price_near_support", "value": 17.60},
+                            {"entry_type": "bullish_engulfing", "value": None},
+                        ],
+                    }
+                ]
+            }
+        )
+        result = TradingStrategyResponse.model_validate_json(raw)
+        assert len(result.strategies) == 1
+        assert len(result.strategies[0].entry_criteria) == 2

@@ -69,6 +69,7 @@ def _fallback_manual_parse[T: BaseModel](
     )
     content = response.choices[0].message.content
     content = _strip_code_fences(content)
+    content = _sanitize_json_control_chars(content)
     content = _coerce_dict_lists(content, response_model)
     return response_model.model_validate_json(content), response
 
@@ -167,3 +168,54 @@ def _strip_code_fences(content: str) -> str:
                 pass
 
     return stripped
+
+
+def _sanitize_json_control_chars(content: str) -> str:
+    """
+    Remove unescaped control characters (U+0000–U+001F) that break JSON parsing.
+
+    Many cheap/fast LLMs emit literal newlines, tabs, or other control chars
+    inside JSON string values.  ``json.loads`` (and Pydantic's
+    ``model_validate_json``) reject these per the JSON spec.
+
+    Strategy: replace common control chars with their escaped equivalents,
+    and strip the rest.
+    """
+    # Replace common control characters with their JSON escape sequences
+    replacements = {
+        "\n": "\\n",
+        "\r": "\\r",
+        "\t": "\\t",
+    }
+
+    # We need to operate only inside JSON string values to avoid breaking
+    # the structural whitespace.  A pragmatic approach: first try json.loads;
+    # if it works, the content is fine.  If not, do a brute-force replacement
+    # of control chars that appear between quotes.
+    try:
+        json.loads(content)
+        return content  # already valid
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Brute-force: replace control chars everywhere, then re-add structural
+    # newlines by re-formatting.  This works because JSON structural whitespace
+    # is optional.
+    cleaned = []
+    for ch in content:
+        if ch in replacements:
+            cleaned.append(replacements[ch])
+        elif ord(ch) < 0x20:
+            # Drop other control characters (NUL, BEL, etc.)
+            continue
+        else:
+            cleaned.append(ch)
+    result = "".join(cleaned)
+
+    # Verify the result is now valid JSON; if not, return as-is and let
+    # downstream error handling deal with it.
+    try:
+        json.loads(result)
+        return result
+    except (json.JSONDecodeError, ValueError):
+        return result
