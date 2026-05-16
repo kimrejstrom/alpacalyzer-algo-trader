@@ -45,12 +45,11 @@ class LLMClient:
         messages: list[dict],
         response_model: type[T],
         tier: LLMTier = LLMTier.STANDARD,
-        use_response_healing: bool = True,
         caller: str = "unknown",
     ) -> T:
         model = get_model_for_tier(tier)
         start = time.monotonic()
-        result, response = complete_structured(self.client, messages, response_model, model, use_response_healing)
+        result, response = complete_structured(self.client, messages, response_model, model)
         elapsed_ms = (time.monotonic() - start) * 1000
 
         usage = getattr(response, "usage", None)

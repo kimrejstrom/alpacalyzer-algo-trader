@@ -12,7 +12,7 @@ class LLMTier(Enum):
 
 def get_model_for_tier(tier: LLMTier) -> str:
     return {
-        LLMTier.FAST: os.getenv("LLM_MODEL_FAST", "meta-llama/llama-3.2-3b-instruct"),
-        LLMTier.STANDARD: os.getenv("LLM_MODEL_STANDARD", "anthropic/claude-3.5-sonnet"),
-        LLMTier.DEEP: os.getenv("LLM_MODEL_DEEP", "anthropic/claude-3.5-sonnet"),
+        LLMTier.FAST: os.getenv("LLM_MODEL_FAST", "deepseek/deepseek-v4-flash"),
+        LLMTier.STANDARD: os.getenv("LLM_MODEL_STANDARD", "deepseek/deepseek-v4-flash"),
+        LLMTier.DEEP: os.getenv("LLM_MODEL_DEEP", "deepseek/deepseek-v4-pro"),
     }[tier]
