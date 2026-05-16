@@ -87,7 +87,6 @@ def call_hedge_fund_agents(
             selected_analysts = None
         if agents == "TRADE":
             selected_analysts = [
-                # "web_agent",
                 "technical_analyst",
                 "sentiment_agent",
                 "quant_agent",

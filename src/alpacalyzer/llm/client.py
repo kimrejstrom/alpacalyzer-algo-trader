@@ -25,7 +25,7 @@ class LLMClient:
     ):
         self.client = OpenAI(
             base_url=base_url or os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
-            api_key=api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY"),
+            api_key=api_key or os.getenv("LLM_API_KEY"),
             default_headers=default_headers or {"X-Title": "Alpacalyzer"},
         )
 

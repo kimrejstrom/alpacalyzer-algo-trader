@@ -10,12 +10,6 @@ class TestLLMClient:
         client = LLMClient(base_url="https://custom.api.com/v1", api_key="test-key")
         assert str(client.client.base_url) == "https://custom.api.com/v1/"
 
-    def test_init_fallback_to_openai_api_key(self):
-        with patch.dict("os.environ", {"LLM_API_KEY": ""}, clear=False):
-            with patch.dict("os.environ", {"OPENAI_API_KEY": "fallback-key"}, clear=False):
-                client = LLMClient()
-                assert client.client.api_key == "fallback-key"
-
     def test_complete_returns_content(self):
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Hello, World!"
